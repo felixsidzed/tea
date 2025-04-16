@@ -1,5 +1,7 @@
 import ctypes
 
+Type2Size = [4, 4, 8, 1, 8, 5, 6]
+
 
 class Type:
 	INT = 0
@@ -12,12 +14,19 @@ class Type:
 
 	@staticmethod
 	# typeIndex, isPointer, isConstant
-	def get(name: str) -> list[int, bool, bool, bool]:
-		return [
+	def get(name: str) -> tuple[int, bool, bool, bool]:
+		return (
 			getattr(Type, name.upper().replace("*", "").replace("const ", ""), None),
 			name.find("*") != -1,
 			name.find("const") != -1,
-		]
+		)
+
+	@staticmethod
+	def size(T: list[int, bool, bool, bool], is64bit: bool = True) -> int:
+		if T[1]:
+			return 8 if is64bit else 4
+		else:
+			return Type2Size[T[0]]
 
 
 index2C = [ctypes.c_int, ctypes.c_float, ctypes.c_double,
@@ -120,3 +129,21 @@ class DivNode(ExpressionNode):
 		super().__init__(line, column)
 		self.left = left
 		self.right = right
+
+
+class VariableNode(Node):
+	def __init__(self, name: str, dataType: int, value, line: int, column: int):
+		self.name = name
+		self.dataType = dataType
+		self.value = value
+		super().__init__(line, column)
+
+
+class ExternNode(Node):
+	def __init__(self, storage: int, name: str, returnType: list[int, bool, bool, bool], args: dict[str: int], convention: str, line: int, column: int):
+		self.storage = storage
+		self.name = name
+		self.returnType = returnType
+		self.args = args
+		self.convention = convention
+		super().__init__(line, column)

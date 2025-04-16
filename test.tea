@@ -1,3 +1,7 @@
-public func main(string* argv, int argc) -> int
-	return GetTickCount();
+private __fastcall func Beep(int dwFreq, int dwDuration) -> bool;
+
+public func main() -> int
+	Beep(750, 300);
+
+	return 0;
 end
