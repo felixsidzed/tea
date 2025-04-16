@@ -1,0 +1,120 @@
+import lark
+import pathlib
+
+from parser.nodes import *
+
+class AST(lark.Transformer):
+	def module(self, children):
+		return ModuleNode(1, 1, children)
+
+	def STRING(self, token: lark.Token):
+		return lark.Token("STRING", token.value[1:-1].encode("utf-8").decode("unicode_escape"), line=token.line, column=token.column)
+	
+	def INT(self, token: lark.Token):
+		return lark.Token("INT", int(token.value, 0), line=token.line, column=token.column)
+	
+	def FLOAT(self, token: lark.Token):
+		return lark.Token("FLOAT", float(token.value), line=token.line, column=token.column)
+	
+	def DOUBLE(self, token: lark.Token):
+		return lark.Token("DOUBLE", float(token.value), line=token.line, column=token.column)
+	
+	def IDENTF(self, token: lark.Token):
+		if token.value in ("true", "false"):
+			return lark.Token("BOOL", True if token.value == "true" else (False if token.value == "false" else token),
+					 line=token.line, column=token.column)
+		return token
+
+	def CHAR(self, token: lark.Token):
+		return lark.Token("CHAR", ord(token.value[1:-1].encode("utf-8").decode("unicode_escape")), line=token.line, column=token.column)
+	
+	def function(self, items: list[lark.Token | lark.Tree]):
+		storageType = items[0].value
+		name = items[1]
+		args = items[2].children
+		returnType = items[3]
+		body = items[4:]
+
+		return FunctionNode(
+			STORAGE2I[storageType],
+			name.value,
+			Type.get(returnType),
+			{arg.children[1].value: Type.get(arg.children[0].value) for arg in args},
+			body,
+			name.line,
+			name.column
+		)
+	
+	def using(self, items: list[lark.Token | lark.Tree]):
+		storage = items[0]
+		path = pathlib.Path(items[1].value)
+		
+		return UsingNode(
+			STORAGE2I[storage.value],
+			path.name,
+			path.resolve(),
+			storage.line,
+			storage.column,
+		)
+	
+	def direct_call(self, items: list[lark.Token | lark.Tree]):
+		name = items[0]
+		args = items[1] if len(items) > 1 else []
+
+		return CallNode(
+			name.value,
+			[arg.children[0] for arg in args.children],
+			None,
+			name.line,
+			name.column
+		)
+
+	def scoped_call(self, items: list[lark.Token | lark.Tree]):
+		scope, args = items
+		*scope, name = [tok for tok in scope.children if isinstance(tok, lark.Token)]
+
+		return CallNode(
+			name.value,
+			[arg.children[0] for arg in args.children],
+			[tok.value for tok in scope],
+			name.line,
+			name.column
+		)
+	
+	def add(self, items: list[lark.Token | lark.Tree]):
+		left, right = items
+		return AddNode(left.line, left.column, left, right)
+
+	def sub(self, items: list[lark.Token | lark.Tree]):
+		left, right = items
+		return SubNode(left.line, left.column, left, right)
+
+	def mul(self, items: list[lark.Token | lark.Tree]):
+		left, right = items
+		return MulNode(left.line, left.column, left, right)
+
+	def div(self, items: list[lark.Token | lark.Tree]):
+		left, right = items
+		return DivNode(left.line, left.column, left, right)
+	
+	def rreturn(self, items: list[lark.Token | lark.Tree]):
+		value = None
+		try:
+			value = items[0]
+			return ReturnNode(value.value, Type.get(value.type), value.line, value.column)
+		except IndexError:
+			return ReturnNode(None, Type.VOID, value.line, value.column)
+		except AttributeError:
+			return ReturnNode(value, None, value.line, value.column)
+
+
+class Parser:
+	def __init__(self) -> None:
+		grammar: str = ""
+		with open("grammar.lark" if __name__ == "__main__" else "parser/grammar.lark", "r") as f:
+			grammar = f.read()
+			f.close()
+		self.lark = lark.Lark(grammar, propagate_positions=True, start="module")
+
+	def parse(self, src: str) -> ModuleNode:
+		return AST().transform(self.lark.parse(src))
