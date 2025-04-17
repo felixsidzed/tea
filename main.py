@@ -3,7 +3,8 @@ from codegen import CodeGen
 from linker import windows as linker
 
 LIB = {
-	"kernel32": "\"C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.22621.0\\um\\x64\\kernel32.lib\""
+	"kernel32": "\"C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.22621.0\\um\\x64\\kernel32.lib\"",
+	"user32": "\"C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.22621.0\\um\\x64\\user32.lib\""
 }
 
 def printBytes(data: bytearray):
@@ -40,11 +41,11 @@ def main() -> None:
 		f.write(coff)
 		f.close()
 
-	linker.link("build/test.o", LIB["kernel32"], outputPath="build/test.exe")
-	if len(errors) > 0:
-		for error in errors:
-			print(error)
-		exit(1)
+	#linker.link("build/test.o", LIB["kernel32"], LIB["user32"], outputPath="build/test.exe", verbose=True)
+	#if len(errors) > 0:
+	#	for error in errors:
+	#		print(error)
+	#	exit(1)
 
 if __name__ == "__main__":
 	main()

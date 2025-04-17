@@ -7,6 +7,8 @@ from lark import Token as LarkToken
 ENDIAN = sys.byteorder
 STORAGE_PRIVATE = STORAGE2I["private"]
 STORAGE_PUBLIC = STORAGE2I["public"]
+HEADERSIZE = 100 # sizeof(COFFFileHeader) + sizeof(SectionHeader) * 2
+DEFAULT_SYMBOL_DATA = (0, 0, 0x20, 2, 0)
 
 
 def defaultPanic(fmt, *args):
@@ -30,6 +32,9 @@ class CodeGen:
 		self.symbols = {}
 		self.subroutines = {}
 		self.reloc = []
+		self.strings = []
+		self.data = bytearray()
+		self.dataReloc = []
 		self.stringTable = bytearray(b"\x00\x00\x00\x00")
 
 		self.__allocacache = None
@@ -42,9 +47,16 @@ class CodeGen:
 		textHeaderOffset = len(self.output)
 		self.emit(b"\x00" * 40)
 
+		dataHeaderOffset = len(self.output)
+		self.emit(b"\x00" * 40)
+
 		codeOffset = len(self.output)
 		self.emitCode(root)
 		codeSize = len(self.output) - codeOffset
+
+		dataOffset = len(self.output)
+		dataSize = len(self.data)
+		self.emit(self.data)
 
 		relocOffset = len(self.output)
 		self.emit(b"\x00" * (10 * len(self.reloc)))
@@ -65,6 +77,16 @@ class CodeGen:
 			symbolIndices[name] = symbolCount
 			symbolCount += 1
 
+		# TODO: i dont fucking know what im doing
+		# also this seems to break other symbols
+		#for at, offset in self.dataReloc:
+		#	self.reloc.append({
+		#		"offset": at,
+		#		"symbol": ".data",
+		#		"type": 4,
+		#		"symbolData": (0, 2, 0, 3, 0)
+		#	})
+
 		for reloc in self.reloc:
 			if reloc["symbol"] not in symbolIndices:
 				name = reloc["symbol"]
@@ -76,7 +98,7 @@ class CodeGen:
 					bname = struct.pack("@II", 0, offset)
 
 				self.emit(bname)
-				self.emit(struct.pack("@LhHBB", 0, 0, 0x20, 2, 0))
+				self.emit(struct.pack("@LhHBB", *reloc.get("symbolData", DEFAULT_SYMBOL_DATA)))
 				symbolIndices[name] = symbolCount
 				symbolCount += 1
 
@@ -87,17 +109,18 @@ class CodeGen:
 		for i, reloc in enumerate(self.reloc, 1):
 			sym = symbolIndices.get(reloc["symbol"], None)
 			if sym is None:
-				raise ValueError(f"invalid symbol {reloc["symbol"]}")
+				return self.panic("undefined symbol %s", reloc["symbol"])
 
-			self.output[relocOffset + 10 * (i - 1):relocOffset + 10 * i] = struct.pack("@IIH",
-				reloc["offset"] - 60,
+			entry = relocOffset + (i - 1)  * 10
+			self.output[entry:entry + 10] = struct.pack("@IIH",
+				reloc["offset"] - HEADERSIZE,
 				sym,
 				reloc["type"],
 			)
 
 		self.output[COFFHeaderOffset:COFFHeaderOffset + 20] = struct.pack("@HHLLLHH",
 			0x8664 if self.emit64 else 0x14C, # machine
-			1,                                # number of sections
+			2,                                # number of sections
 			int(datetime.now().timestamp()),  # timestamp
 			symbolTableOffset,                # ptr to symbol table
 			symbolCount,                      # number of symbols
@@ -106,7 +129,7 @@ class CodeGen:
 		)
 
 		self.output[textHeaderOffset:textHeaderOffset + 40] = struct.pack("@8sLLLLLLHHL",
-			b".text\x00\x00\x00",  # name
+			b".text\x00\x00\x00", # name
 			codeSize,             # virtual size
 			0x0000,               # virtual addr
 			codeSize,             # size of raw data
@@ -118,6 +141,19 @@ class CodeGen:
 			0x60000020            # characteristics
 		)
 
+		self.output[dataHeaderOffset:dataHeaderOffset + 40] = struct.pack("@8sLLLLLLHHL",
+			b".data\x00\x00\x00", # name
+			dataSize,             # virtual size
+			0x0000,               # virtual addr
+			dataSize,             # size of raw data
+			dataOffset,           # ptr to raw data
+			0,					  # ptr to relocations
+			0,					  # ptr to line numbers
+			0,					  # number of relocations
+			0,					  # number of line numbers
+			0xC0000040			  # characteristics
+		)
+
 		del self.symbols, self.subroutines, self.reloc, self.stringTable
 
 		# this should never happen
@@ -125,11 +161,13 @@ class CodeGen:
 			del self.activeFuncArgs
 		if hasattr(self, "activeLocals"):
 			del self.activeLocals
+		# this could tho
+		if hasattr(self, "dataOffsets"):
+			del self.dataOffsets
 
 		return self.output
 
 	def emitCode(self, root: ModuleNode):
-		HEADERSIZE = len(self.output)
 		for node in root.body:
 			if isinstance(node, FunctionNode):
 				self.subroutines[node.name] = len(self.output) - HEADERSIZE
@@ -209,11 +247,11 @@ class CodeGen:
 		if self.emit64:
 			self.emit(b"\x48")
 		self.emit(b)
-	def emitImm(self, value: int, **kw) -> None:
+	def emitImm(self, value: int, signed: bool = True) -> None:
 		self.output.extend(value.to_bytes(
 			8 if self.emit64 else 4,
 			ENDIAN,
-			**kw
+			signed=signed,
 		))
 
 	def emitExpr(self, node: ExpressionNode | LarkToken, target: str = "rax") -> None:
@@ -256,6 +294,22 @@ class CodeGen:
 					self.emit(localOffset.to_bytes(1, ENDIAN, signed=True))
 				else:
 					self.emit(localOffset.to_bytes(4, ENDIAN, signed=True))
+			elif node.type == "STRING":
+				raise NotImplementedError("Strings are not supported yet! (codegen.py line 80)")
+				if not hasattr(self, "dataOffsets"):
+					self.dataOffsets = {}
+
+				if node.value not in self.dataOffsets:
+					offset = len(self.data)
+					encoded = node.value.encode() + b"\x00"
+					self.data.extend(encoded)
+					self.dataOffsets[node.value] = offset
+
+				dataOffset = self.dataOffsets[node.value]
+
+				self.emitOp(b"\x8d\x05")
+				self.dataReloc.append((len(self.output), dataOffset))
+				self.emit(b"\x00\x00\x00\x00")
 			else:
 				return self.panic(f"[ERR] unsupported constant type in expression '{node.type}'")
 		else:
@@ -277,6 +331,7 @@ class CodeGen:
 					return self.panic(f"[ERR] unsupported argument type '{type(arg)}'")
 
 			for arg in reversed(node.args[4:]):
+				if cleanup is None: cleanup = 0
 				if type(arg) == LarkToken:
 					self.emitExpr(arg)
 					self.emit(b"\x50")
@@ -299,7 +354,7 @@ class CodeGen:
 		funcName = "::".join(node.scope + [node.name])
 		self.emit(b"\xe8")
 		if funcName in self.subroutines:
-			self.emit((-(len(self.output) - 60 + 4)).to_bytes(4, ENDIAN, signed=True))
+			self.emit((-(len(self.output) - HEADERSIZE + 4)).to_bytes(4, ENDIAN, signed=True))
 		else:
 			callee = len(self.output)
 			self.emit(b"\x00\x00\x00\x00")
