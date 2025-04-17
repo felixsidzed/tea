@@ -1,9 +1,10 @@
 // Root Elements
-module: (using | function | extern_def)*
+module: (using | function | function2)*
 
 function: STORAGE_TYPE "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
+function2: STORAGE_TYPE CALLING_CONV "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
 
-extern_def: STORAGE_TYPE CALLING_CONV "func" IDENTF "(" typed_args ")" "->" TYPE ";" -> extern_func_def
+//extern_def: STORAGE_TYPE CALLING_CONV "func" IDENTF "(" typed_args ")" "->" TYPE ";" -> extern_func_def
 
 // Arguments
 typed_args: typed_arg ("," typed_arg)*

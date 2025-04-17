@@ -3,7 +3,7 @@ import pathlib
 
 from parser.nodes import *
 
-
+_functioncache = {}
 class AST(lark.Transformer):
 	def module(self, children):
 		return ModuleNode(1, 1, children)
@@ -36,8 +36,9 @@ class AST(lark.Transformer):
 		returnType = items[3]
 		body = items[4:]
 
-		return FunctionNode(
+		node =  FunctionNode(
 			STORAGE2I[storageType],
+			"__cdecl",
 			name.value,
 			Type.get(returnType),
 			{arg.children[1].value: Type.get(arg.children[0].value) for arg in args},
@@ -45,6 +46,29 @@ class AST(lark.Transformer):
 			name.line,
 			name.column
 		)
+		_functioncache[name.value] = node
+		return node
+	
+	def function2(self, items: list[lark.Token | lark.Tree]):
+		storageType = items[0].value
+		conv = items[1].value
+		name = items[2]
+		args = items[3].children
+		returnType = items[4]
+		body = items[5:]
+
+		node = FunctionNode(
+			STORAGE2I[storageType],
+			conv,
+			name.value,
+			Type.get(returnType),
+			{arg.children[1].value: Type.get(arg.children[0].value) for arg in args},
+			body,
+			name.line,
+			name.column
+		)
+		_functioncache[name.value] = node
+		return node
 
 	def using(self, items: list[lark.Token | lark.Tree]):
 		storage = items[0]
@@ -66,6 +90,7 @@ class AST(lark.Transformer):
 			name.value,
 			[arg.children[0] for arg in args.children],
 			None,
+			_functioncache[name.value],
 			name.line,
 			name.column
 		)
@@ -77,6 +102,7 @@ class AST(lark.Transformer):
 			name.value,
 			[arg.children[0] for arg in args.children],
 			[tok.value for tok in scope],
+			_functioncache[name.value],
 			name.line,
 			name.column
 		)

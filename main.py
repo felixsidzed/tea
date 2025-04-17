@@ -30,8 +30,9 @@ def main() -> None:
 
 	coff = codegen.generate(module)
 	if len(errors) > 0:
-		for error in errors:
-			print(error)
+		print(f"{len(errors)} error(s):")
+		for i, error in enumerate(errors, 1):
+			print(f"({i}) {error}")
 		exit(1)
 	
 	print(f"=== [module 'test'] ({len(coff)} bytes) ===")

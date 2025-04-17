@@ -1,406 +1,212 @@
 import sys
-import struct
-from parser.nodes import *
-from datetime import datetime
+
 from lark import Token as LarkToken
 
-ENDIAN = sys.byteorder
-STORAGE_PRIVATE = STORAGE2I["private"]
-STORAGE_PUBLIC = STORAGE2I["public"]
-HEADERSIZE = 100 # sizeof(COFFFileHeader) + sizeof(SectionHeader) * 2
-DEFAULT_SYMBOL_DATA = (0, 0, 0x20, 2, 0)
+from parser.nodes import *
+import codegen.pygen as pygen
+
+ENDIAN			= sys.byteorder
+STORAGE_PRIVATE	= STORAGE2I["private"]
+STORAGE_PUBLIC	= STORAGE2I["public"]
 
 
 def defaultPanic(fmt, *args):
 	print(fmt % args)
 	exit(1)
 
-EXPR2BYTES = {
-	AddNode: (b"\x01\xd8",),
-	SubNode: (b"\x29\xd8",),
-	MulNode: (b"\x0f\xaf\xc3",),
-	DivNode: (b"\x31\xd2", b"\xf7\xfb"),
-}
-
 class CodeGen:
-	def __init__(self, emit64: bool = True, panic=defaultPanic) -> None:
-		self.emit64 = emit64
+	def __init__(self, is64Bit: bool = True, panic=defaultPanic) -> None:
+		self.is64Bit = is64Bit
 		self.panic = panic
 
-	def generate(self, root: ModuleNode) -> bytearray:
-		self.output = bytearray()
-		self.symbols = {}
-		self.subroutines = {}
-		self.reloc = []
-		self.strings = []
+	def generate(self, root: ModuleNode) -> bytes:
+		gen: pygen.COFFGenerator = pygen.COFFGenerator(self.is64Bit)
+		self.gen = gen
+
 		self.data = bytearray()
-		self.dataReloc = []
-		self.stringTable = bytearray(b"\x00\x00\x00\x00")
+		self.rdata = bytearray()
 
-		self.__allocacache = None
-		self.__freescache = None
-		self.__externed = {}
+		text: pygen.COFFSection = self.gen.section(".text", 0x60000020)
+		self.emit = text.emit
+		self.emitInsn = (lambda x: text.emit(b"\x48" + x)) if self.is64Bit else text.emit
+		self.emitImm = lambda x, y=None, z=False: self.emit(x.to_bytes((8 if self.is64Bit else 4) if y is None else y, ENDIAN, signed=z))
+		self.text = text
 
-		COFFHeaderOffset = len(self.output)
-		self.emit(b"\x00" * 20)
+		self._emitCode(root)
 
-		textHeaderOffset = len(self.output)
-		self.emit(b"\x00" * 40)
-
-		dataHeaderOffset = len(self.output)
-		self.emit(b"\x00" * 40)
-
-		codeOffset = len(self.output)
-		self.emitCode(root)
-		codeSize = len(self.output) - codeOffset
-
-		dataOffset = len(self.output)
-		dataSize = len(self.data)
-		self.emit(self.data)
-
-		relocOffset = len(self.output)
-		self.emit(b"\x00" * (10 * len(self.reloc)))
-
-		symbolCount = 0
-		symbolIndices = {}
-		symbolTableOffset = len(self.output)
-		for name, sym in self.symbols.items():
-			if len(name) <= 8:
-				bname = name.encode().ljust(8, b"\x00")
-			else:
-				offset = len(self.stringTable)
-				self.stringTable += name.encode() + b"\x00"
-				bname = struct.pack("@II", 0, offset)
-
-			self.emit(bname)
-			self.emit(struct.pack("@LhHBB", sym["val"], sym["sec"], sym["ty"], sym["scl"], sym["nx"]))
-			symbolIndices[name] = symbolCount
-			symbolCount += 1
-
-		# TODO: i dont fucking know what im doing
-		# also this seems to break other symbols
-		#for at, offset in self.dataReloc:
-		#	self.reloc.append({
-		#		"offset": at,
-		#		"symbol": ".data",
-		#		"type": 4,
-		#		"symbolData": (0, 2, 0, 3, 0)
-		#	})
-
-		for reloc in self.reloc:
-			if reloc["symbol"] not in symbolIndices:
-				name = reloc["symbol"]
-				if len(name) <= 8:
-					bname = name.encode().ljust(8, b"\x00")
-				else:
-					offset = len(self.stringTable)
-					self.stringTable += name.encode() + b"\x00"
-					bname = struct.pack("@II", 0, offset)
-
-				self.emit(bname)
-				self.emit(struct.pack("@LhHBB", *reloc.get("symbolData", DEFAULT_SYMBOL_DATA)))
-				symbolIndices[name] = symbolCount
-				symbolCount += 1
-
-		stringTableSize = len(self.stringTable)
-		self.stringTable[0:4] = struct.pack("@I", stringTableSize)
-		self.output += self.stringTable
-
-		for i, reloc in enumerate(self.reloc, 1):
-			sym = symbolIndices.get(reloc["symbol"], None)
-			if sym is None:
-				return self.panic("undefined symbol %s", reloc["symbol"])
-
-			entry = relocOffset + (i - 1)  * 10
-			self.output[entry:entry + 10] = struct.pack("@IIH",
-				reloc["offset"] - HEADERSIZE,
-				sym,
-				reloc["type"],
-			)
-
-		self.output[COFFHeaderOffset:COFFHeaderOffset + 20] = struct.pack("@HHLLLHH",
-			0x8664 if self.emit64 else 0x14C, # machine
-			2,                                # number of sections
-			int(datetime.now().timestamp()),  # timestamp
-			symbolTableOffset,                # ptr to symbol table
-			symbolCount,                      # number of symbols
-			0,                                # size of optional header
-			0x0000                            # characteristics
-		)
-
-		self.output[textHeaderOffset:textHeaderOffset + 40] = struct.pack("@8sLLLLLLHHL",
-			b".text\x00\x00\x00", # name
-			codeSize,             # virtual size
-			0x0000,               # virtual addr
-			codeSize,             # size of raw data
-			codeOffset,           # ptr to raw data
-			relocOffset,		  # ptr to relocations
-			0,	  				  # ptr to line numbers
-			len(self.reloc),	  # number of relocations
-			0,					  # number of line numbers
-			0x60000020            # characteristics
-		)
-
-		self.output[dataHeaderOffset:dataHeaderOffset + 40] = struct.pack("@8sLLLLLLHHL",
-			b".data\x00\x00\x00", # name
-			dataSize,             # virtual size
-			0x0000,               # virtual addr
-			dataSize,             # size of raw data
-			dataOffset,           # ptr to raw data
-			0,					  # ptr to relocations
-			0,					  # ptr to line numbers
-			0,					  # number of relocations
-			0,					  # number of line numbers
-			0xC0000040			  # characteristics
-		)
-
-		del self.symbols, self.subroutines, self.reloc, self.stringTable
-
-		# this should never happen
-		if hasattr(self, "activeFuncArgs"):
-			del self.activeFuncArgs
-		if hasattr(self, "activeLocals"):
-			del self.activeLocals
-		# this could tho
-		if hasattr(self, "dataOffsets"):
-			del self.dataOffsets
-
-		return self.output
-
-	def emitCode(self, root: ModuleNode):
-		for node in root.body:
-			if isinstance(node, FunctionNode):
-				self.subroutines[node.name] = len(self.output) - HEADERSIZE
-				if node.storage == STORAGE_PUBLIC:
-					self.symbols[node.name] = {
-						"val": len(self.output) - HEADERSIZE,
-						"sec": 1,
-						"ty": 0x20,
-						"scl": 2,
-						"nx": 0
-					}
-				self.emitFunction(node)
-
-			elif isinstance(node, UsingNode):
-				# TODO
-				continue
-
-			elif isinstance(node, ExternNode):
-				self.__externed[node.name] = {
-					"storage": node.storage,
-					"returnType": node.returnType,
-					"args": node.args,
-					"conv": node.convention
-				}
-
-			else:
-				return self.panic(f"[ERR] invalid root node '{type(node)}'")
-
-	def emitFunction(self, fn: FunctionNode) -> None:
-		self.emit(b"\x55")
-		self.emitOp(b"\x89\xe5")
-
-		self.activeFuncArgs = tuple(fn.args.keys())
-		self.activeLocals = {}
-		localOffset = 0
-
-		for node in fn.body:
-			if type(node) == ReturnNode:
-				if isinstance(node.value, ExpressionNode) or type(node.value) == CallNode or type(node.value) == LarkToken:
-					self.emitExpr(node.value)
-
-				elif not isinstance(node.value, Node):
-					self.emitOp(b"\xb8")
-					self.emitImm(node.value)
-
-				else:
-					self.panic(f"[ERR] invalid return value node '{type(node)}'")
-
-				self.frees(-localOffset)
-				del self.activeFuncArgs, self.activeLocals
-				self.emit(b"\x5d\xc3")
-				return # maybe this isnt necessary
+		if len(self.rdata) > 0:
+			rdata: pygen.COFFSection = self.gen.section(".rdata", 0x40000040)
+			rdata.data = self.rdata
+		if len(self.data) > 0:
+			data: pygen.COFFSection = self.gen.section(".data", 0xC0000040)
+			data.data = self.data
 		
+		del self.emit, self.emitImm
+		return gen.emit()
+
+	def _emitCode(self, root: ModuleNode) -> None:
+		self._subroutines = {}
+
+		for node in root.body:
+			if type(node) == FunctionNode:
+				self._emitFunction(node)
+
+			else:
+				self.panic("[ERR] invalid root node '%s'", type(node).__name__)
+
+		del self._subroutines
+
+	def _emitFunction(self, root: FunctionNode):
+		self._subroutines[root.name] = len(self.text.data)
+		if root.storage == STORAGE_PUBLIC:
+			self.gen.symbol(root.name, len(self.text.data), 1, 0x20)
+
+		self.emit(b"\x55")				# push rbp/ebp
+		self.emitInsn(b"\x89\xE5")		# mov  rbp/ebp, rsp/esp
+
+		self._curFunc		= root
+		self._arguments		= tuple(root.args.keys())
+		self._locals		= {}
+		self._localOffset	= 0
+
+		for node in root.body:
+			if type(node) == ReturnNode:
+				self._emitExpression(node.value)
+				self.freea(self._localOffset)
+				self.emit(b"\x5D\xC3")	# pop rbp
+										# ret
+				del self._curFunc, self._arguments, self._locals, self._localOffset
+				return
+			
+			elif type(node) == CallNode:
+				self._emitCall(node)
+
 			elif type(node) == VariableNode:
-				size = Type.size(node.dataType)
-				alignedSize = self.alloca(size)
-				localOffset -= alignedSize
+				size: int = Type.size(node.dataType, self.is64Bit)
+				aligned: int = self.alloca(size)
+				self._localOffset += aligned
+				self._locals[node.name] = self._localOffset
 
 				if node.value is not None:
-					self.emitExpr(node.value)
-					self.emitOp(b"\x89\x45")
-					if localOffset <= 0x7F:
-						self.emit(localOffset.to_bytes(1, ENDIAN, signed=True))
+					self._emitExpression(node.value)
+					self.emitInsn(b"\x89\x85")	# mov [rbp + imm32], rax
+					self.emitImm(-self._localOffset, 4, True)
+
+			else:
+				self.panic("[ERR] unsupported node '%s' in function body", type(node).__name__)
+
+	def _emitExpression(self, expr: ExpressionNode | LarkToken, target: int = 0):
+		if isinstance(expr, ExpressionNode):
+			if isinstance(expr, AddNode):
+				self._emitExpression(expr.left, 0)
+				self._emitExpression(expr.right, 1)
+				self.emitInsn(b"\x01\xD8")		# add rax/eax, rbx/ebx
+
+			elif isinstance(expr, SubNode):
+				self._emitExpression(expr.left, 0)
+				self._emitExpression(expr.right, 1)
+				self.emitInsn(b"\x29\xD8")		# sub rax/eax, rbx/ebx
+
+			elif isinstance(expr, MulNode):
+				self._emitExpression(expr.left, 0)
+				self._emitExpression(expr.right, 1)
+				self.emitInsn(b"\x0F\xAF\xC3")	# imul rax/eax, rbx/ebx
+
+			elif isinstance(expr, DivNode):
+				self._emitExpression(expr.left)
+				self._emitExpression(expr.right)
+				self.emitInsn(b"\x99")			# cqo/cdq
+				self.emitInsn(b"\xF7\xFB")		# idiv rbx/ebx
+
+			else:
+				self.panic("[ERR] unsupported expression node '%s'", type(expr).__name__)
+		
+		elif type(expr) == CallNode:
+			self._emitCall(expr)
+			if target == 1:
+				self.emitInsn(b"\x89\xc3")
+		
+		elif type(expr) == LarkToken:
+			if expr.type == "INT":
+				if target == 0:
+					self.emitInsn(b"\xB8")		# mov rax, imm32/imm64
+				elif target == 1:
+					self.emitInsn(b"\xBB")		# mov rbx, imm32/imm64
+				else:
+					self.panic("INTRN_INVALID_EXPR_TARGET")
+				self.emitImm(expr.value)
+
+			elif expr.type == "IDENTF" and expr.value in self._arguments:
+				if self._curFunc.conv == "__cdecl":
+					index = (self._arguments.index(expr.value) + 2) * (8 if self.is64Bit else 4)
+					if target == 0:
+						self.emitInsn(b"\x8B\x45")	# mov rax, [rbp + imm8/imm32]
+					elif target == 1:
+						self.emitInsn(b"\x8B\x5D")	# mov rbx, [rbp + imm8/imm32]
 					else:
-						self.emit(localOffset.to_bytes(4, ENDIAN, signed=True))
-				self.activeLocals[node.name] = localOffset
+						self.panic("INTRN_INVALID_EXPR_TARGET")
+					if index <= 0x7F:
+						self.emitImm(index, 1)
+					else:
+						self.emitImm(index, 4)
+				else:
+					self.panic("[ERR] unsupported calling convention '%s'", self._curFunc.conv)
 
-			elif type(node) == CallNode:
-				self.emitCall(node)
-			
+			elif expr.type == "IDENTF" and expr.value in self._locals:
+				index = -self._locals[expr.value]
+				# TODO: use ebp for 32bit
+				# TODO: imm32
+				self.emit(b"\x48\x8B\x45")			# mov rax, [rbp - imm8/imm32]
+				self.emitImm(index, 1, True)
+
 			else:
-				return self.panic(f"[ERR] unsupported node '{type(node)}'")
+				self.panic("[ERR] undefined symbol '%s' in expression", expr.value)
 
-	def emit(self, b: bytes) -> None:
-		self.output.extend(b)
-	def emitOp(self, b: bytes) -> None:
-		if self.emit64:
-			self.emit(b"\x48")
-		self.emit(b)
-	def emitImm(self, value: int, signed: bool = True) -> None:
-		self.output.extend(value.to_bytes(
-			8 if self.emit64 else 4,
-			ENDIAN,
-			signed=signed,
-		))
-
-	def emitExpr(self, node: ExpressionNode | LarkToken, target: str = "rax") -> None:
-		if type(node) == CallNode:
-			self.emitCall(node)
-
-		elif isinstance(node, ExpressionNode):
-			self.emitExpr(node.left)
-			self.emitExpr(node.right, "rbx")
-
-			for insn in EXPR2BYTES[type(node)]:
-				self.emitOp(insn)
-
-		elif type(node) == LarkToken:
-			if node.type == "INT":
-				if target == "rax":
-					self.emitOp(b"\xb8")
-				elif target == "rbx":
-					self.emitOp(b"\xbb")
-				else:
-					return self.panic(f"[ERR] unsupported register target '{target}'")
-				self.emitImm(node.value)
-
-			elif node.type == "IDENTF" and node.value in self.activeFuncArgs:
-				argIndex = self.activeFuncArgs.index(node.value)
-				offset = 16 + argIndex * (8 if self.emit64 else 4)
-
-				if target == "rax":
-					self.emitOp(b"\x8b\x45")
-				elif target == "rbx":
-					self.emitOp(b"\x8b\x5d")
-				else:
-					return self.panic(f"ERR_INTERNAL_INVALID_EXPR_REG")
-
-				self.emit(offset.to_bytes(1, ENDIAN))
-			elif node.type == "IDENTF" and node.value in self.activeLocals:
-				localOffset = self.activeLocals[node.value]
-				self.emitOp(b"\x8b\x45")
-				if localOffset <= 0x7F:
-					self.emit(localOffset.to_bytes(1, ENDIAN, signed=True))
-				else:
-					self.emit(localOffset.to_bytes(4, ENDIAN, signed=True))
-			elif node.type == "STRING":
-				raise NotImplementedError("Strings are not supported yet! (codegen.py line 80)")
-				if not hasattr(self, "dataOffsets"):
-					self.dataOffsets = {}
-
-				if node.value not in self.dataOffsets:
-					offset = len(self.data)
-					encoded = node.value.encode() + b"\x00"
-					self.data.extend(encoded)
-					self.dataOffsets[node.value] = offset
-
-				dataOffset = self.dataOffsets[node.value]
-
-				self.emitOp(b"\x8d\x05")
-				self.dataReloc.append((len(self.output), dataOffset))
-				self.emit(b"\x00\x00\x00\x00")
-			else:
-				return self.panic(f"[ERR] unsupported constant type in expression '{node.type}'")
 		else:
-			return self.panic(f"[ERR] invalid expression node '{type(node)}'")
-
-	def emitCall(self, node: CallNode) -> None:
-		conv = self.__externed.get(node.name, { "conv": "__cdecl" })["conv"]
-		cleanup = None
-
-		if conv == "__fastcall":
-			instructions = [b"\x48\x89\xc1", b"\x48\x89\xc2", b"\x49\x89\xc0", b"\x49\x89\xc1"]
-			stackArgs = 0
-
-			for i, arg in enumerate(reversed(node.args[:4])):
-				if type(arg) == LarkToken:
-					self.emitExpr(arg)
-					self.emit(instructions[i])
-				else:
-					return self.panic(f"[ERR] unsupported argument type '{type(arg)}'")
-
-			for arg in reversed(node.args[4:]):
-				if cleanup is None: cleanup = 0
-				if type(arg) == LarkToken:
-					self.emitExpr(arg)
-					self.emit(b"\x50")
-
-					size = 8 if self.emit64 else 4
-					stackArgs += size
-					cleanup += size
-				else:
-					return self.panic(f"[ERR] unsupported argument type '{type(arg)}'")
-		else:
-			cleanup = 0
+			self.panic("[ERR] unsupported node '%s' in expression", type(expr).__name__)
+		
+	def _emitCall(self, node: CallNode):
+		conv = node.function.conv if node.function is not None else "__fastcall"
+		cleanup = 0
+		if conv == "__cdecl":
 			for arg in reversed(node.args):
-				if type(arg) == LarkToken:
-					self.emitExpr(arg)
-					self.emit(b"\x50")
-					cleanup += 8 if self.emit64 else 4 # TODO: this is a guess
-				else:
-					return self.panic(f"[ERR] unsupported argument type '{type(arg)}'")
-
-		funcName = "::".join(node.scope + [node.name])
-		self.emit(b"\xe8")
-		if funcName in self.subroutines:
-			self.emit((-(len(self.output) - HEADERSIZE + 4)).to_bytes(4, ENDIAN, signed=True))
+				self._emitExpression(arg)
+				self.emit(b"\x50")
+				cleanup += 8 if self.is64Bit else 4
 		else:
-			callee = len(self.output)
-			self.emit(b"\x00\x00\x00\x00")
+			self.panic("[ERR] unsupported calling convention '%s'", conv)
 
-			self.reloc.append({
-				"symbol": funcName,
-				"offset": callee,
-				"type": 4,  # rel 32 bit
-			})
+		self.emit(b"\xE8")
+		if node.name in self._subroutines:
+			self.emit((-(len(self.text.data) + 4)).to_bytes(4, ENDIAN, signed=True))
 
-		if cleanup is not None:
-			self.frees(cleanup)
-
-	def alloca(self, size: int):
+		self.freea(cleanup)
+		
+	def alloca(self, size: int) -> int:
+		# TODO: it would be great to modify the previous alloca instead of emitting a new one
 		if size > 0:
-			align = 8 if self.emit64 else 4
-			aligned = (size + (align - 1)) & ~(align - 1)
+			align = (7 if self.is64Bit else 3)
+			aligned = (size + align) & ~align
 
-			if self.__allocacache:
-				offset, current = self.__allocacache
-				new_size = current + aligned
-				self.output[offset] = new_size.to_bytes(1, ENDIAN)[0]
-				self.__allocacache = (offset, new_size)
+			self.emitInsn(b"\x83\xEC")	# sub rsp, imm8/imm3
+			if aligned <= 0x10:
+				self.emitImm(aligned, 1)
 			else:
-				self.emitOp(b"\x83\xec")
-				offset = len(self.output)
-				self.emit(aligned.to_bytes(1, ENDIAN))
-				self.__allocacache = (offset, aligned)
+				self.emitImm(aligned, 4)
 
-			self.__freescache = None
 			return aligned
-	def frees(self, size: int):
+		return 0
+	def freea(self, size: int) -> int:
+		# TODO: it would be great to modify the previous freea instead of emitting a new one
 		if size > 0:
-			align = 8 if self.emit64 else 4
-			aligned = (size + (align - 1)) & ~(align - 1)
+			align = (7 if self.is64Bit else 3)
+			aligned = (size + align) & ~align
 
-			if self.__freescache:
-				offset, current = self.__freescache
-				new_size = current + aligned
-				self.output[offset] = new_size.to_bytes(1, ENDIAN)[0]
-				self.__freescache = (offset, new_size)
+			self.emitInsn(b"\x83\xC4")	# sub rsp, imm8/imm32
+			if aligned <= 0x10:
+				self.emitImm(aligned, 1)
 			else:
-				self.emitOp(b"\x83\xc4")
-				offset = len(self.output)
-				self.emit(aligned.to_bytes(1, ENDIAN))
-				self.__freescache = (offset, aligned)
+				self.emitImm(aligned, 4)
 
-			self.__allocacache = None
 			return aligned
+		return 0

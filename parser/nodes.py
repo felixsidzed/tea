@@ -67,8 +67,9 @@ class UsingNode(Node):
 
 
 class FunctionNode(Node):
-	def __init__(self, storage: int, name: str, returnType: list[int, bool, bool, bool], args: dict[str: int], body: list[Node], line: int, column: int):
+	def __init__(self, storage: int, conv: str, name: str, returnType: list[int, bool, bool, bool], args: dict[str: int], body: list[Node], line: int, column: int):
 		self.storage = storage
+		self.conv = conv
 		self.name = name
 		self.returnType = returnType
 		self.args = args
@@ -77,10 +78,11 @@ class FunctionNode(Node):
 
 
 class CallNode(Node):
-	def __init__(self, name: str, args: list, scope: list[str] | None, line: int, column: int):
+	def __init__(self, name: str, args: list, scope: list[str] | None, function: FunctionNode | None, line: int, column: int):
 		self.name = name
 		self.args = args
 		self.scope = scope or []
+		self.function = function
 		super().__init__(line, column)
 
 
