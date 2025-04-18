@@ -1,6 +1,9 @@
 {
 	"format": 1,
 	"functions": {
-		"print": "_io__print"
+		"print": "_io__print",
+
+		"writef": "_io__writef",
+		"readf": "_io__readf"
 	}
 }

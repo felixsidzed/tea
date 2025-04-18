@@ -1,11 +1,7 @@
 using "io";
 
-public func print(int a) -> int
-	return a * a;
-end
-
 public func main() -> int
-	io::print("Hello, World!\n");
+	io::print(io::readf("test.txt"));
 
-	return print(5);
+	return 0;
 end
