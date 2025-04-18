@@ -1,7 +1,11 @@
 private __fastcall func print(string msg) -> void;
 
+public __fastcall func square(int a) -> int
+	return a * a;
+end
+
 public func main() -> int
 	print("Hello, World!\n");
 
-	return 0;
+	return square(5);
 end

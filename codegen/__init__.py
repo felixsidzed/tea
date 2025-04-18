@@ -33,9 +33,9 @@ def defaultPanic(fmt, *args):
 	exit(1)
 
 def str2name(s, max_length=8):
-    s = ''.join(c for c in s if 32 <= ord(c) < 127)
-    s = re.sub(r'^[^a-zA-Z]+', '', s)
-    match = re.match(r'([a-zA-Z0-9]+)', s)
+    s = "".join(c for c in s if 32 <= ord(c) < 127)
+    s = re.sub(r"^[^a-zA-Z]+", "", s)
+    match = re.match(r"([a-zA-Z0-9]+)", s)
     if match:
         word = match.group(1)
         return "a" + word[:max_length]
@@ -261,11 +261,11 @@ class CodeGen:
 				self._emitExpression(arg)
 				self.emit(b"\x50")
 				cleanup += 8 if self.is64Bit else 4
-		elif conv == "__fastcall":
+		elif conv == "__fastcall" and self.is64Bit:
 			# TODO: 32-bit
 			for i, arg in enumerate(node.args[:4]):
 				self._emitExpression(arg)
-				self.emit(FASTCALL_OPCODES[i])
+				self.emit(FASTCALL_ARGSSET[i])
 			
 			for arg in enumerate(node.args[4:]):
 				self._emitExpression(arg)
@@ -279,7 +279,7 @@ class CodeGen:
 		info = self._subroutines.get(fqName, (-1, None))
 
 		if info[0] != -1 and type(info[1]) == FunctionNode:
-			self.emitImm(self._subroutines[fqName][0] - (len(self.text.data) + 4), None, True)
+			self.emitImm(self._subroutines[fqName][0] - (len(self.text.data) + 4), 4, True)
 
 		elif info[0] == -1 and type(info[1]) == FunctionDeclarationNode:
 			offset = self.emitImm(0, 4)
