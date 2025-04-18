@@ -1,9 +1,9 @@
 using "io";
-using "str";
+
+private __fastcall func Sleep(int dwMilliseconds) -> void;
 
 public func main() -> int
-	io::print(str::sub("Hello, World!", 2, 5));
-	io::print("\n");
+	Sleep(500);
 
 	return 0;
 end

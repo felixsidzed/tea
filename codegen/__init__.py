@@ -142,14 +142,14 @@ class CodeGen:
 		self._locals		= {}
 		self._localOffset	= 0
 
-		self.emit(b"\x55")
-		self.emitInsn(b"\x89\xE5")
+		self.emit(b"\x55")						# push rbp/ebp
+		self.emitInsn(b"\x89\xE5")				# mov rbp, rsp
 
 		for node in root.body:
 			if type(node) == ReturnNode:
 				self._emitExpression(node.value)
 				self.freea(self._localOffset)
-				self.emit(b"\xC9\xC3")			# leave
+				self.emit(b"\x5D\xC3")			# pop rbp
 												# ret
 			
 			elif type(node) == CallNode:
@@ -287,6 +287,9 @@ class CodeGen:
 				self.emit(b"\x50")
 				cleanup += 8 if self.is64Bit else 4
 		elif conv == "__fastcall" and self.is64Bit:
+			self.alloca(0x20)
+			cleanup = 0x20
+
 			for i, arg in enumerate(node.args[:4]):
 				self._emitExpression(arg)
 				self.emit(FASTCALL_ARGSSET[i])
@@ -330,7 +333,7 @@ class CodeGen:
 			if aligned <= 0x10:
 				self.emitImm(aligned, 1)
 			else:
-				self.emitImm(aligned, 4)
+				self.emitImm(aligned, 1)
 
 			return aligned
 		return 0
@@ -344,7 +347,7 @@ class CodeGen:
 			if aligned <= 0x10:
 				self.emitImm(aligned, 1)
 			else:
-				self.emitImm(aligned, 4)
+				self.emitImm(aligned, 1)
 
 			return aligned
 		return 0
