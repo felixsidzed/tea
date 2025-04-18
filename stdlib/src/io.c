@@ -3,10 +3,11 @@
 
 BOOL _io__print(const char* message) {
 	DWORD written;
-	HANDLE stdoutHandle = GetStdHandle(STD_OUTPUT_HANDLE);
-	if (stdoutHandle != INVALID_HANDLE_VALUE && message) {
-		WriteConsoleA(stdoutHandle, message, lstrlenA(message), &written, NULL);
-		return TRUE;
+	HANDLE stdout = GetStdHandle(STD_OUTPUT_HANDLE);
+	int len = lstrlenA(message);
+	if (stdout != INVALID_HANDLE_VALUE && message) {
+		WriteConsoleA(stdout, message, len, &written, NULL);
+		return written == len;
 	}
 	return FALSE;
 }
@@ -56,19 +57,19 @@ char* _io__readf(const char* path) {
     );
 
     if (hFile == INVALID_HANDLE_VALUE) {
-        return "[ERR] failed to open file";
+        return "Failed to open file!";
     }
 
     dwFileSize = GetFileSize(hFile, NULL);
     if (dwFileSize == INVALID_FILE_SIZE) {
         CloseHandle(hFile);
-        return "[ERR] failed to get file size";
+        return "Failed to read file!";
     }
 
     buffer = (char*)HeapAlloc(hHeap, HEAP_ZERO_MEMORY, dwFileSize + 1);
     if (buffer == NULL) {
         CloseHandle(hFile);
-        return "[ERR] failed to allocate buffer";
+        return "ERR_MEM";
     }
 
     if (ReadFile(hFile, buffer, dwFileSize, &dwBytesRead, NULL)) {
@@ -99,7 +100,7 @@ char* _io__readline() {
 
 	const DWORD chunkSize = 128;
 	CHAR* buffer = (CHAR*)HeapAlloc(GetProcessHeap(), 0, chunkSize);
-	if (!buffer) return "[ERR] failed to allocate";
+	if (!buffer) return "ERR_MEM";
 
 	DWORD capacity = chunkSize;
 	DWORD length = 0;
@@ -121,7 +122,7 @@ char* _io__readline() {
 			CHAR* newBuffer = (CHAR*)HeapReAlloc(GetProcessHeap(), 0, buffer, capacity);
 			if (!newBuffer) {
 				HeapFree(GetProcessHeap(), 0, buffer);
-				return "[ERR] failed to reallocate";
+				return "ERR_MEM";
 			}
 			buffer = newBuffer;
 		}

@@ -1,11 +1,9 @@
 using "io";
-using "mem";
+using "str";
 
 public func main() -> int
-	io::print("enter smth: ");
-	var a: string = io::readline();
-	io::print("u entered: ");
-	io::print(a);
+	io::print(str::sub("Hello, World!", 2, 5));
+	io::print("\n");
 
-	return mem::free(a);
+	return 0;
 end

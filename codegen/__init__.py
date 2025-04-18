@@ -105,7 +105,20 @@ class CodeGen:
 				with open(node.path, "r") as f:
 					module = json.load(f)
 					f.close()
-				self._modules[node.name] = module["functions"]
+				self._log("Loading Module '%s' (format %d, %d function declarations)", node.name, module["format"], len(module["functions"]))
+				formatted = {}
+				for name, func in module["functions"].items():
+					if type(func) == dict and module["format"] >= 2:
+						formatted[name] = func
+					elif type(func) == str and module["format"] >= 1:
+						formatted[name] = {
+							"name": func,
+							"vararg": False,
+							"params": -1
+						}
+					else:
+						self.panic("[ERR] module '%s' has invalid format", node.name)
+				self._modules[node.name] = formatted
 
 			else:
 				self.panic("[ERR] invalid root statement '%s'", type(node).__name__)
@@ -124,22 +137,20 @@ class CodeGen:
 		if root.storage == STORAGE_PUBLIC:
 			self.gen.symbol(root.name, len(self.text.data), 1, 0x20)
 
-		self.emit(b"\x55")				# push rbp/ebp
-		self.emitInsn(b"\x89\xE5")		# mov  rbp/ebp, rsp/esp
-
 		self._curFunc		= root
 		self._arguments		= tuple(root.args.keys())
 		self._locals		= {}
 		self._localOffset	= 0
 
+		self.emit(b"\x55")
+		self.emitInsn(b"\x89\xE5")
+
 		for node in root.body:
 			if type(node) == ReturnNode:
 				self._emitExpression(node.value)
 				self.freea(self._localOffset)
-				self.emit(b"\x5D\xC3")	# pop rbp
-										# ret
-				del self._curFunc, self._arguments, self._locals, self._localOffset
-				return
+				self.emit(b"\xC9\xC3")			# leave
+												# ret
 			
 			elif type(node) == CallNode:
 				self._emitCall(node)
@@ -265,8 +276,10 @@ class CodeGen:
 		cleanup = 0
 		scopedName = "::".join(node.scope + [node.name])
 		conv = node.function.conv if node.function is not None else "__fastcall"
+		if len(node.scope) > 0:
+			moduleFunc = self._modules.get(node.scope[0], {}).get(node.name, None)
 
-		self._log("Call to '%s' (using '%s' convention)", scopedName, conv)
+		self._log("Call to '%s' (using '%s' calling convention)", scopedName, conv)
 
 		if conv == "__cdecl":
 			for arg in reversed(node.args):
@@ -274,12 +287,11 @@ class CodeGen:
 				self.emit(b"\x50")
 				cleanup += 8 if self.is64Bit else 4
 		elif conv == "__fastcall" and self.is64Bit:
-			# TODO: 32-bit
 			for i, arg in enumerate(node.args[:4]):
 				self._emitExpression(arg)
 				self.emit(FASTCALL_ARGSSET[i])
 			
-			for arg in enumerate(node.args[4:]):
+			for arg in node.args[4:]:
 				self._emitExpression(arg)
 				self.emit(b"\x50")
 				cleanup += 8 if self.is64Bit else 4
@@ -287,18 +299,20 @@ class CodeGen:
 			self.panic("[ERR] unsupported calling convention '%s'", conv)
 		self._log("Stack cleanup: %d bytes", cleanup)
 
-		self.emit(b"\xE8")
+		self.emit(b"\xE8")		# call [rip/eip + imm32]
 		info = self._subroutines.get(scopedName, (-1, None))
-		module = {}
-		if len(node.scope) > 0:
-			module = self._modules.get(node.scope[0], {})
 
 		if info[0] != -1 and type(info[1]) == FunctionNode and len(node.scope) == 0:
 			self.emitImm(self._subroutines[node.name][0] - (len(self.text.data) + 4), 4, True)
 
-		elif info[0] == -1 and (type(info[1]) == FunctionDeclarationNode or module.get(node.name)):
+		elif info[0] == -1 and type(info[1]) == FunctionDeclarationNode:
 			offset = self.emitImm(0, 4)
-			self.gen.symbol(module.get(node.name), 0, 0, 0x20)
+			self.gen.symbol(node.name, 0, 0, 0x20)
+			self.text.reloc(offset, self.gen.header.NumberOfSymbols - 1, 4)
+		
+		elif info[0] == -1 and moduleFunc is not None:
+			offset = self.emitImm(0, 4)
+			self.gen.symbol(moduleFunc["name"], 0, 0, 0x20)
 			self.text.reloc(offset, self.gen.header.NumberOfSymbols - 1, 4)
 		
 		else:
@@ -307,7 +321,7 @@ class CodeGen:
 		self.freea(cleanup)
 		
 	def alloca(self, size: int) -> int:
-		# TODO: it would be great to modify the previous alloca instead of emitting a new one
+		# TODO: it would be great to modify the closest previous alloca instead of emitting a new one
 		if size > 0:
 			align = (7 if self.is64Bit else 3)
 			aligned = (size + align) & ~align
@@ -321,7 +335,7 @@ class CodeGen:
 			return aligned
 		return 0
 	def freea(self, size: int) -> int:
-		# TODO: it would be great to modify the previous freea instead of emitting a new one
+		# TODO: it would be great to modify the closest previous freea instead of emitting a new one
 		if size > 0:
 			align = (7 if self.is64Bit else 3)
 			aligned = (size + align) & ~align
