@@ -168,9 +168,9 @@ class COFFGenerator:
 
 			`s`  - The string to append
 		"""
-		offset: int = 4 + len(self.strings)
+		offset: int = len(self.strings)
 		self.strings += s.encode() + b"\x00"
-		self.strings[:4] = struct.pack("I", offset)
+		self.strings[:4] = struct.pack("I", len(self.strings))
 		return offset
 
 	def emit(self):

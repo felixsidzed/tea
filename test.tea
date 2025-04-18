@@ -1,11 +1,11 @@
-private __fastcall func print(string msg) -> void;
+using "io";
 
-public __fastcall func square(int a) -> int
+public func print(int a) -> int
 	return a * a;
 end
 
 public func main() -> int
-	print("Hello, World!\n");
+	io::print("Hello, World!\n");
 
-	return square(5);
+	return print(5);
 end

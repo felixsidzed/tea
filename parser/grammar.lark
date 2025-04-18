@@ -17,7 +17,7 @@ arg: expr
 // Statements
 ?stat: (rreturn | call | variable)
 
-using: "using" STORAGE_TYPE STRING ";"
+using: "using" STRING ";"
 
 ?call: IDENTF "(" args ")" ";" -> direct_call
 	 | IDENTF "::" IDENTF ("::" IDENTF)* "(" args ")" ";" -> scoped_call

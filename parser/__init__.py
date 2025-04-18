@@ -3,6 +3,18 @@ import pathlib
 
 from parser.nodes import *
 
+MODULE_LOOKUP = [
+	"stdlib",
+	"."
+]
+
+def resolvePath(path: pathlib.Path):
+    for directory in MODULE_LOOKUP:
+        path = pathlib.Path(directory) / (path.name + ".json")
+        if path.exists():
+            return path
+    return None
+
 _functioncache = {}
 class AST(lark.Transformer):
 	def module(self, children):
@@ -86,19 +98,16 @@ class AST(lark.Transformer):
 			name.line,
 			name.column
 		)
-		_functioncache[name.value] = node
 		return node
 
 	def using(self, items: list[lark.Token | lark.Tree]):
-		storage = items[0]
-		path = pathlib.Path(items[1].value)
+		path = resolvePath(pathlib.Path(items[0].value))
 
 		return UsingNode(
-			STORAGE2I[storage.value],
-			path.name,
-			path.resolve(),
-			storage.line,
-			storage.column,
+			path.name.split(".")[0] if path is not None else path,
+			path.resolve() if path is not None else path,
+			items[0].line,
+			items[0].column,
 		)
 
 	def direct_call(self, items: list[lark.Token | lark.Tree]):
@@ -116,12 +125,13 @@ class AST(lark.Transformer):
 
 	def scoped_call(self, items: list[lark.Token | lark.Tree]):
 		*scope, name, args = items
+		scope = [tok.value for tok in scope]
 
 		return CallNode(
 			name.value,
 			[arg.children[0] for arg in args.children],
-			[tok.value for tok in scope],
-			_functioncache.get(name.value, None),
+			scope,
+			_functioncache.get("::".join(scope + [name.value]), None),
 			name.line,
 			name.column
 		)

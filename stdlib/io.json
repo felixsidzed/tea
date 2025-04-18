@@ -1,0 +1,6 @@
+{
+	"format": 1,
+	"functions": {
+		"print": "_io__print"
+	}
+}

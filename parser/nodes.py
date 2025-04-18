@@ -59,8 +59,7 @@ class Node:
 
 
 class UsingNode(Node):
-	def __init__(self, storage: int, name: str, path: str, line: int, column: int):
-		self.storage = storage
+	def __init__(self, name: str, path: str, line: int, column: int):
 		self.name = name
 		self.path = path
 		super().__init__(line, column)

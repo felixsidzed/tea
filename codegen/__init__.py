@@ -1,5 +1,6 @@
 import re
 import sys
+import json
 
 from lark import Token as LarkToken
 
@@ -28,11 +29,11 @@ FASTCALL_ARGSGET = [
 ]
 
 
-def defaultPanic(fmt, *args):
+def defaultPanic(fmt: str, *args):
 	print(fmt % args)
 	exit(1)
 
-def str2name(s, max_length=8):
+def str2name(s: str, max_length: int = 8):
     s = "".join(c for c in s if 32 <= ord(c) < 127)
     s = re.sub(r"^[^a-zA-Z]+", "", s)
     match = re.match(r"([a-zA-Z0-9]+)", s)
@@ -59,6 +60,7 @@ class CodeGen:
 		self.rdata = bytearray()
 
 		self._stringcache = {}
+		self._modules = {}
 
 		text: pygen.COFFSection = self.gen.section(".text", 0x60000020)
 		self.emit = text.emit
@@ -82,7 +84,7 @@ class CodeGen:
 		self._log("Data Size: 0x%X", len(self.data))
 		self._log("Read-only Data Size: 0x%X", len(self.rdata))
 		
-		del self.emit, self.emitImm
+		del self.emit, self.emitImm, self.emitInsn, self.text, self.data, self.rdata, self._stringcache, self._modules
 		return gen.emit()
 
 	def _emitCode(self, root: ModuleNode) -> None:
@@ -94,9 +96,16 @@ class CodeGen:
 
 			elif type(node) == FunctionDeclarationNode:
 				self._subroutines[node.name] = (-1, node)
+			
+			elif type(node) == UsingNode:
+				module = {}
+				with open(node.path, "r") as f:
+					module = json.load(f)
+					f.close()
+				self._modules[node.name] = module["functions"]
 
 			else:
-				self.panic("[ERR] invalid root node '%s'", type(node).__name__)
+				self.panic("[ERR] invalid root statement '%s'", type(node).__name__)
 
 		del self._subroutines
 
@@ -251,10 +260,10 @@ class CodeGen:
 		
 	def _emitCall(self, node: CallNode):
 		cleanup = 0
-		fqName = "::".join(node.scope + [node.name])
+		scopedName = "::".join(node.scope + [node.name])
 		conv = node.function.conv if node.function is not None else "__fastcall"
 
-		self._log("Call to '%s' (using '%s' convention)", node.name, conv)
+		self._log("Call to '%s' (using '%s' convention)", scopedName, conv)
 
 		if conv == "__cdecl":
 			for arg in reversed(node.args):
@@ -276,18 +285,21 @@ class CodeGen:
 		self._log("Stack cleanup: %d bytes", cleanup)
 
 		self.emit(b"\xE8")
-		info = self._subroutines.get(fqName, (-1, None))
+		info = self._subroutines.get(scopedName, (-1, None))
+		module = {}
+		if len(node.scope) > 0:
+			module = self._modules.get(node.scope[0], {})
 
-		if info[0] != -1 and type(info[1]) == FunctionNode:
-			self.emitImm(self._subroutines[fqName][0] - (len(self.text.data) + 4), 4, True)
+		if info[0] != -1 and type(info[1]) == FunctionNode and len(node.scope) == 0:
+			self.emitImm(self._subroutines[node.name][0] - (len(self.text.data) + 4), 4, True)
 
-		elif info[0] == -1 and type(info[1]) == FunctionDeclarationNode:
+		elif info[0] == -1 and (type(info[1]) == FunctionDeclarationNode or module.get(node.name)):
 			offset = self.emitImm(0, 4)
-			self.gen.symbol(fqName, 0, 0, 0x20)
+			self.gen.symbol(module.get(node.name), 0, 0, 0x20)
 			self.text.reloc(offset, self.gen.header.NumberOfSymbols - 1, 4)
 		
 		else:
-			self.panic("[ERR] undefined symbol '%s' referenced in function '%s'", fqName, self._curFunc.name)
+			self.panic("[ERR] undefined symbol '%s' referenced in function '%s'", scopedName, self._curFunc.name)
 
 		self.freea(cleanup)
 		
