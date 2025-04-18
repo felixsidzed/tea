@@ -1,0 +1,6 @@
+{
+	"format": 1,
+	"functions": {
+		"len": "_str__len"
+	}
+}

@@ -2,6 +2,7 @@
 	"format": 1,
 	"functions": {
 		"print": "_io__print",
+		"printf": "_io__printf",
 		"flush": "_io__flush",
 		"readline": "_io__readline",
 
