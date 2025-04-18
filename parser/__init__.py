@@ -104,7 +104,7 @@ class AST(lark.Transformer):
 		path = resolvePath(pathlib.Path(items[0].value))
 
 		return UsingNode(
-			path.name.split(".")[0] if path is not None else path,
+			path.name.split(".")[0] if path is not None else items[0].value,
 			path.resolve() if path is not None else path,
 			items[0].line,
 			items[0].column,

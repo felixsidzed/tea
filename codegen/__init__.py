@@ -99,6 +99,9 @@ class CodeGen:
 			
 			elif type(node) == UsingNode:
 				module = {}
+				if node.path is None:
+					self.panic("[ERR] unresolved module %s", node.name)
+					continue
 				with open(node.path, "r") as f:
 					module = json.load(f)
 					f.close()

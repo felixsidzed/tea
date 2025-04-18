@@ -1,0 +1,6 @@
+{
+	"format": 1,
+	"functions": {
+		"free": "_mem__free"
+	}
+}

@@ -1,7 +1,11 @@
 using "io";
+using "mem";
 
 public func main() -> int
-	io::print(io::readf("C:\\Users\\User\\Documents\\Projects\\tea\\build\\test.txt"));
+	io::print("enter smth: ");
+	var a: string = io::readline();
+	io::print("u entered: ");
+	io::print(a);
 
-	return 0;
+	return mem::free(a);
 end
