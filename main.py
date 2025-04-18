@@ -1,11 +1,10 @@
 from parser import Parser
 from codegen import CodeGen
-from linker import windows as linker
 
-LIB = {
-	"kernel32": "\"C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.22621.0\\um\\x64\\kernel32.lib\"",
-	"user32": "\"C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.22621.0\\um\\x64\\user32.lib\""
-}
+#LIB = {
+#	"kernel32": "\"C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.22621.0\\um\\x64\\kernel32.lib\"",
+#	"user32": "\"C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.22621.0\\um\\x64\\user32.lib\""
+#}
 
 def printBytes(data: bytearray):
 	for i in range(0, len(data), 16):
@@ -26,7 +25,7 @@ def main() -> None:
 	parser: Parser = Parser()
 	module = parser.parse(src)
 	
-	codegen: CodeGen = CodeGen(panic=panic)
+	codegen: CodeGen = CodeGen(verbose=True, is64Bit=True, panic=panic)
 
 	coff = codegen.generate(module)
 	if len(errors) > 0:
@@ -41,12 +40,6 @@ def main() -> None:
 	with open("build/test.o", "wb") as f:
 		f.write(coff)
 		f.close()
-
-	#linker.link("build/test.o", LIB["kernel32"], LIB["user32"], outputPath="build/test.exe", verbose=True)
-	#if len(errors) > 0:
-	#	for error in errors:
-	#		print(error)
-	#	exit(1)
 
 if __name__ == "__main__":
 	main()

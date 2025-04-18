@@ -141,11 +141,11 @@ class VariableNode(Node):
 		super().__init__(line, column)
 
 
-class ExternNode(Node):
-	def __init__(self, storage: int, name: str, returnType: list[int, bool, bool, bool], args: dict[str: int], convention: str, line: int, column: int):
+class FunctionDeclarationNode(Node):
+	def __init__(self, storage: int, conv: str, name: str, returnType: list[int, bool, bool, bool], args: dict[str: int], line: int, column: int):
 		self.storage = storage
 		self.name = name
 		self.returnType = returnType
 		self.args = args
-		self.convention = convention
+		self.conv = conv
 		super().__init__(line, column)

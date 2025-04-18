@@ -1,3 +1,4 @@
+import re
 import sys
 
 from lark import Token as LarkToken
@@ -8,16 +9,47 @@ import codegen.pygen as pygen
 ENDIAN			= sys.byteorder
 STORAGE_PRIVATE	= STORAGE2I["private"]
 STORAGE_PUBLIC	= STORAGE2I["public"]
+FASTCALL_ARGSSET = [
+	b"\x48\x89\xC1",		# mov rcx, rax
+	b"\x48\x89\xC2",		# mov rdx, rax
+	b"\x49\x89\xC0",		# mov r8, rax
+	b"\x49\x89\xC1",		# mov r9, rax
+]
+FASTCALL_ARGSGET = [
+	b"\x48\x8B\xC1",		# mov rax, rcx
+	b"\x48\x89\xD0",		# mov rax, rdx
+	b"\x49\x89\xC1",		# mov rax, r8
+	b"\x49\x89\xC1",		# mov rax, r9
+
+	b"\x48\x89\xCB",		# mov rbx, rcx
+	b"\x48\x89\xD3",		# mov rbx, rdx
+	b"\x4C\x89\xC3",		# mov rbx, r8
+	b"\x4C\x89\xCB",		# mov rbx, r9
+]
 
 
 def defaultPanic(fmt, *args):
 	print(fmt % args)
 	exit(1)
 
+def str2name(s, max_length=8):
+    s = ''.join(c for c in s if 32 <= ord(c) < 127)
+    s = re.sub(r'^[^a-zA-Z]+', '', s)
+    match = re.match(r'([a-zA-Z0-9]+)', s)
+    if match:
+        word = match.group(1)
+        return "a" + word[:max_length]
+    else:
+        return "string"
+
 class CodeGen:
-	def __init__(self, is64Bit: bool = True, panic=defaultPanic) -> None:
+	def __init__(self, verbose: bool = False, is64Bit: bool = True, panic=defaultPanic) -> None:
+		self.verbose = verbose
 		self.is64Bit = is64Bit
 		self.panic = panic
+
+	def _log(self, fmt, *args):
+		if self.verbose: print("", fmt % args)
 
 	def generate(self, root: ModuleNode) -> bytes:
 		gen: pygen.COFFGenerator = pygen.COFFGenerator(self.is64Bit)
@@ -26,13 +58,19 @@ class CodeGen:
 		self.data = bytearray()
 		self.rdata = bytearray()
 
+		self._stringcache = {}
+
 		text: pygen.COFFSection = self.gen.section(".text", 0x60000020)
 		self.emit = text.emit
 		self.emitInsn = (lambda x: text.emit(b"\x48" + x)) if self.is64Bit else text.emit
 		self.emitImm = lambda x, y=None, z=False: self.emit(x.to_bytes((8 if self.is64Bit else 4) if y is None else y, ENDIAN, signed=z))
 		self.text = text
 
+		codeOffset = len(text.data)
 		self._emitCode(root)
+		codeSize = len(text.data) - codeOffset
+
+		self._log("Code Size: 0x%X", codeSize)
 
 		if len(self.rdata) > 0:
 			rdata: pygen.COFFSection = self.gen.section(".rdata", 0x40000040)
@@ -40,6 +78,9 @@ class CodeGen:
 		if len(self.data) > 0:
 			data: pygen.COFFSection = self.gen.section(".data", 0xC0000040)
 			data.data = self.data
+		
+		self._log("Data Size: 0x%X", len(self.data))
+		self._log("Read-only Data Size: 0x%X", len(self.rdata))
 		
 		del self.emit, self.emitImm
 		return gen.emit()
@@ -51,13 +92,23 @@ class CodeGen:
 			if type(node) == FunctionNode:
 				self._emitFunction(node)
 
+			elif type(node) == FunctionDeclarationNode:
+				self._subroutines[node.name] = (-1, node)
+
 			else:
 				self.panic("[ERR] invalid root node '%s'", type(node).__name__)
 
 		del self._subroutines
 
 	def _emitFunction(self, root: FunctionNode):
-		self._subroutines[root.name] = len(self.text.data)
+		self._log("In function '%s %s func %s(...)' (%d arguments)",
+				"public" if root.storage == STORAGE_PUBLIC else "private",
+				root.conv,
+				root.name,
+				len(root.args)
+			)
+
+		self._subroutines[root.name] = (len(self.text.data), root)
 		if root.storage == STORAGE_PUBLIC:
 			self.gen.symbol(root.name, len(self.text.data), 1, 0x20)
 
@@ -94,6 +145,8 @@ class CodeGen:
 
 			else:
 				self.panic("[ERR] unsupported node '%s' in function body", type(node).__name__)
+		
+		del self._curFunc, self._arguments, self._locals, self._localOffset
 
 	def _emitExpression(self, expr: ExpressionNode | LarkToken, target: int = 0):
 		if isinstance(expr, ExpressionNode):
@@ -124,14 +177,15 @@ class CodeGen:
 		elif type(expr) == CallNode:
 			self._emitCall(expr)
 			if target == 1:
-				self.emitInsn(b"\x89\xc3")
+				self.emitInsn(b"\x89\xC3")
+			# result is already in rax
 		
 		elif type(expr) == LarkToken:
 			if expr.type == "INT":
 				if target == 0:
-					self.emitInsn(b"\xB8")		# mov rax, imm32/imm64
+					self.emitInsn(b"\xB8")				# mov rax, imm32/imm64
 				elif target == 1:
-					self.emitInsn(b"\xBB")		# mov rbx, imm32/imm64
+					self.emitInsn(b"\xBB")				# mov rbx, imm32/imm64
 				else:
 					self.panic("INTRN_INVALID_EXPR_TARGET")
 				self.emitImm(expr.value)
@@ -140,24 +194,54 @@ class CodeGen:
 				if self._curFunc.conv == "__cdecl":
 					index = (self._arguments.index(expr.value) + 2) * (8 if self.is64Bit else 4)
 					if target == 0:
-						self.emitInsn(b"\x8B\x45")	# mov rax, [rbp + imm8/imm32]
+						self.emitInsn(b"\x8B\x45")		# mov rax, [rbp + imm8/imm32]
 					elif target == 1:
-						self.emitInsn(b"\x8B\x5D")	# mov rbx, [rbp + imm8/imm32]
+						self.emitInsn(b"\x8B\x5D")		# mov rbx, [rbp + imm8/imm32]
 					else:
 						self.panic("INTRN_INVALID_EXPR_TARGET")
-					if index <= 0x7F:
-						self.emitImm(index, 1)
+					self.emitImm(index, 1 if index <= 0x7F else 4)
+				elif self._curFunc.conv == "__fastcall" and self.is64Bit:
+					index = self._arguments.index(expr.value)
+					if index < 4:
+						self.emit(FASTCALL_ARGSGET[index + (target * 4)])
 					else:
-						self.emitImm(index, 4)
+						index = ((index - 4) + 2) * 8
+						if target == 0:
+							self.emitInsn(b"\x8B\x45")	# mov rax, [rbp + imm8/imm32]
+						elif target == 1:
+							self.emitInsn(b"\x8B\x5D")	# mov rbx, [rbp + imm8/imm32]
+						else:
+							self.panic("INTRN_INVALID_EXPR_TARGET")
+						self.emitImm(index, 1 if index <= 0x7F else 4)
 				else:
 					self.panic("[ERR] unsupported calling convention '%s'", self._curFunc.conv)
 
 			elif expr.type == "IDENTF" and expr.value in self._locals:
 				index = -self._locals[expr.value]
-				# TODO: use ebp for 32bit
-				# TODO: imm32
-				self.emit(b"\x48\x8B\x45")			# mov rax, [rbp - imm8/imm32]
-				self.emitImm(index, 1, True)
+				
+				self.emitInsn(b"\x8B")					# mov rax/eax, [rbp/ebp - imm8/imm32]
+				if -128 <= index <= 127:
+					self.emit(b"\x45")
+					self.emitImm(index, 1, True)
+				else:
+					self.emit(b"\x85")
+					self.emitImm(index, 4, True)
+				
+			elif expr.type == "STRING":
+				sym = self._stringcache.get(expr.value, None)
+				if sym is None:
+					stringOffset = len(self.rdata)
+					self.rdata.extend(expr.value.encode() + b"\x00")
+					self.gen.symbol(str2name(expr.value), stringOffset, 2, 3)
+					sym = self.gen.header.NumberOfSymbols - 1
+					self._stringcache[expr.value] = sym
+				
+				if target == 0:
+					self.emitInsn(b"\x8D\x05")			# lea rax/eax, [rip/eip + sym]
+				elif target == 1:
+					self.emitInsn(b"\x8D\x1D")			# lea rbx/ebx, [rip/eip + sym]
+				offset = self.emitImm(0, 4)
+				self.text.reloc(offset, sym, 4)
 
 			else:
 				self.panic("[ERR] undefined symbol '%s' in expression", expr.value)
@@ -166,19 +250,44 @@ class CodeGen:
 			self.panic("[ERR] unsupported node '%s' in expression", type(expr).__name__)
 		
 	def _emitCall(self, node: CallNode):
-		conv = node.function.conv if node.function is not None else "__fastcall"
 		cleanup = 0
+		fqName = "::".join(node.scope + [node.name])
+		conv = node.function.conv if node.function is not None else "__fastcall"
+
+		self._log("Call to '%s' (using '%s' convention)", node.name, conv)
+
 		if conv == "__cdecl":
 			for arg in reversed(node.args):
 				self._emitExpression(arg)
 				self.emit(b"\x50")
 				cleanup += 8 if self.is64Bit else 4
+		elif conv == "__fastcall":
+			# TODO: 32-bit
+			for i, arg in enumerate(node.args[:4]):
+				self._emitExpression(arg)
+				self.emit(FASTCALL_OPCODES[i])
+			
+			for arg in enumerate(node.args[4:]):
+				self._emitExpression(arg)
+				self.emit(b"\x50")
+				cleanup += 8 if self.is64Bit else 4
 		else:
 			self.panic("[ERR] unsupported calling convention '%s'", conv)
+		self._log("Stack cleanup: %d bytes", cleanup)
 
 		self.emit(b"\xE8")
-		if node.name in self._subroutines:
-			self.emit((-(len(self.text.data) + 4)).to_bytes(4, ENDIAN, signed=True))
+		info = self._subroutines.get(fqName, (-1, None))
+
+		if info[0] != -1 and type(info[1]) == FunctionNode:
+			self.emitImm(self._subroutines[fqName][0] - (len(self.text.data) + 4), None, True)
+
+		elif info[0] == -1 and type(info[1]) == FunctionDeclarationNode:
+			offset = self.emitImm(0, 4)
+			self.gen.symbol(fqName, 0, 0, 0x20)
+			self.text.reloc(offset, self.gen.header.NumberOfSymbols - 1, 4)
+		
+		else:
+			self.panic("[ERR] undefined symbol '%s' referenced in function '%s'", fqName, self._curFunc.name)
 
 		self.freea(cleanup)
 		

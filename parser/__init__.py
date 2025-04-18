@@ -70,6 +70,25 @@ class AST(lark.Transformer):
 		_functioncache[name.value] = node
 		return node
 
+	def function_declaration(self, items: list[lark.Token | lark.Tree]):
+		storageType = items[0].value
+		conv = items[1].value
+		name = items[2]
+		args = items[3].children
+		returnType = items[4]
+
+		node = FunctionDeclarationNode(
+			STORAGE2I[storageType],
+			conv,
+			name.value,
+			Type.get(returnType),
+			{arg.children[1].value: Type.get(arg.children[0].value) for arg in args},
+			name.line,
+			name.column
+		)
+		_functioncache[name.value] = node
+		return node
+
 	def using(self, items: list[lark.Token | lark.Tree]):
 		storage = items[0]
 		path = pathlib.Path(items[1].value)
@@ -89,8 +108,8 @@ class AST(lark.Transformer):
 		return CallNode(
 			name.value,
 			[arg.children[0] for arg in args.children],
-			None,
-			_functioncache[name.value],
+			[],
+			_functioncache.get(name.value, None),
 			name.line,
 			name.column
 		)
@@ -102,7 +121,7 @@ class AST(lark.Transformer):
 			name.value,
 			[arg.children[0] for arg in args.children],
 			[tok.value for tok in scope],
-			_functioncache[name.value],
+			_functioncache.get(name.value, None),
 			name.line,
 			name.column
 		)
@@ -141,18 +160,6 @@ class AST(lark.Transformer):
 			value[0] if len(value) > 0 else None,
 			name.line,
 			name.column
-		)
-
-	def extern_func_def(self, items: list[lark.Token | lark.Tree]):
-		storage, conv, name, args, returnType = items
-		return ExternNode(
-			STORAGE2I[storage.value],
-			name.value,
-			Type.get(returnType),
-			{arg.children[1].value: Type.get(arg.children[0].value) for arg in args.children},
-			conv.value,
-			storage.line,
-			storage.column
 		)
 
 
