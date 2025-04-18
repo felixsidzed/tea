@@ -55,19 +55,19 @@ char* _io__readf(const char* path) {
 	);
 
 	if (hFile == INVALID_HANDLE_VALUE) {
-		return NULL;
+		return "[ERR] failed to open file";
 	}
 
 	dwFileSize = GetFileSize(hFile, NULL);
 	if (dwFileSize == INVALID_FILE_SIZE) {
 		CloseHandle(hFile);
-		return "";
+		return "[ERR] failed to get file size";
 	}
 
 	buffer = (char*)LocalAlloc(LPTR, dwFileSize + 1);
 	if (buffer == NULL) {
 		CloseHandle(hFile);
-		return "";
+		return "[ERR] failed to allocate buffer";
 	}
 
 	if (ReadFile(hFile, buffer, dwFileSize, &dwBytesRead, NULL)) {
