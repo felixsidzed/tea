@@ -247,3 +247,12 @@ class WhileLoopNode(Node):
 		self.condition = condition
 		self.body = body
 		super().__init__(line, column)
+
+
+class ForLoopNode(Node):
+	def __init__(self, variables: list[VariableNode], condition: Node, steps: list[Node], body: list[Node], line: int, column: int):
+		self.variables = variables
+		self.condition = condition
+		self.steps = steps
+		self.body = body
+		super().__init__(line, column)

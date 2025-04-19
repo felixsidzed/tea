@@ -6,5 +6,5 @@ BOOL _mem__free(void* buf) {
 }
 
 #else
-#error "'io' is not yet available on non-windows machines"
+#error "'mem' is not yet available on non-windows machines"
 #endif

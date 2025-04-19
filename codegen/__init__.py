@@ -45,6 +45,7 @@ def defaultPanic(fmt: str, *args):
 	print(fmt % args)
 	exit(1)
 
+# TODO: clean
 def str2name(s: str, max_length: int = 16) -> str:
 	s = list("".join(c for c in s if 32 <= ord(c) < 127) \
 		.replace("*", "Star ") \
@@ -58,13 +59,16 @@ def str2name(s: str, max_length: int = 16) -> str:
 		.replace("!", "Exclamation ") \
 		.replace("?", "Question ") \
 		.replace("-", "Minus "))
-	s[0] = s[0].upper()
-	for i in range(0, len(s)):
-		if s[i] == " " and i+1 < len(s): s[i+1] = s[i+1].upper()
-	s = "".join(s)
-	match = re.match(r"([a-zA-Z0-9]+)", s.replace(" ", ""))
-	if match:
-		return "a" + match.group(1)[:max_length]
+	if len(s) > 0:
+		s[0] = s[0].upper()
+		for i in range(0, len(s)):
+			if s[i] == " " and i+1 < len(s): s[i+1] = s[i+1].upper()
+		s = "".join(s)
+		match = re.match(r"([a-zA-Z0-9]+)", s.replace(" ", ""))
+		if match:
+			return "a" + match.group(1)[:max_length]
+		else:
+			return "string"
 	else:
 		return "string"
 
@@ -203,109 +207,52 @@ class CodeGen:
 					self.text.data[jmp + 1] = len(self.text.data) - (jmp + 2)
 
 			elif type(node) == VariableNode:
-				size: int = Type.size(node.dataType, self.is64Bit)
-				aligned: int = self.alloca(size)
-				self._localOffset += aligned
-				self._locals[node.name] = self._localOffset
-
-				if node.value is not None:
-					self._emitExpression(node.value)
-					self.emitInsn(b"\x89\x85")		# mov [rbp/ebp + imm32], rax/eax
-					self.emitImm(-self._localOffset, 4, True)
+				self._emitVariable(node)
 
 			elif type(node) == AssignNode:
-				if node.lhs not in self._locals:
-					self.panic("[ERR] invalid left-hand operator in assignment")
-					continue
-				offset: int = -self._locals[node.lhs]
-				
-				if node.extra is None:
-					self._emitExpression(node.rhs)
-					self.emitInsn(b"\x89\x85")		# mov [rbp/ebp + imm32], rax/eax
-					self.emitImm(offset, 4, True)
-
-				elif node.extra == "+":
-					self._emitExpression(node.rhs)
-					self.emitInsn(b"\x01")			# add [rbp/ebp + imm32], rax/eax
-					if -128 <= offset <= 127:
-						self.emit(b"\x45")
-						self.emitImm(offset, 1, True)
-					else:
-						self.emit(b"\x85")
-						self.emitImm(offset, 4, True)
-
-				elif node.extra == "-":
-					self._emitExpression(node.rhs)
-					self.emitInsn(b"\x29")			# sub [rbp/ebp + imm32], rax/eax
-					if -128 <= offset <= 127:
-						self.emit(b"\x45")
-						self.emitImm(offset, 1, True)
-					else:
-						self.emit(b"\x85")
-						self.emitImm(offset, 4, True)
-
-				elif node.extra == "*":
-					self._emitExpression(node.rhs)
-					self.emitInsn(b"\x8B")			# mov rbx, [rbp/ebp + imm32]
-					if -128 <= offset <= 127:
-						self.emit(b"\x5D")
-						self.emitImm(offset, 1, True)
-					else:
-						self.emit(b"\x9D")
-						self.emitImm(offset, 4, True)
-
-					self.emitInsn(b"\x0F\xAF\xD8")	# imul rbx, rax
-
-					self.emitInsn(b"\x89")			# mov [rbp/ebp + imm32], rbx
-					if -128 <= offset <= 127:
-						self.emit(b"\x5D")
-						self.emitImm(offset, 1, True)
-					else:
-						self.emit(b"\x9D")
-						self.emitImm(offset, 4, True)
-
-				elif node.extra == "/":
-					self._emitExpression(node.rhs, 1)
-					self.emitInsn(b"\x8B")			# mov rax, [rbp/ebp + imm32]
-					if -128 <= offset <= 127:
-						self.emit(b"\x45")
-						self.emitImm(offset, 1, True)
-					else:
-						self.emit(b"\x85")
-						self.emitImm(offset, 4, True)
-
-					self.emitInsn(b"\x99")			# cqo/cdq
-					self.emitInsn(b"\xF7\xFB")		# idiv rbx/ebx
-
-					self.emitInsn(b"\x89")			# mov [rbp/ebp + imm32], rax
-					if -128 <= offset <= 127:
-						self.emit(b"\x45")
-						self.emitImm(offset, 1, True)
-					else:
-						self.emit(b"\x85")
-						self.emitImm(offset, 4, True)
-				
-				else:
-					self.panic("[ERR] invalid assignment operator '%s='", node.extra)
+				self._emitAssignment(node)
 
 			elif type(node) == WhileLoopNode:
-				loopStart = len(self.text.data)
+				start = len(self.text.data)
 
 				self._emitExpression(node.condition)
 				self.emitInsn(b"\x85\xC0")			# test rax/eax, rax/eax
-				jz = self.emit(b"\x74\x00")			# jz [rip + offset] -- jump if false
+				jz = self.emit(b"\x74\x00")			# jz [rip/eip + offset]
 
 				oldBlockData = (self._locals, self._localOffset, self._curBlock)
 				self._emitBlock(node)
 				self._locals, self._localOffset, self._curBlock = oldBlockData
 
 				jmp = self.emit(b"\xEB\x00")
-				self.text.data[jmp + 1] = (loopStart - (jmp + 2)) & 0xFF
+				self.text.data[jmp + 1] = (start - (jmp + 2)) & 0xFF
 
 				self.text.data[jz + 1] = len(self.text.data) - (jz + 2)
 
+			elif type(node) == ForLoopNode:
+				for var in node.variables:
+					self._emitVariable(var)
+
+				start = len(self.text.data)
+
+				self._emitExpression(node.condition)
+				self.emitInsn(b"\x85\xC0")			# test rax/eax, rax/eax
+				jz = self.emit(b"\x74\x00")			# jz [rip/eip + offset]
+
+				oldBlockData = (self._locals, self._localOffset, self._curBlock)
+				self._emitBlock(node)
+				self._locals, self._localOffset, self._curBlock = oldBlockData
+
+				for step in node.steps:
+					self._emitAssignment(step)
+
+				jmp = self.emit(b"\xEB\x00")
+				self.text.data[jmp + 1] = (start - (jmp + 2)) & 0xFF
+
+				if jz is not None:
+					self.text.data[jz + 1] = len(self.text.data) - (jz + 2)
+
 			else:
-				self.panic("[ERR] invalid statement '%s' in function body", type(node).__name__[:4].lower())
+				self.panic("[ERR] invalid statement '%s' in function body", type(node).__name__[:-4])
 
 		self._log("Leaving block '%s' (%d locals)", getattr(root, "name", "<unnamed>"), len(self._locals))
 		del self._locals, self._localOffset, self._curBlock
@@ -485,7 +432,10 @@ class CodeGen:
 		else:
 			self.panic("[ERR] unsupported node '%s' in expression", type(expr).__name__)
 		
-	def _emitCall(self, node: CallNode, preserve: bool = False):
+	def _emitCall(self, node: CallNode, preserve: bool = False, preserve2: bool = False):
+		if preserve2: assert not preserve
+		if preserve: assert not preserve2
+
 		cleanup = 0
 		preserved = 0
 		scopedName = "::".join(node.scope + [node.name])
@@ -493,7 +443,7 @@ class CodeGen:
 		if len(node.scope) > 0:
 			moduleFunc = self._modules.get(node.scope[0], {}).get(node.name, None)
 
-		self._log("Call to '%s' (using '%s' calling convention)", scopedName, conv)
+		self._log("Call to '%s' (using '%s' calling convention, preserve=%s)", scopedName, conv, "true" if preserve else "false")
 
 		if conv == "__cdecl":
 			for arg in reversed(node.args):
@@ -501,8 +451,6 @@ class CodeGen:
 				self.emit(b"\x50")
 				cleanup += 8 if self.is64Bit else 4
 		elif conv == "__fastcall" and self.is64Bit:
-			cleanup = self.alloca(0x20) # __fastcall needs 32 bytes of shadow space
-
 			for i, arg in enumerate(node.args[:4]):
 				if preserve:
 					self.emit(FASTCALL_ARGSPRESERVE[i])
@@ -511,9 +459,11 @@ class CodeGen:
 				self.emit(FASTCALL_ARGSSET[i])
 			
 			for arg in node.args[4:]:
-				self._emitExpression(arg)
+				self._emitExpression(arg, preserve=True)
 				self.emit(b"\x50")
 				cleanup += 8 if self.is64Bit else 4
+
+			cleanup += self.alloca(0x20) # __fastcall needs 32 bytes of shadow space
 		else:
 			self.panic("[ERR] unsupported calling convention '%s'", conv)
 		self._log("Stack cleanup: %d bytes", cleanup)
@@ -537,10 +487,95 @@ class CodeGen:
 		else:
 			self.panic("[ERR] undefined symbol '%s' referenced in function '%s'", scopedName, self._curFunc.name)
 
-		for i in range(preserved):
-			self.emit(FASTCALL_ARGSRESTORE[i])
 		self.freea(cleanup)
+		for i in reversed(range(preserved)):
+			self.emit(FASTCALL_ARGSRESTORE[i])
 		
+	def _emitVariable(self, node: VariableNode):
+		size: int = Type.size(node.dataType, self.is64Bit)
+		aligned: int = self.alloca(size)
+		self._localOffset += aligned
+		self._locals[node.name] = self._localOffset
+
+		if node.value is not None:
+			self._emitExpression(node.value)
+			self.emitInsn(b"\x89\x85")		# mov [rbp/ebp + imm32], rax/eax
+			self.emitImm(-self._localOffset, 4, True)
+
+	def _emitAssignment(self, node: AssignNode):
+		if node.lhs not in self._locals:
+			self.panic("[ERR] invalid left-hand operator in assignment")
+		offset: int = -self._locals[node.lhs]
+		
+		if node.extra is None:
+			self._emitExpression(node.rhs)
+			self.emitInsn(b"\x89\x85")		# mov [rbp/ebp + imm32], rax/eax
+			self.emitImm(offset, 4, True)
+
+		elif node.extra == "+":
+			self._emitExpression(node.rhs)
+			self.emitInsn(b"\x01")			# add [rbp/ebp + imm32], rax/eax
+			if -128 <= offset <= 127:
+				self.emit(b"\x45")
+				self.emitImm(offset, 1, True)
+			else:
+				self.emit(b"\x85")
+				self.emitImm(offset, 4, True)
+
+		elif node.extra == "-":
+			self._emitExpression(node.rhs)
+			self.emitInsn(b"\x29")			# sub [rbp/ebp + imm32], rax/eax
+			if -128 <= offset <= 127:
+				self.emit(b"\x45")
+				self.emitImm(offset, 1, True)
+			else:
+				self.emit(b"\x85")
+				self.emitImm(offset, 4, True)
+
+		elif node.extra == "*":
+			self._emitExpression(node.rhs)
+			self.emitInsn(b"\x8B")			# mov rbx, [rbp/ebp + imm32]
+			if -128 <= offset <= 127:
+				self.emit(b"\x5D")
+				self.emitImm(offset, 1, True)
+			else:
+				self.emit(b"\x9D")
+				self.emitImm(offset, 4, True)
+
+			self.emitInsn(b"\x0F\xAF\xD8")	# imul rbx, rax
+
+			self.emitInsn(b"\x89")			# mov [rbp/ebp + imm32], rbx
+			if -128 <= offset <= 127:
+				self.emit(b"\x5D")
+				self.emitImm(offset, 1, True)
+			else:
+				self.emit(b"\x9D")
+				self.emitImm(offset, 4, True)
+
+		elif node.extra == "/":
+			self._emitExpression(node.rhs, 1)
+			self.emitInsn(b"\x8B")			# mov rax, [rbp/ebp + imm32]
+			if -128 <= offset <= 127:
+				self.emit(b"\x45")
+				self.emitImm(offset, 1, True)
+			else:
+				self.emit(b"\x85")
+				self.emitImm(offset, 4, True)
+
+			self.emitInsn(b"\x99")			# cqo/cdq
+			self.emitInsn(b"\xF7\xFB")		# idiv rbx/ebx
+
+			self.emitInsn(b"\x89")			# mov [rbp/ebp + imm32], rax
+			if -128 <= offset <= 127:
+				self.emit(b"\x45")
+				self.emitImm(offset, 1, True)
+			else:
+				self.emit(b"\x85")
+				self.emitImm(offset, 4, True)
+		
+		else:
+			self.panic("[ERR] invalid assignment operator '%s='", node.extra)
+
 	def alloca(self, size: int) -> int:
 		# TODO: it would be great to modify the closest previous alloca instead of emitting a new one
 		if size > 0:

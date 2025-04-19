@@ -310,6 +310,17 @@ class AST(lark.Transformer):
 			items[0].line,
 			items[0].column
 		)
+	
+
+	def for_loop(self, items: list[lark.Token | lark.Tree | Node]):
+		return ForLoopNode(
+			[items[0]],
+			items[1],
+			[items[2]],
+			items[3:],
+			items[0].line,
+			items[0].column
+		)
 
 
 class Parser:

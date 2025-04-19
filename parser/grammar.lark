@@ -15,7 +15,7 @@ args: arg ("," arg)*
 arg: expr
 
 // Statements
-?stat: (rreturn | call | variable | if_block | ifelse_block | assign | while_loop)
+?stat: (rreturn | call | variable | if_block | ifelse_block | assign | while_loop | for_loop)
 
 using: "using" STRING ";"
 
@@ -36,12 +36,20 @@ else_block:      ELSE stat*
 // Loops
 while_loop:		"while" "(" expr ")" "do" stat* "end"
 
+for_loop:		"for" "(" variable expr ";" sc__assign ")" "do" stat* "end"
+
 // Assignments
 assign:			IDENTF "=" expr ";"
 	  |			IDENTF "+=" expr ";" -> assign_add
 	  |			IDENTF "-=" expr ";" -> assign_sub
 	  |			IDENTF "*=" expr ";" -> assign_mul
 	  |			IDENTF "/=" expr ";" -> assign_div
+
+sc__assign:		IDENTF "=" expr 	 -> assign
+		  |		IDENTF "+=" expr	 -> assign_add
+	  	  |		IDENTF "-=" expr	 -> assign_sub
+	  	  |		IDENTF "*=" expr	 -> assign_mul
+		  |		IDENTF "/=" expr	 -> assign_div
 
 // Expressions
 ?expr: logic_or

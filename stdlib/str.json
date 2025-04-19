@@ -1,8 +1,14 @@
 {
-	"format": 1,
+	"format": 2,
 	"functions": {
 		"len": "_str__len",
 		"itoa": "_str__itoa",
-		"sub": "_str__sub"
+		"sub": "_str__sub",
+		"eq": "_str__eq",
+		"cat": {
+			"name": "_str__cat",
+			"params": 1,
+			"vararg": true
+		}
 	}
 }

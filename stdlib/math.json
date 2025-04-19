@@ -1,0 +1,12 @@
+{
+	"format": 2,
+	"functions": {
+		"abs": "_math__abs",
+		"sqrt": "_math__sqrt",
+		"sum": {
+			"name": "_math__sum",
+			"vararg": true,
+			"params": 1
+		}
+	}
+}
