@@ -150,10 +150,25 @@ class FunctionDeclarationNode(Node):
 		super().__init__(line, column)
 
 
-class IfNode(Node):
+class ElseNode(Node):
+	def __init__(self, body: list[Node], line: int, column: int):
+		self.body = body
+		super().__init__(line, column)
+
+
+class ElseIfNode(Node):
 	def __init__(self, condition: Node, body: list[Node], line: int, column: int):
+		self.body = body
+		self.condition = condition
+		super().__init__(line, column)
+
+
+class IfNode(Node):
+	def __init__(self, condition: Node, body: list[Node], line: int, column: int, else_: ElseNode = None, elseIf: list[ElseIfNode] = None):
 		self.condition = condition
 		self.body = body
+		self.else_ = else_
+		self.elseIf = elseIf or []
 		super().__init__(line, column)
 
 

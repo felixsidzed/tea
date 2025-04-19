@@ -7,16 +7,16 @@ from lark import Token as LarkToken
 from parser.nodes import *
 import codegen.pygen as pygen
 
-ENDIAN			= sys.byteorder
-STORAGE_PRIVATE	= STORAGE2I["private"]
-STORAGE_PUBLIC	= STORAGE2I["public"]
-FASTCALL_ARGSSET = [
+ENDIAN					= sys.byteorder
+STORAGE_PRIVATE			= STORAGE2I["private"]
+STORAGE_PUBLIC			= STORAGE2I["public"]
+FASTCALL_ARGSSET		= [
 	b"\x48\x89\xC1",		# mov rcx, rax
 	b"\x48\x89\xC2",		# mov rdx, rax
 	b"\x49\x89\xC0",		# mov r8, rax
 	b"\x49\x89\xC1",		# mov r9, rax
 ]
-FASTCALL_ARGSGET = [
+FASTCALL_ARGSGET		= [
 	b"\x48\x8B\xC1",		# mov rax, rcx
 	b"\x48\x89\xD0",		# mov rax, rdx
 	b"\x49\x89\xC1",		# mov rax, r8
@@ -27,13 +27,13 @@ FASTCALL_ARGSGET = [
 	b"\x4C\x89\xC3",		# mov rbx, r8
 	b"\x4C\x89\xCB",		# mov rbx, r9
 ]
-FASTCALL_ARGSPRESERVE = [
+FASTCALL_ARGSPRESERVE	= [
 	b"\x51",				# push rcx
 	b"\x52",				# push rdx
 	b"\x41\x50",			# push r8
 	b"\x41\x51",			# push r9
 ]
-FASTCALL_ARGSRESTORE = [
+FASTCALL_ARGSRESTORE	= [
 	b"\x59",				# pop rcx
 	b"\x5A",				# pop rdx
 	b"\x41\x58",			# pop r8
@@ -45,7 +45,7 @@ def defaultPanic(fmt: str, *args):
 	print(fmt % args)
 	exit(1)
 
-def str2name(s: str, max_length: int = 16):
+def str2name(s: str, max_length: int = 16) -> str:
 	s = list("".join(c for c in s if 32 <= ord(c) < 127) \
 		.replace("*", "Star ") \
 		.replace(".", "Dot ") \
@@ -165,14 +165,41 @@ class CodeGen:
 				self._emitCall(node)
 
 			elif type(node) == IfNode:
+				endJumps = []
+
 				self._emitExpression(node.condition)
 				self.emitInsn(b"\x85\xC0")			# test rax/eax, rax/eax
-				patch = self.emit(b"\x74\x00")		# jz 0
-				bodyOffset = len(self.text.data)
+				jzList = [self.emit(b"\x74\x00")]	# jz [rip + offset]
+
 				oldBlockData = (self._locals, self._localOffset, self._curBlock)
 				self._emitBlock(node)
-				self.text.data[patch+1] = len(self.text.data) - bodyOffset
 				self._locals, self._localOffset, self._curBlock = oldBlockData
+
+				endJumps.append(self.emit(b"\xEB\x00"))
+
+				for elseif in node.elseIf:
+					self.text.data[jzList[-1] + 1] = len(self.text.data) - (jzList[-1] + 2)
+
+					self._emitExpression(elseif.condition)
+					self.emitInsn(b"\x85\xC0")
+					jzList.append(self.emit(b"\x74\x00"))
+
+					oldBlockData = (self._locals, self._localOffset, self._curBlock)
+					self._emitBlock(elseif)
+					self._locals, self._localOffset, self._curBlock = oldBlockData
+
+					endJumps.append(self.emit(b"\xEB\x00"))
+
+				if node.else_:
+					self.text.data[jzList[-1] + 1] = len(self.text.data) - (jzList[-1] + 2)
+					oldBlockData = (self._locals, self._localOffset, self._curBlock)
+					self._emitBlock(node.else_)
+					self._locals, self._localOffset, self._curBlock = oldBlockData
+				else:
+					self.text.data[jzList[-1] + 1] = len(self.text.data) - (jzList[-1] + 2)
+
+				for jmp in endJumps:
+					self.text.data[jmp + 1] = len(self.text.data) - (jmp + 2)
 
 			elif type(node) == VariableNode:
 				size: int = Type.size(node.dataType, self.is64Bit)

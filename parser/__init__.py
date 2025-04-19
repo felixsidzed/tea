@@ -172,7 +172,7 @@ class AST(lark.Transformer):
 			name.column
 		)
 	
-	def if_statement(self, items: list[lark.Token | lark.Tree | Node]):
+	def if_block(self, items: list[lark.Token | lark.Tree | Node]):
 		return IfNode(
 			items[0],
 			items[1:],
@@ -180,39 +180,81 @@ class AST(lark.Transformer):
 			items[0].column,
 		)
 	
-	def eq(self, items):
+	def ifelse_block(self, items: list[lark.Token | lark.Tree | Node]):
+		condition = items[0]
+		body = []
+		elseifBlocks = []
+		elseBlock = None
+
+		i = 1
+		while i < len(items):
+			item = items[i]
+			if type(item) == ElseNode:
+				elseBlock = item
+				break
+			elif type(item) == ElseIfNode:
+				elseifBlocks.append(item)
+			else:
+				body.append(item)
+			i += 1
+
+		return IfNode(
+			condition,
+			body,
+			condition.line,
+			condition.column,
+			elseBlock,
+			elseifBlocks,
+		)
+	
+	def else_block(self, items: list[lark.Token | lark.Tree | Node]):
+		return ElseNode(
+			items[1:],
+			items[0].line,
+			items[0].line
+		)
+
+	def elseif_block(self, items: list[lark.Token | lark.Tree | Node]):
+		return ElseIfNode(
+			items[0],
+			items[1:],
+			items[0].line,
+			items[0].column
+		)
+	
+	def eq(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
 		return EqNode(left.line, left.column, left, right)
 
-	def neq(self, items):
+	def neq(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
 		return NeqNode(left.line, left.column, left, right)
 
-	def lt(self, items):
+	def lt(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
 		return LtNode(left.line, left.column, left, right)
 
-	def le(self, items):
+	def le(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
 		return LeNode(left.line, left.column, left, right)
 
-	def gt(self, items):
+	def gt(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
 		return GtNode(left.line, left.column, left, right)
 
-	def ge(self, items):
+	def ge(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
 		return GeNode(left.line, left.column, left, right)
 
-	def band(self, items):
+	def band(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
 		return AndNode(left.line, left.column, left, right)
 
-	def bor(self, items):
+	def bor(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
 		return OrNode(left.line, left.column, left, right)
 	
-	def bnot(self, items):
+	def bnot(self, items: list[lark.Token | lark.Tree | Node]):
 		operand = items[0]
 		return NotNode(operand.line, operand.column, operand)
 

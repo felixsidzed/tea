@@ -15,7 +15,7 @@ args: arg ("," arg)*
 arg: expr
 
 // Statements
-?stat: (rreturn | call | variable | if_statement)
+?stat: (rreturn | call | variable | if_block | ifelse_block)
 
 using: "using" STRING ";"
 
@@ -27,7 +27,11 @@ variable: "var" IDENTF ":" TYPE "=" expr ";"
 
 rreturn: "return" expr ";"
 
-if_statement: "if" "(" expr ")" "do" stat* "end"
+// Control Flow
+if_block:        "if" "(" expr ")" "do" stat* "end"
+ifelse_block:    "if" "(" expr ")" "do" stat* elseif_block* else_block "end"
+elseif_block:    "elseif" "(" expr ")" "do" stat*
+else_block:      ELSE stat*
 
 // Expressions
 ?expr: logic_or
@@ -79,6 +83,7 @@ COMMENT: /\/\/[^\n]*/ | /\/\*(.|\n)*?\*\//
 CALLING_CONV: "__stdcall"
 			| "__fastcall"
 			| "__cdecl"
+ELSE: "else"
 
 // Imports
 %import common.ESCAPED_STRING -> STRING
