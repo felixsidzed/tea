@@ -45,15 +45,27 @@ def defaultPanic(fmt: str, *args):
 	print(fmt % args)
 	exit(1)
 
-def str2name(s: str, max_length: int = 8):
-    s = "".join(c for c in s if 32 <= ord(c) < 127)
-    s = re.sub(r"^[^a-zA-Z]+", "", s)
-    match = re.match(r"([a-zA-Z0-9]+)", s)
-    if match:
-        word = match.group(1)
-        return "a" + word[:max_length]
-    else:
-        return "string"
+def str2name(s: str, max_length: int = 16):
+	s = list("".join(c for c in s if 32 <= ord(c) < 127) \
+		.replace("*", "Star ") \
+		.replace(".", "Dot ") \
+		.replace("%", "Percent ") \
+		.replace("/", "Slash ") \
+		.replace("\\", "Backslash ") \
+		.replace("+", "Plus ") \
+		.replace(";", "Semicolon ") \
+		.replace(":", "Colon ") \
+		.replace("!", "Exclamation ") \
+		.replace("?", "Question ") \
+		.replace("-", "Minus "))
+	for i in range(0, len(s)):
+		if s[i] == " ": s[i+1] = s[i+1].upper()
+	s = "".join(s)
+	match = re.match(r"([a-zA-Z0-9]+)", s.replace(" ", ""))
+	if match:
+		return "a" + match.group(1)[:max_length]
+	else:
+		return "string"
 
 class CodeGen:
 	def __init__(self, verbose: bool = False, is64Bit: bool = True, panic=defaultPanic) -> None:
