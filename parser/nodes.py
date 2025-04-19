@@ -148,3 +148,72 @@ class FunctionDeclarationNode(Node):
 		self.args = args
 		self.conv = conv
 		super().__init__(line, column)
+
+
+class IfNode(Node):
+	def __init__(self, condition: Node, body: list[Node], line: int, column: int):
+		self.condition = condition
+		self.body = body
+		super().__init__(line, column)
+
+
+class EqNode(ExpressionNode):
+	def __init__(self, line: int, column: int, left: ExpressionNode, right: ExpressionNode):
+		super().__init__(line, column)
+		self.left = left
+		self.right = right
+
+
+class NeqNode(ExpressionNode):
+	def __init__(self, line: int, column: int, left: ExpressionNode, right: ExpressionNode):
+		super().__init__(line, column)
+		self.left = left
+		self.right = right
+
+
+class LtNode(ExpressionNode):
+	def __init__(self, line: int, column: int, left: ExpressionNode, right: ExpressionNode):
+		super().__init__(line, column)
+		self.left = left
+		self.right = right
+
+
+class LeNode(ExpressionNode):
+	def __init__(self, line: int, column: int, left: ExpressionNode, right: ExpressionNode):
+		super().__init__(line, column)
+		self.left = left
+		self.right = right
+
+
+class GtNode(ExpressionNode):
+	def __init__(self, line: int, column: int, left: ExpressionNode, right: ExpressionNode):
+		super().__init__(line, column)
+		self.left = left
+		self.right = right
+
+
+class GeNode(ExpressionNode):
+	def __init__(self, line: int, column: int, left: ExpressionNode, right: ExpressionNode):
+		super().__init__(line, column)
+		self.left = left
+		self.right = right
+
+
+class AndNode(ExpressionNode):
+	def __init__(self, line: int, column: int, left: ExpressionNode, right: ExpressionNode):
+		super().__init__(line, column)
+		self.left = left
+		self.right = right
+
+
+class OrNode(ExpressionNode):
+	def __init__(self, line: int, column: int, left: ExpressionNode, right: ExpressionNode):
+		super().__init__(line, column)
+		self.left = left
+		self.right = right
+
+
+class NotNode(ExpressionNode):
+	def __init__(self, line: int, column: int, operand: ExpressionNode):
+		super().__init__(line, column)
+		self.operand = operand

@@ -41,7 +41,7 @@ class AST(lark.Transformer):
 	def CHAR(self, token: lark.Token):
 		return lark.Token("CHAR", ord(token.value[1:-1].encode("utf-8").decode("unicode_escape")), line=token.line, column=token.column)
 
-	def function(self, items: list[lark.Token | lark.Tree]):
+	def function(self, items: list[lark.Token | lark.Tree | Node]):
 		storageType = items[0].value
 		name = items[1]
 		args = items[2].children
@@ -61,7 +61,7 @@ class AST(lark.Transformer):
 		_functioncache[name.value] = node
 		return node
 	
-	def function2(self, items: list[lark.Token | lark.Tree]):
+	def function2(self, items: list[lark.Token | lark.Tree | Node]):
 		storageType = items[0].value
 		conv = items[1].value
 		name = items[2]
@@ -82,7 +82,7 @@ class AST(lark.Transformer):
 		_functioncache[name.value] = node
 		return node
 
-	def function_declaration(self, items: list[lark.Token | lark.Tree]):
+	def function_declaration(self, items: list[lark.Token | lark.Tree | Node]):
 		storageType = items[0].value
 		conv = items[1].value
 		name = items[2]
@@ -100,7 +100,7 @@ class AST(lark.Transformer):
 		)
 		return node
 
-	def using(self, items: list[lark.Token | lark.Tree]):
+	def using(self, items: list[lark.Token | lark.Tree | Node]):
 		path = resolvePath(pathlib.Path(items[0].value))
 
 		return UsingNode(
@@ -110,7 +110,7 @@ class AST(lark.Transformer):
 			items[0].column,
 		)
 
-	def direct_call(self, items: list[lark.Token | lark.Tree]):
+	def direct_call(self, items: list[lark.Token | lark.Tree | Node]):
 		name = items[0]
 		args = items[1] if len(items) > 1 else []
 
@@ -123,7 +123,7 @@ class AST(lark.Transformer):
 			name.column
 		)
 
-	def scoped_call(self, items: list[lark.Token | lark.Tree]):
+	def scoped_call(self, items: list[lark.Token | lark.Tree | Node]):
 		*scope, name, args = items
 		scope = [tok.value for tok in scope]
 
@@ -136,23 +136,23 @@ class AST(lark.Transformer):
 			name.column
 		)
 
-	def add(self, items: list[lark.Token | lark.Tree]):
+	def add(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
 		return AddNode(left.line, left.column, left, right)
 
-	def sub(self, items: list[lark.Token | lark.Tree]):
+	def sub(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
 		return SubNode(left.line, left.column, left, right)
 
-	def mul(self, items: list[lark.Token | lark.Tree]):
+	def mul(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
 		return MulNode(left.line, left.column, left, right)
 
-	def div(self, items: list[lark.Token | lark.Tree]):
+	def div(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
 		return DivNode(left.line, left.column, left, right)
 
-	def rreturn(self, items: list[lark.Token | lark.Tree]):
+	def rreturn(self, items: list[lark.Token | lark.Tree | Node]):
 		value = None
 		try:
 			value = items[0]
@@ -162,7 +162,7 @@ class AST(lark.Transformer):
 		except AttributeError:
 			return ReturnNode(value, None, value.line, value.column)
 
-	def variable(self, items: list[lark.Token | lark.Tree]):
+	def variable(self, items: list[lark.Token | lark.Tree | Node]):
 		name, dataType, *value = items
 		return VariableNode(
 			name.value,
@@ -171,6 +171,50 @@ class AST(lark.Transformer):
 			name.line,
 			name.column
 		)
+	
+	def if_statement(self, items: list[lark.Token | lark.Tree | Node]):
+		return IfNode(
+			items[0],
+			items[1:],
+			items[0].line,
+			items[0].column,
+		)
+	
+	def eq(self, items):
+		left, right = items
+		return EqNode(left.line, left.column, left, right)
+
+	def neq(self, items):
+		left, right = items
+		return NeqNode(left.line, left.column, left, right)
+
+	def lt_expr(self, items):
+		left, right = items
+		return LtNode(left.line, left.column, left, right)
+
+	def le_expr(self, items):
+		left, right = items
+		return LeNode(left.line, left.column, left, right)
+
+	def gt_expr(self, items):
+		left, right = items
+		return GtNode(left.line, left.column, left, right)
+
+	def ge_expr(self, items):
+		left, right = items
+		return GeNode(left.line, left.column, left, right)
+
+	def and_expr(self, items):
+		left, right = items
+		return AndNode(left.line, left.column, left, right)
+
+	def or_expr(self, items):
+		left, right = items
+		return OrNode(left.line, left.column, left, right)
+	
+	def not_expr(self, items):
+		operand = items[0]
+		return NotNode(operand.line, operand.column, operand)
 
 
 class Parser:

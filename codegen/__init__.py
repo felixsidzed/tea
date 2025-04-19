@@ -27,6 +27,18 @@ FASTCALL_ARGSGET = [
 	b"\x4C\x89\xC3",		# mov rbx, r8
 	b"\x4C\x89\xCB",		# mov rbx, r9
 ]
+FASTCALL_ARGSPRESERVE = [
+	b"\x51",				# push rcx
+	b"\x52",				# push rdx
+	b"\x41\x50",			# push r8
+	b"\x41\x51",			# push r9
+]
+FASTCALL_ARGSRESTORE = [
+	b"\x59",				# pop rcx
+	b"\x5A",				# pop rdx
+	b"\x41\x58",			# pop r8
+	b"\x41\x59",			# pop r9
+]
 
 
 def defaultPanic(fmt: str, *args):
@@ -125,6 +137,48 @@ class CodeGen:
 
 		del self._subroutines
 
+	def _emitBlock(self, root: Node) -> None:
+		self._curBlock		= root
+		self._locals		= {}
+		self._localOffset	= 0
+
+		for node in root.body:
+			if type(node) == ReturnNode:
+				self._emitExpression(node.value)
+				self.freea(self._localOffset)
+				self.emit(b"\xC9\xC3")				# leave
+													# ret
+			
+			elif type(node) == CallNode:
+				self._emitCall(node)
+
+			elif type(node) == IfNode:
+				self._emitExpression(node.condition)
+				self.emitInsn(b"\x85\xC0")			# test rax/eax, rax/eax
+				patch = self.emit(b"\x74\x00")		# jz 0
+				bodyOffset = len(self.text.data)
+				oldBlockData = (self._locals, self._localOffset, self._curBlock)
+				self._emitBlock(node)
+				self.text.data[patch+1] = len(self.text.data) - bodyOffset
+				self._locals, self._localOffset, self._curBlock = oldBlockData
+
+			elif type(node) == VariableNode:
+				size: int = Type.size(node.dataType, self.is64Bit)
+				aligned: int = self.alloca(size)
+				self._localOffset += aligned
+				self._locals[node.name] = self._localOffset
+
+				if node.value is not None:
+					self._emitExpression(node.value)
+					self.emitInsn(b"\x89\x85")		# mov [rbp + imm32], rax
+					self.emitImm(-self._localOffset, 4, True)
+
+			else:
+				self.panic("[ERR] invalid statement '%s' in function body", type(node).__name__)
+
+		self._log("Leaving block (%d locals)", len(self._locals))
+		del self._locals, self._localOffset, self._curBlock
+
 	def _emitFunction(self, root: FunctionNode):
 		self._log("In function '%s %s func %s(...)' (%d arguments)",
 				"public" if root.storage == STORAGE_PUBLIC else "private",
@@ -139,66 +193,94 @@ class CodeGen:
 
 		self._curFunc		= root
 		self._arguments		= tuple(root.args.keys())
-		self._locals		= {}
-		self._localOffset	= 0
 
 		self.emit(b"\x55")						# push rbp/ebp
 		self.emitInsn(b"\x89\xE5")				# mov rbp, rsp
 
-		for node in root.body:
-			if type(node) == ReturnNode:
-				self._emitExpression(node.value)
-				self.freea(self._localOffset)
-				self.emit(b"\x5D\xC3")			# pop rbp
-												# ret
-			
-			elif type(node) == CallNode:
-				self._emitCall(node)
-
-			elif type(node) == VariableNode:
-				size: int = Type.size(node.dataType, self.is64Bit)
-				aligned: int = self.alloca(size)
-				self._localOffset += aligned
-				self._locals[node.name] = self._localOffset
-
-				if node.value is not None:
-					self._emitExpression(node.value)
-					self.emitInsn(b"\x89\x85")	# mov [rbp + imm32], rax
-					self.emitImm(-self._localOffset, 4, True)
-
-			else:
-				self.panic("[ERR] unsupported node '%s' in function body", type(node).__name__)
+		self._emitBlock(root)
 		
-		del self._curFunc, self._arguments, self._locals, self._localOffset
+		del self._curFunc, self._arguments
 
-	def _emitExpression(self, expr: ExpressionNode | LarkToken, target: int = 0):
+	# TODO: add checks for consntant values for optimization
+	# and overall optimize this heavily
+	def _emitExpression(self, expr: ExpressionNode | LarkToken, target: int = 0, **kw):
 		if isinstance(expr, ExpressionNode):
-			if isinstance(expr, AddNode):
-				self._emitExpression(expr.left, 0)
-				self._emitExpression(expr.right, 1)
+			if type(expr) == AddNode:
+				self._emitExpression(expr.left, 0, **kw)
+				self._emitExpression(expr.right, 1, **kw)
 				self.emitInsn(b"\x01\xD8")		# add rax/eax, rbx/ebx
 
-			elif isinstance(expr, SubNode):
-				self._emitExpression(expr.left, 0)
-				self._emitExpression(expr.right, 1)
+			elif type(expr) == SubNode:
+				self._emitExpression(expr.left, 0, **kw)
+				self._emitExpression(expr.right, 1, **kw)
 				self.emitInsn(b"\x29\xD8")		# sub rax/eax, rbx/ebx
 
-			elif isinstance(expr, MulNode):
-				self._emitExpression(expr.left, 0)
-				self._emitExpression(expr.right, 1)
+			elif type(expr) == MulNode:
+				self._emitExpression(expr.left, 0, **kw)
+				self._emitExpression(expr.right, 1, **kw)
 				self.emitInsn(b"\x0F\xAF\xC3")	# imul rax/eax, rbx/ebx
 
-			elif isinstance(expr, DivNode):
-				self._emitExpression(expr.left)
-				self._emitExpression(expr.right)
+			elif type(expr) == DivNode:
+				self._emitExpression(expr.left, 0,**kw)
+				self._emitExpression(expr.right, 1, **kw)
 				self.emitInsn(b"\x99")			# cqo/cdq
 				self.emitInsn(b"\xF7\xFB")		# idiv rbx/ebx
+			
+			elif isinstance(expr, EqNode):
+				self._emitExpression(expr.left, 0, **kw)
+				self._emitExpression(expr.right, 1, **kw)
+				self.emitInsn(b"\x3B\xC3")		# cmp rax/eax, rbx/ebx
+				self.emitInsn(b"\x0F\x94\xC0")	# setz al
+			
+			elif isinstance(expr, NeqNode):
+				self._emitExpression(expr.left, 0, **kw)
+				self._emitExpression(expr.right, 1, **kw)
+				self.emitInsn(b"\x3B\xC3")		# cmp rax/eax, rbx/ebx
+				self.emitInsn(b"\x0F\x95\xC0")	# setne al
+
+			elif isinstance(expr, AndNode):
+				self._emitExpression(expr.left, 0, **kw)
+				self._emitExpression(expr.right, 1, **kw)
+				self.emitInsn(b"\x21\xD8")		# and rax/eax, rbx/ebx
+
+			elif isinstance(expr, OrNode):
+				self._emitExpression(expr.left, 0, **kw)
+				self._emitExpression(expr.right, 1, **kw)
+				self.emitInsn(b"\x09\xD8")		# or rax/eax, rbx/ebx
+			
+			elif isinstance(expr, LtNode):
+				self._emitExpression(expr.left, 0, **kw)
+				self._emitExpression(expr.right, 1, **kw)
+				self.emitInsn(b"\x3B\xC3")		# cmp rax/eax, rbx/ebx
+				self.emitInsn(b"\x0F\x9C\xC0")	# setl al
+
+			elif isinstance(expr, LeNode):
+				self._emitExpression(expr.left, 0, **kw)
+				self._emitExpression(expr.right, 1, **kw)
+				self.emitInsn(b"\x3B\xC3")	# cmp rax/eax, rbx/ebx
+				self.emitInsn(b"\x0F\x9E\xC0")	# setle al
+
+			elif isinstance(expr, GtNode):
+				self._emitExpression(expr.left, 0, **kw)
+				self._emitExpression(expr.right, 1, **kw)
+				self.emitInsn(b"\x3B\xC3")		# cmp rax/eax, rbx/ebx
+				self.emitInsn(b"\x0F\x9F\xC0")	# setg al
+
+			elif isinstance(expr, GeNode):
+				self._emitExpression(expr.left, 0, **kw)
+				self._emitExpression(expr.right, 1, **kw)
+				self.emitInsn(b"\x3B\xC3")		# cmp eax, ebx
+				self.emitInsn(b"\x0F\xA0\xC0")	# setge al (set eax to 1 if greater or equal)
+			
+			elif isinstance(expr, NotNode):
+				self._emitExpression(expr.operand, 0, **kw)
+				self.emitInsn(b"\xF7\xD0")	# not rax/eax
 
 			else:
 				self.panic("[ERR] unsupported expression node '%s'", type(expr).__name__)
 		
 		elif type(expr) == CallNode:
-			self._emitCall(expr)
+			self._emitCall(expr, **kw)
 			if target == 1:
 				self.emitInsn(b"\x89\xC3")
 			# result is already in rax
@@ -211,7 +293,7 @@ class CodeGen:
 					self.emitInsn(b"\xBB")				# mov rbx, imm32/imm64
 				else:
 					self.panic("INTRN_INVALID_EXPR_TARGET")
-				self.emitImm(expr.value)
+				self.emitImm(expr.value, None, expr.value < 0)
 
 			elif expr.type == "IDENTF" and expr.value in self._arguments:
 				if self._curFunc.conv == "__cdecl":
@@ -272,8 +354,9 @@ class CodeGen:
 		else:
 			self.panic("[ERR] unsupported node '%s' in expression", type(expr).__name__)
 		
-	def _emitCall(self, node: CallNode):
+	def _emitCall(self, node: CallNode, preserve: bool = False):
 		cleanup = 0
+		preserved = 0
 		scopedName = "::".join(node.scope + [node.name])
 		conv = node.function.conv if node.function is not None else "__fastcall"
 		if len(node.scope) > 0:
@@ -287,11 +370,13 @@ class CodeGen:
 				self.emit(b"\x50")
 				cleanup += 8 if self.is64Bit else 4
 		elif conv == "__fastcall" and self.is64Bit:
-			self.alloca(0x20)
-			cleanup = 0x20
+			cleanup = self.alloca(0x20) # __fastcall needs 32 bytes of shadow space
 
 			for i, arg in enumerate(node.args[:4]):
-				self._emitExpression(arg)
+				if preserve:
+					self.emit(FASTCALL_ARGSPRESERVE[i])
+					preserved += 1
+				self._emitExpression(arg, preserve=True)
 				self.emit(FASTCALL_ARGSSET[i])
 			
 			for arg in node.args[4:]:
@@ -321,6 +406,8 @@ class CodeGen:
 		else:
 			self.panic("[ERR] undefined symbol '%s' referenced in function '%s'", scopedName, self._curFunc.name)
 
+		for i in range(preserved):
+			self.emit(FASTCALL_ARGSRESTORE[i])
 		self.freea(cleanup)
 		
 	def alloca(self, size: int) -> int:

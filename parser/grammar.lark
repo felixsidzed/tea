@@ -15,7 +15,7 @@ args: arg ("," arg)*
 arg: expr
 
 // Statements
-?stat: (rreturn | call | variable)
+?stat: (rreturn | call | variable | if_statement)
 
 using: "using" STRING ";"
 
@@ -27,16 +27,35 @@ variable: "var" IDENTF ":" TYPE "=" expr ";"
 
 rreturn: "return" expr ";"
 
+if_statement: "if" "(" expr ")" "do" stat* "end"
+
 // Expressions
-?expr: expr "+" term -> add
-	 | expr "-" term -> sub
-	 | term
+?expr: logic_or
+
+?logic_or: logic_or "||" logic_and		-> or
+		| logic_and
+
+?logic_and: logic_and "&&" comparison	-> and
+		| comparison
+
+?comparison: comparison "==" atom		-> eq
+		| comparison "!=" atom			-> neq
+		| comparison "<" atom			-> lt
+		| comparison "<=" atom			-> le
+		| comparison ">" atom			-> gt
+		| comparison ">=" atom			-> ge
+		| atom
+
+?atom:	expr "+" term -> add
+	|	expr "-" term -> sub
+	|	term
 
 ?term: term "*" factor -> mul
-	 | term "/" factor -> div
-	 | factor
+	| term "/" factor -> div
+	| factor
 
-?factor: IDENTF "(" args ")" -> direct_call
+?factor: "!" factor										-> not
+	   | IDENTF "(" args ")" 							-> direct_call
 	   | IDENTF "::" IDENTF ("::" IDENTF)* "(" args ")" -> scoped_call
 	   | IDENTF
 	   | INT

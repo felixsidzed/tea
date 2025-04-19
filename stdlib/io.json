@@ -2,6 +2,11 @@
 	"format": 2,
 	"functions": {
 		"print": "_io__print",
+		"printf": {
+			"name": "_io__printf",
+			"vararg": true,
+			"params": 1
+		},
 		"flush": "_io__flush",
 		"readline": "_io__readline",
 
