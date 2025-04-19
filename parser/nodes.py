@@ -173,62 +173,70 @@ class IfNode(Node):
 
 
 class EqNode(ExpressionNode):
-	def __init__(self, line: int, column: int, left: ExpressionNode, right: ExpressionNode):
-		super().__init__(line, column)
+	def __init__(self, left: ExpressionNode, right: ExpressionNode, line: int, column: int):
 		self.left = left
 		self.right = right
+		super().__init__(line, column)
 
 
 class NeqNode(ExpressionNode):
-	def __init__(self, line: int, column: int, left: ExpressionNode, right: ExpressionNode):
-		super().__init__(line, column)
+	def __init__(self, left: ExpressionNode, right: ExpressionNode, line: int, column: int):
 		self.left = left
 		self.right = right
+		super().__init__(line, column)
 
 
 class LtNode(ExpressionNode):
-	def __init__(self, line: int, column: int, left: ExpressionNode, right: ExpressionNode):
-		super().__init__(line, column)
+	def __init__(self, left: ExpressionNode, right: ExpressionNode, line: int, column: int):
 		self.left = left
 		self.right = right
+		super().__init__(line, column)
 
 
 class LeNode(ExpressionNode):
-	def __init__(self, line: int, column: int, left: ExpressionNode, right: ExpressionNode):
-		super().__init__(line, column)
+	def __init__(self, left: ExpressionNode, right: ExpressionNode, line: int, column: int):
 		self.left = left
 		self.right = right
+		super().__init__(line, column)
 
 
 class GtNode(ExpressionNode):
-	def __init__(self, line: int, column: int, left: ExpressionNode, right: ExpressionNode):
-		super().__init__(line, column)
+	def __init__(self, left: ExpressionNode, right: ExpressionNode, line: int, column: int):
 		self.left = left
 		self.right = right
+		super().__init__(line, column)
 
 
 class GeNode(ExpressionNode):
-	def __init__(self, line: int, column: int, left: ExpressionNode, right: ExpressionNode):
-		super().__init__(line, column)
+	def __init__(self, left: ExpressionNode, right: ExpressionNode, line: int, column: int):
 		self.left = left
 		self.right = right
+		super().__init__(line, column)
 
 
 class AndNode(ExpressionNode):
-	def __init__(self, line: int, column: int, left: ExpressionNode, right: ExpressionNode):
-		super().__init__(line, column)
+	def __init__(self, left: ExpressionNode, right: ExpressionNode, line: int, column: int):
 		self.left = left
 		self.right = right
+		super().__init__(line, column)
 
 
 class OrNode(ExpressionNode):
-	def __init__(self, line: int, column: int, left: ExpressionNode, right: ExpressionNode):
-		super().__init__(line, column)
+	def __init__(self, left: ExpressionNode, right: ExpressionNode, line: int, column: int):
 		self.left = left
 		self.right = right
+		super().__init__(line, column)
 
 
 class NotNode(ExpressionNode):
-	def __init__(self, line: int, column: int, operand: ExpressionNode):
-		super().__init__(line, column)
+	def __init__(self, operand: ExpressionNode, line: int, column: int):
 		self.operand = operand
+		super().__init__(line, column)
+
+
+class AssignNode(ExpressionNode):
+	def __init__(self, lhs: Node, rhs: Node, line: int, column: int, extra: str | None = None):
+		self.lhs = lhs
+		self.rhs = rhs
+		self.extra = extra
+		super().__init__(line, column)

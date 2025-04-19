@@ -209,17 +209,92 @@ class CodeGen:
 
 				if node.value is not None:
 					self._emitExpression(node.value)
-					self.emitInsn(b"\x89\x85")		# mov [rbp + imm32], rax
+					self.emitInsn(b"\x89\x85")		# mov [rbp/ebp + imm32], rax/eax
 					self.emitImm(-self._localOffset, 4, True)
+
+			elif type(node) == AssignNode:
+				if node.lhs not in self._locals:
+					self.panic("[ERR] invalid left-hand operator in assignment")
+					continue
+				offset: int = -self._locals[node.lhs]
+				
+				if node.extra is None:
+					self._emitExpression(node.rhs)
+					self.emitInsn(b"\x89\x85")		# mov [rbp/ebp + imm32], rax/eax
+					self.emitImm(offset, 4, True)
+
+				elif node.extra == "+":
+					self._emitExpression(node.rhs)
+					self.emitInsn(b"\x01")			# add [rbp/ebp + imm32], rax/eax
+					if -128 <= offset <= 127:
+						self.emit(b"\x45")
+						self.emitImm(offset, 1, True)
+					else:
+						self.emit(b"\x85")
+						self.emitImm(offset, 4, True)
+
+				elif node.extra == "-":
+					self._emitExpression(node.rhs)
+					self.emitInsn(b"\x29")			# sub [rbp/ebp + imm32], rax/eax
+					if -128 <= offset <= 127:
+						self.emit(b"\x45")
+						self.emitImm(offset, 1, True)
+					else:
+						self.emit(b"\x85")
+						self.emitImm(offset, 4, True)
+
+				elif node.extra == "*":
+					self._emitExpression(node.rhs)
+					self.emitInsn(b"\x8B")			# mov rbx, [rbp/ebp + imm32]
+					if -128 <= offset <= 127:
+						self.emit(b"\x5D")
+						self.emitImm(offset, 1, True)
+					else:
+						self.emit(b"\x9D")
+						self.emitImm(offset, 4, True)
+
+					self.emitInsn(b"\x0F\xAF\xD8")	# imul rbx, rax
+
+					self.emitInsn(b"\x89")			# mov [rbp/ebp + imm32], rbx
+					if -128 <= offset <= 127:
+						self.emit(b"\x5D")
+						self.emitImm(offset, 1, True)
+					else:
+						self.emit(b"\x9D")
+						self.emitImm(offset, 4, True)
+
+				elif node.extra == "/":
+					self._emitExpression(node.rhs, 1)
+					self.emitInsn(b"\x8B")			# mov rax, [rbp/ebp + imm32]
+					if -128 <= offset <= 127:
+						self.emit(b"\x45")
+						self.emitImm(offset, 1, True)
+					else:
+						self.emit(b"\x85")
+						self.emitImm(offset, 4, True)
+
+					self.emitInsn(b"\x99")			# cqo/cdq
+					self.emitInsn(b"\xF7\xFB")		# idiv rbx/ebx
+
+					self.emitInsn(b"\x89")			# mov [rbp/ebp + imm32], rax
+					if -128 <= offset <= 127:
+						self.emit(b"\x45")
+						self.emitImm(offset, 1, True)
+					else:
+						self.emit(b"\x85")
+						self.emitImm(offset, 4, True)
+				
+				else:
+					self.panic("[ERR] invalid assignment operator '%s='", node.extra)
 
 			else:
 				self.panic("[ERR] invalid statement '%s' in function body", type(node).__name__)
 
-		self._log("Leaving block (%d locals)", len(self._locals))
+		self._log("Leaving block '%s' (%d locals)", getattr(root, "name", "<unnamed>"), len(self._locals))
 		del self._locals, self._localOffset, self._curBlock
 
 	def _emitFunction(self, root: FunctionNode):
-		self._log("In function '%s %s func %s(...)' (%d arguments)",
+		self._log("Entering function '%s %s func %s(...)' (%d arguments)",
 				"public" if root.storage == STORAGE_PUBLIC else "private",
 				root.conv,
 				root.name,

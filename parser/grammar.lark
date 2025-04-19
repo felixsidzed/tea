@@ -15,7 +15,7 @@ args: arg ("," arg)*
 arg: expr
 
 // Statements
-?stat: (rreturn | call | variable | if_block | ifelse_block)
+?stat: (rreturn | call | variable | if_block | ifelse_block | assign)
 
 using: "using" STRING ";"
 
@@ -32,6 +32,13 @@ if_block:        "if" "(" expr ")" "do" stat* "end"
 ifelse_block:    "if" "(" expr ")" "do" stat* elseif_block* else_block "end"
 elseif_block:    "elseif" "(" expr ")" "do" stat*
 else_block:      ELSE stat*
+
+// Assignments
+assign:			IDENTF "=" expr ";"
+	  |			IDENTF "+=" expr ";" -> assign_add
+	  |			IDENTF "-=" expr ";" -> assign_sub
+	  |			IDENTF "*=" expr ";" -> assign_mul
+	  |			IDENTF "/=" expr ";" -> assign_div
 
 // Expressions
 ?expr: logic_or

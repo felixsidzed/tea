@@ -7,15 +7,17 @@ MODULE_LOOKUP = [
 	"stdlib",
 	"."
 ]
+_functioncache = {}
+
 
 def resolvePath(path: pathlib.Path):
-    for directory in MODULE_LOOKUP:
-        path = pathlib.Path(directory) / (path.name + ".json")
-        if path.exists():
-            return path
-    return None
+	for directory in MODULE_LOOKUP:
+		path = pathlib.Path(directory) / (path.name + ".json")
+		if path.exists():
+			return path
+	return None
 
-_functioncache = {}
+
 class AST(lark.Transformer):
 	def module(self, children):
 		return ModuleNode(1, 1, children)
@@ -34,8 +36,7 @@ class AST(lark.Transformer):
 
 	def IDENTF(self, token: lark.Token):
 		if token.value in ("true", "false"):
-			return lark.Token("BOOL", True if token.value == "true" else (False if token.value == "false" else token),
-					line=token.line, column=token.column)
+			return lark.Token("BOOL", True if token.value == "true" else (False if token.value == "false" else token), line=token.line, column=token.column)
 		return token
 
 	def CHAR(self, token: lark.Token):
@@ -48,7 +49,7 @@ class AST(lark.Transformer):
 		returnType = items[3]
 		body = items[4:]
 
-		node =  FunctionNode(
+		node = FunctionNode(
 			STORAGE2I[storageType],
 			"__cdecl",
 			name.value,
@@ -60,7 +61,7 @@ class AST(lark.Transformer):
 		)
 		_functioncache[name.value] = node
 		return node
-	
+
 	def function2(self, items: list[lark.Token | lark.Tree | Node]):
 		storageType = items[0].value
 		conv = items[1].value
@@ -171,7 +172,7 @@ class AST(lark.Transformer):
 			name.line,
 			name.column
 		)
-	
+
 	def if_block(self, items: list[lark.Token | lark.Tree | Node]):
 		return IfNode(
 			items[0],
@@ -179,7 +180,7 @@ class AST(lark.Transformer):
 			items[0].line,
 			items[0].column,
 		)
-	
+
 	def ifelse_block(self, items: list[lark.Token | lark.Tree | Node]):
 		condition = items[0]
 		body = []
@@ -206,7 +207,7 @@ class AST(lark.Transformer):
 			elseBlock,
 			elseifBlocks,
 		)
-	
+
 	def else_block(self, items: list[lark.Token | lark.Tree | Node]):
 		return ElseNode(
 			items[1:],
@@ -221,42 +222,86 @@ class AST(lark.Transformer):
 			items[0].line,
 			items[0].column
 		)
-	
+
 	def eq(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
-		return EqNode(left.line, left.column, left, right)
+		return EqNode(left, right, left.line, left.column)
 
 	def neq(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
-		return NeqNode(left.line, left.column, left, right)
+		return NeqNode(left, right, left.line, left.column)
 
 	def lt(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
-		return LtNode(left.line, left.column, left, right)
+		return LtNode(left, right, left.line, left.column)
 
 	def le(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
-		return LeNode(left.line, left.column, left, right)
+		return LeNode(left, right, left.line, left.column)
 
 	def gt(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
-		return GtNode(left.line, left.column, left, right)
+		return GtNode(left, right, left.line, left.column)
 
 	def ge(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
-		return GeNode(left.line, left.column, left, right)
+		return GeNode(left, right, left.line, left.column)
 
 	def band(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
-		return AndNode(left.line, left.column, left, right)
+		return AndNode(left, right, left.line, left.column)
 
 	def bor(self, items: list[lark.Token | lark.Tree | Node]):
 		left, right = items
-		return OrNode(left.line, left.column, left, right)
-	
+		return OrNode(left, right, left.line, left.column)
+
 	def bnot(self, items: list[lark.Token | lark.Tree | Node]):
 		operand = items[0]
-		return NotNode(operand.line, operand.column, operand)
+		return NotNode(operand, operand.line, operand.column)
+
+	def assign(self, items: list[lark.Token | lark.Tree | Node]):
+		return AssignNode(
+			items[0],
+			items[1],
+			items[0].line,
+			items[0].column
+		)
+	
+	def assign_add(self, items: list[lark.Token | lark.Tree | Node]):
+		return AssignNode(
+			items[0],
+			items[1],
+			items[0].line,
+			items[0].column,
+			"+"
+		)
+	
+	def assign_sub(self, items: list[lark.Token | lark.Tree | Node]):
+		return AssignNode(
+			items[0],
+			items[1],
+			items[0].line,
+			items[0].column,
+			"-"
+		)
+	
+	def assign_mul(self, items: list[lark.Token | lark.Tree | Node]):
+		return AssignNode(
+			items[0],
+			items[1],
+			items[0].line,
+			items[0].column,
+			"*"
+		)
+	
+	def assign_div(self, items: list[lark.Token | lark.Tree | Node]):
+		return AssignNode(
+			items[0],
+			items[1],
+			items[0].line,
+			items[0].column,
+			"/"
+		)
 
 
 class Parser:
