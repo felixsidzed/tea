@@ -226,53 +226,53 @@ class CodeGen:
 				self.emitInsn(b"\x99")			# cqo/cdq
 				self.emitInsn(b"\xF7\xFB")		# idiv rbx/ebx
 			
-			elif isinstance(expr, EqNode):
+			elif type(expr) == EqNode:
 				self._emitExpression(expr.left, 0, **kw)
 				self._emitExpression(expr.right, 1, **kw)
 				self.emitInsn(b"\x3B\xC3")		# cmp rax/eax, rbx/ebx
 				self.emitInsn(b"\x0F\x94\xC0")	# setz al
 			
-			elif isinstance(expr, NeqNode):
+			elif type(expr) == NeqNode:
 				self._emitExpression(expr.left, 0, **kw)
 				self._emitExpression(expr.right, 1, **kw)
 				self.emitInsn(b"\x3B\xC3")		# cmp rax/eax, rbx/ebx
 				self.emitInsn(b"\x0F\x95\xC0")	# setne al
 
-			elif isinstance(expr, AndNode):
+			elif type(expr) == AndNode:
 				self._emitExpression(expr.left, 0, **kw)
 				self._emitExpression(expr.right, 1, **kw)
 				self.emitInsn(b"\x21\xD8")		# and rax/eax, rbx/ebx
 
-			elif isinstance(expr, OrNode):
+			elif type(expr) == OrNode:
 				self._emitExpression(expr.left, 0, **kw)
 				self._emitExpression(expr.right, 1, **kw)
 				self.emitInsn(b"\x09\xD8")		# or rax/eax, rbx/ebx
 			
-			elif isinstance(expr, LtNode):
+			elif type(expr) == LtNode:
 				self._emitExpression(expr.left, 0, **kw)
 				self._emitExpression(expr.right, 1, **kw)
 				self.emitInsn(b"\x3B\xC3")		# cmp rax/eax, rbx/ebx
-				self.emitInsn(b"\x0F\x9C\xC0")	# setl al
+				self.emit(b"\x0F\x9C\xC0")		# setl al
 
-			elif isinstance(expr, LeNode):
-				self._emitExpression(expr.left, 0, **kw)
-				self._emitExpression(expr.right, 1, **kw)
-				self.emitInsn(b"\x3B\xC3")	# cmp rax/eax, rbx/ebx
-				self.emitInsn(b"\x0F\x9E\xC0")	# setle al
-
-			elif isinstance(expr, GtNode):
+			elif type(expr) == LeNode:
 				self._emitExpression(expr.left, 0, **kw)
 				self._emitExpression(expr.right, 1, **kw)
 				self.emitInsn(b"\x3B\xC3")		# cmp rax/eax, rbx/ebx
-				self.emitInsn(b"\x0F\x9F\xC0")	# setg al
+				self.emit(b"\x0F\x9E\xC0")		# setle al
 
-			elif isinstance(expr, GeNode):
+			elif type(expr) == GtNode:
 				self._emitExpression(expr.left, 0, **kw)
 				self._emitExpression(expr.right, 1, **kw)
-				self.emitInsn(b"\x3B\xC3")		# cmp eax, ebx
-				self.emitInsn(b"\x0F\xA0\xC0")	# setge al (set eax to 1 if greater or equal)
+				self.emitInsn(b"\x3B\xC3")		# cmp rax/eax, rbx/ebx
+				self.emit(b"\x0F\x9F\xC0")		# setg al
+
+			elif type(expr) == GeNode:
+				self._emitExpression(expr.left, 0, **kw)
+				self._emitExpression(expr.right, 1, **kw)
+				self.emitInsn(b"\x3B\xC3")		# cmp rax/eax, rbx/ebx
+				self.emit(b"\x0F\x9D\xC0")		# setge al
 			
-			elif isinstance(expr, NotNode):
+			elif type(expr) == NotNode:
 				self._emitExpression(expr.operand, 0, **kw)
 				self.emitInsn(b"\xF7\xD0")	# not rax/eax
 

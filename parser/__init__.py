@@ -188,31 +188,31 @@ class AST(lark.Transformer):
 		left, right = items
 		return NeqNode(left.line, left.column, left, right)
 
-	def lt_expr(self, items):
+	def lt(self, items):
 		left, right = items
 		return LtNode(left.line, left.column, left, right)
 
-	def le_expr(self, items):
+	def le(self, items):
 		left, right = items
 		return LeNode(left.line, left.column, left, right)
 
-	def gt_expr(self, items):
+	def gt(self, items):
 		left, right = items
 		return GtNode(left.line, left.column, left, right)
 
-	def ge_expr(self, items):
+	def ge(self, items):
 		left, right = items
 		return GeNode(left.line, left.column, left, right)
 
-	def and_expr(self, items):
+	def band(self, items):
 		left, right = items
 		return AndNode(left.line, left.column, left, right)
 
-	def or_expr(self, items):
+	def bor(self, items):
 		left, right = items
 		return OrNode(left.line, left.column, left, right)
 	
-	def not_expr(self, items):
+	def bnot(self, items):
 		operand = items[0]
 		return NotNode(operand.line, operand.column, operand)
 

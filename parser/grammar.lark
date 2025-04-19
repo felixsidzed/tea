@@ -32,10 +32,10 @@ if_statement: "if" "(" expr ")" "do" stat* "end"
 // Expressions
 ?expr: logic_or
 
-?logic_or: logic_or "||" logic_and		-> or
+?logic_or: logic_or "||" logic_and		-> bor
 		| logic_and
 
-?logic_and: logic_and "&&" comparison	-> and
+?logic_and: logic_and "&&" comparison	-> band
 		| comparison
 
 ?comparison: comparison "==" atom		-> eq
@@ -54,7 +54,7 @@ if_statement: "if" "(" expr ")" "do" stat* "end"
 	| term "/" factor -> div
 	| factor
 
-?factor: "!" factor										-> not
+?factor: "!" factor										-> bnot
 	   | IDENTF "(" args ")" 							-> direct_call
 	   | IDENTF "::" IDENTF ("::" IDENTF)* "(" args ")" -> scoped_call
 	   | IDENTF

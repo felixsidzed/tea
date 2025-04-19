@@ -1,8 +1,10 @@
 using "io";
+using "str";
 
 public func main() -> int
-	if (5 == 5) do
-		io::print("works\n");
+	var input: string = io::readline();
+	if (str::len(input) >= 5) do
+		io::print("nigga\n");
 	end
 
 	return 0;
