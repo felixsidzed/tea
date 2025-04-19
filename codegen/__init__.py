@@ -58,6 +58,7 @@ def str2name(s: str, max_length: int = 16) -> str:
 		.replace("!", "Exclamation ") \
 		.replace("?", "Question ") \
 		.replace("-", "Minus "))
+	s[0] = s[0].upper()
 	for i in range(0, len(s)):
 		if s[i] == " ": s[i+1] = s[i+1].upper()
 	s = "".join(s)
