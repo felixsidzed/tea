@@ -1,10 +1,11 @@
 using "io";
 
 public func main() -> int
-	var i: int = 10;
-	io::printf("i: %d\n", i);
-	i /= 2;
-	io::printf("i: %d\n", i);
+	var i: int = 3;
+	while (i != 0) do
+		io::print("Hello, World!\n");
+		i -= 1;
+	end
 
 	return 0;
 end

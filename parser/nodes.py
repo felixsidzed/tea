@@ -240,3 +240,10 @@ class AssignNode(ExpressionNode):
 		self.rhs = rhs
 		self.extra = extra
 		super().__init__(line, column)
+
+
+class WhileLoopNode(Node):
+	def __init__(self, condition: Node, body: list[Node], line: int, column: int):
+		self.condition = condition
+		self.body = body
+		super().__init__(line, column)

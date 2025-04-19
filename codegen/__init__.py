@@ -60,7 +60,7 @@ def str2name(s: str, max_length: int = 16) -> str:
 		.replace("-", "Minus "))
 	s[0] = s[0].upper()
 	for i in range(0, len(s)):
-		if s[i] == " ": s[i+1] = s[i+1].upper()
+		if s[i] == " " and i+1 < len(s): s[i+1] = s[i+1].upper()
 	s = "".join(s)
 	match = re.match(r"([a-zA-Z0-9]+)", s.replace(" ", ""))
 	if match:
@@ -152,8 +152,8 @@ class CodeGen:
 
 	def _emitBlock(self, root: Node) -> None:
 		self._curBlock		= root
-		self._locals		= {}
-		self._localOffset	= 0
+		self._locals		= getattr(self, "_locals", {})
+		self._localOffset	= getattr(self, "_localOffset", 0)
 
 		for node in root.body:
 			if type(node) == ReturnNode:
@@ -288,8 +288,24 @@ class CodeGen:
 				else:
 					self.panic("[ERR] invalid assignment operator '%s='", node.extra)
 
+			elif type(node) == WhileLoopNode:
+				loopStart = len(self.text.data)
+
+				self._emitExpression(node.condition)
+				self.emitInsn(b"\x85\xC0")			# test rax/eax, rax/eax
+				jz = self.emit(b"\x74\x00")			# jz [rip + offset] -- jump if false
+
+				oldBlockData = (self._locals, self._localOffset, self._curBlock)
+				self._emitBlock(node)
+				self._locals, self._localOffset, self._curBlock = oldBlockData
+
+				jmp = self.emit(b"\xEB\x00")
+				self.text.data[jmp + 1] = (loopStart - (jmp + 2)) & 0xFF
+
+				self.text.data[jz + 1] = len(self.text.data) - (jz + 2)
+
 			else:
-				self.panic("[ERR] invalid statement '%s' in function body", type(node).__name__)
+				self.panic("[ERR] invalid statement '%s' in function body", type(node).__name__[:4].lower())
 
 		self._log("Leaving block '%s' (%d locals)", getattr(root, "name", "<unnamed>"), len(self._locals))
 		del self._locals, self._localOffset, self._curBlock

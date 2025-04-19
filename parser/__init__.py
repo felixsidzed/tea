@@ -302,6 +302,14 @@ class AST(lark.Transformer):
 			items[0].column,
 			"/"
 		)
+	
+	def while_loop(self, items: list[lark.Token | lark.Tree | Node]):
+		return WhileLoopNode(
+			items[0],
+			items[1:],
+			items[0].line,
+			items[0].column
+		)
 
 
 class Parser:

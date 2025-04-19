@@ -15,7 +15,7 @@ args: arg ("," arg)*
 arg: expr
 
 // Statements
-?stat: (rreturn | call | variable | if_block | ifelse_block | assign)
+?stat: (rreturn | call | variable | if_block | ifelse_block | assign | while_loop)
 
 using: "using" STRING ";"
 
@@ -32,6 +32,9 @@ if_block:        "if" "(" expr ")" "do" stat* "end"
 ifelse_block:    "if" "(" expr ")" "do" stat* elseif_block* else_block "end"
 elseif_block:    "elseif" "(" expr ")" "do" stat*
 else_block:      ELSE stat*
+
+// Loops
+while_loop:		"while" "(" expr ")" "do" stat* "end"
 
 // Assignments
 assign:			IDENTF "=" expr ";"
