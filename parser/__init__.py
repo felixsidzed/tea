@@ -29,7 +29,7 @@ class AST(lark.Transformer):
 		return lark.Token("INT", int(token.value, 0), line=token.line, column=token.column)
 
 	def FLOAT(self, token: lark.Token):
-		return lark.Token("FLOAT", float(token.value), line=token.line, column=token.column)
+		return lark.Token("FLOAT", float(token.value[:-1]), line=token.line, column=token.column)
 
 	def DOUBLE(self, token: lark.Token):
 		return lark.Token("DOUBLE", float(token.value), line=token.line, column=token.column)

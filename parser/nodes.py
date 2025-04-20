@@ -1,6 +1,5 @@
 import ctypes
-
-Type2Size = [4, 4, 8, 1, 8, 5, 6]
+from llvmlite import ir
 
 
 class Type:
@@ -13,40 +12,19 @@ class Type:
 	BOOL = 6
 
 	@staticmethod
-	# typeIndex, isPointer, isConstant
-	def get(name: str) -> tuple[int, bool, bool, bool]:
-		return (
-			getattr(Type, name.upper().replace("*", "").replace("const ", ""), None),
-			name.find("*") != -1,
-			name.find("const") != -1,
-		)
+	def get(name: str) -> tuple[ir.Type, bool]:
+		type_: ir.Type = TYPE2LLVM[getattr(Type, name.upper().replace("*", "").replace("const ", "").replace(" ", "_"))]
+		if name.find("*") != -1: type_ = type_.as_pointer()
+		return (type_, name.find("const") != -1)
 
 	@staticmethod
 	def size(T: list[int, bool, bool, bool], is64bit: bool = True) -> int:
-		if T[1]:
-			return 8 if is64bit else 4
-		else:
-			return Type2Size[T[0]]
+		pass
 
 
-index2C = [ctypes.c_int, ctypes.c_float, ctypes.c_double,
-           ctypes.c_char, ctypes.c_char_p, None, ctypes.c_bool]
-
-
-class Type2CConverter:
-	def __getitem__(self, idx: int | tuple[int, bool, bool, bool]):
-		if type(idx) == int:
-			return index2C[idx]
-		else:
-			t = index2C[idx]
-			if idx[1]:
-				return ctypes.pointer(t)
-			else:
-				return t
-
-
-TYPE2C = Type2CConverter()
-STORAGE2I = {
+TYPE2LLVM	= [ ir.IntType(32), ir.FloatType(), ir.DoubleType(), ir.IntType(8), ir.IntType(8).as_pointer(), ir.VoidType(), ir.IntType(1) ]
+TYPE2C		= [ ctypes.c_int32, ctypes.c_float, ctypes.c_double, ctypes.c_char, ctypes.c_char_p, None, ctypes.c_bool ]
+STORAGE2I	= {
 	"public": 1,
 	"private": 0
 }
@@ -66,7 +44,7 @@ class UsingNode(Node):
 
 
 class FunctionNode(Node):
-	def __init__(self, storage: int, conv: str, name: str, returnType: list[int, bool, bool, bool], args: dict[str: int], body: list[Node], line: int, column: int):
+	def __init__(self, storage: int, conv: str, name: str, returnType: tuple[ir.Type, bool], args: dict[str: tuple[ir.Type, bool]], body: list[Node], line: int, column: int):
 		self.storage = storage
 		self.conv = conv
 		self.name = name
@@ -234,7 +212,7 @@ class NotNode(ExpressionNode):
 		super().__init__(line, column)
 
 
-class AssignNode(ExpressionNode):
+class AssignNode(Node):
 	def __init__(self, lhs: Node, rhs: Node, line: int, column: int, extra: str | None = None):
 		self.lhs = lhs
 		self.rhs = rhs

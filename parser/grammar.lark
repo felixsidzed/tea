@@ -29,7 +29,7 @@ rreturn: "return" expr ";"
 
 // Control Flow
 if_block:        "if" "(" expr ")" "do" stat* "end"
-ifelse_block:    "if" "(" expr ")" "do" stat* elseif_block* else_block "end"
+ifelse_block:    "if" "(" expr ")" "do" stat* elseif_block* else_block? "end"
 elseif_block:    "elseif" "(" expr ")" "do" stat*
 else_block:      ELSE stat*
 
@@ -80,8 +80,9 @@ sc__assign:		IDENTF "=" expr 	 -> assign
 	   | IDENTF "(" args ")" 							-> direct_call
 	   | IDENTF "::" IDENTF ("::" IDENTF)* "(" args ")" -> scoped_call
 	   | IDENTF
-	   | INT
 	   | FLOAT
+	   | DOUBLE
+	   | INT
 	   | STRING
 	   | CHAR
 	   | "(" expr ")"
@@ -93,8 +94,8 @@ STORAGE_TYPE: "public" | "private"
 
 // Terminals
 INT: /-?0[xX][0-9a-fA-F]+/ | /-?[0-9]+/
-FLOAT: /[0-9]*\.[0-9]+f/
-DOUBLE: /[0-9]*\.[0-9]+/
+FLOAT: /[0-9]*\.[0-9]+f/ | /[0-9]+\.[0-9]*f/
+DOUBLE: /[0-9]+\.[0-9]*/
 IDENTF: /[a-zA-Z_][a-zA-Z_0-9]*/
 CHAR: /'\\?.'/
 COMMENT: /\/\/[^\n]*/ | /\/\*(.|\n)*?\*\//
