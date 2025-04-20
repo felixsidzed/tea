@@ -1,12 +1,21 @@
 {
-	"format": 2,
+	"format": 3,
+	"namespace": "_math__",
 	"functions": {
-		"abs": "_math__abs",
-		"sqrt": "_math__sqrt",
+		"abs": {
+			"return": "INT",
+			"args": ["INT"],
+			"vararg": false
+		},
+		"sqrt": {
+			"return": "INT",
+			"args": ["INT"],
+			"vararg": false
+		},
 		"sum": {
-			"name": "_math__sum",
-			"vararg": true,
-			"params": 1
+			"return": "BOOL",
+			"args": ["INT"],
+			"vararg": true
 		}
 	}
 }

@@ -1,13 +1,30 @@
 {
-	"format": 2,
+	"format": 3,
+	"namespace": "_str__",
 	"functions": {
-		"len": "_str__len",
-		"itoa": "_str__itoa",
-		"sub": "_str__sub",
-		"eq": "_str__eq",
+		"len": {
+			"return": "INT",
+			"args": ["STRING"],
+			"vararg": false
+		},
+		"itoa": {
+			"return": "STRING",
+			"args": ["INT"],
+			"vararg": false
+		},
+		"sub": {
+			"return": "STRING",
+			"args": ["STRING", "INT", "INT"],
+			"vararg": false
+		},
+		"eq": {
+			"return": "BOOL",
+			"args": ["STRING", "STRING"],
+			"vararg": false
+		},
 		"cat": {
-			"name": "_str__cat",
-			"params": 1,
+			"return": "STRING", 
+			"args": ["INT"],
 			"vararg": true
 		}
 	}

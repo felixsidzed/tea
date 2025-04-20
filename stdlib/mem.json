@@ -1,6 +1,11 @@
 {
-	"format": 1,
+	"format": 3,
+	"namespace": "_mem__",
 	"functions": {
-		"free": "_mem__free"
+		"free": {
+			"return": "BOOL",
+			"args": ["VOID*"],
+			"vararg": false
+		}
 	}
 }

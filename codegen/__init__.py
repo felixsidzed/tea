@@ -32,16 +32,6 @@ NNAME2CMPOP = {
 	"Ge":	">=",
 }
 
-NAME2TYPE	= {
-	"INT":    I32,
-	"FLOAT":  F32,
-	"DOUBLE": F64,
-	"CHAR":   I8,
-	"STRING": PI8,
-	"VOID":	  VOID,
-	"BOOL":	  I1
-}
-
 
 def defaultPanic(fmt: str, *args):
 	print("[ERR]", fmt % args)
@@ -82,9 +72,9 @@ def str2name(s: str, max_length: int = 16) -> str:
 
 def fixTypes(module: dict):
 	for f in module["functions"].values():
-		f["return"] = NAME2TYPE[f["return"]]
+		f["return"] = Type.get(f["return"])[0]
 		for i, arg in enumerate(f["args"]):
-			f["args"][i] = NAME2TYPE[arg]
+			f["args"][i] = Type.get(arg)[0]
 
 
 class CodeGen:
@@ -234,10 +224,11 @@ class CodeGen:
 					nextFallback = elseIfBlocks[i+1][0] if i+1 < len(elseIfBlocks) else (elseBlock or mergeBlock)
 					self._block.cbranch(elseifCond, bodyBlock, nextFallback)
 
-					self._block = ir.IRBuilder(bodyBlock)
+					bodyBuilder = ir.IRBuilder(bodyBlock)
+					self._block = bodyBuilder
 					self._emitBlock(node.elseIf[i], f"elseif{i}.body")
 					if not bodyBlock.is_terminated:
-						self._block.branch(mergeBlock)
+						bodyBuilder.branch(mergeBlock)
 
 				if node.else_ is not None:
 					elseBuilder = ir.IRBuilder(elseBlock)
@@ -310,7 +301,7 @@ class CodeGen:
 		# we use some tricks to minimize the amount of duplicate code
 		if type(node) == LarkToken:
 			if node.type not in ("IDENTF", "STRING"):
-				T = NAME2TYPE[node.type]
+				T = Type.get(node.type)[0]
 				return (T, ir.Constant(T, node.value))
 			
 			elif node.type == "IDENTF":
@@ -373,17 +364,21 @@ class CodeGen:
 		for arg in node.args:
 			args.append(self._emitExpression(arg))
 
-		if node.scope == 0:
+		if len(node.scope) == 0:
 			func: ir.Function = self._module.get_global(node.name)
 			vararg = func.function_type.var_arg
 		else:
 			module = self._modules.get(node.scope[0], None)
-			if module is None:
-				self.panic("'%s' does not name any valid scope. line %d, column %d", node.scope[0], node.line, node.column)
-				return
-			funcDef = module["functions"][node.name]
-			vararg = funcDef["vararg"]
-			func: ir.Function = ir.Function(self._module, ir.FunctionType(funcDef["return"], funcDef["args"], vararg), module["namespace"] + node.name)
+			if (module["namespace"] + node.name) in self._module.globals:
+				func: ir.Function = self._module.get_global(module["namespace"] + node.name)
+				vararg = func.function_type.var_arg
+			else:
+				if module is None:
+					self.panic("'%s' does not name any valid scope. line %d, column %d", node.scope[0], node.line, node.column)
+					return
+				funcDef = module["functions"][node.name]
+				vararg = funcDef["vararg"]
+				func: ir.Function = ir.Function(self._module, ir.FunctionType(funcDef["return"], funcDef["args"], vararg), module["namespace"] + node.name)
 		
 		if not vararg:
 			if len(func.function_type.args) != len(args):

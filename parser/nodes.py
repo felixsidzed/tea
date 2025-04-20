@@ -14,7 +14,10 @@ class Type:
 	@staticmethod
 	def get(name: str) -> tuple[ir.Type, bool]:
 		type_: ir.Type = TYPE2LLVM[getattr(Type, name.upper().replace("*", "").replace("const ", "").replace(" ", "_"))]
-		if name.find("*") != -1: type_ = type_.as_pointer()
+		if name.find("*") != -1:
+			if type_ == TYPE2LLVM[5]:
+				type_ = TYPE2LLVM[3]
+			type_ = type_.as_pointer()
 		return (type_, name.find("const") != -1)
 
 	@staticmethod
