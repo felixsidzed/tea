@@ -138,7 +138,6 @@ class CodeGen:
 		except Exception as e:
 			if self.verbose:
 				self.panic("code generation failed due to a fatal error: %s", e)
-				raise
 			else:
 				self.panic("code generation failed due to a fatal error")
 			del self._module, self._machine

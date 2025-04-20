@@ -1,2 +1,51 @@
 # Tea
-Tea, pronounced /teə/, is a generic Lua-like programming language written in python
+
+**Tea**, pronounced /teə/, is a lightweight, general purpose scripting language inspired by Lua. Its designed to be easy to understand while having low-level access, and it compiles down to a native object file.
+
+---
+
+## Features
+
+- Lua-like syntax
+- Compiles to a native object file
+- Easy to integrate with C/C++ code
+- Rich standard library (`teastd`)
+
+---
+
+## Example Usage
+
+To compile and link a Tea program into a native executable on Windows, you can use the following `test.bat` script:
+
+```bat
+tea test.tea -o build/test.o
+```
+
+Make sure to adjust the paths to your system's LLVM and Windows SDK if necessary.
+
+---
+
+## Directory Structure
+
+```
+.
+├── tea.exe			# Tea CLI
+├── test.tea			# Tea source file
+├── build/
+│   └── test.o			# Compiled object file
+├── lib/
+│   └── teastd.lib		# Tea standard library
+```
+
+---
+
+## Requirements
+
+- Python 3.11+
+- Microsoft Visual Studio Build Tools (for `link.exe`)
+
+---
+
+## License
+
+MIT License. See `LICENSE` file for details.
