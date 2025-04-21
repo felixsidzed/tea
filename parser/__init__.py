@@ -1,5 +1,8 @@
-import lark
+import os
+import sys
 import pathlib
+
+import lark
 
 from parser.nodes import *
 
@@ -8,6 +11,15 @@ MODULE_LOOKUP = [
 	"."
 ]
 _functioncache = {}
+
+
+def resource(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 
 def resolvePath(path: pathlib.Path):
@@ -326,7 +338,7 @@ class AST(lark.Transformer):
 class Parser:
 	def __init__(self) -> None:
 		grammar: str = ""
-		with open("grammar.lark" if __name__ == "__main__" else "parser/grammar.lark", "r") as f:
+		with open(resource("parser/grammar.lark"), "r") as f:
 			grammar = f.read()
 			f.close()
 		self.lark = lark.Lark(grammar, propagate_positions=True, start="module")
