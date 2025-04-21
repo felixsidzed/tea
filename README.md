@@ -15,7 +15,7 @@
 
 ## Example Usage
 
-To compile and link a Tea program into a native executable on Windows, you can use the following `test.bat` script:
+To compile a Tea program into a native object file, you can use the following command:
 
 ```bat
 tea test.tea -o build/test.o
