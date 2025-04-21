@@ -21,11 +21,9 @@ To compile a Tea program into a native object file, you can use the following co
 tea test.tea -o build/test.o
 ```
 
-Make sure to adjust the paths to your system's LLVM and Windows SDK if necessary.
-
 ---
 
-## Directory Structure
+## Example Directory Structure
 
 ```
 .
