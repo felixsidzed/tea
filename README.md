@@ -41,7 +41,7 @@ tea test.tea -o build/test.o
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.11
 - Microsoft Visual Studio Build Tools (for `link.exe`)
 
 ---
