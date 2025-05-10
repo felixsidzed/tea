@@ -10,6 +10,7 @@ class Type:
 	STRING = 4
 	VOID = 5
 	BOOL = 6
+	LONG = 7
 
 	@staticmethod
 	def get(name: str) -> tuple[ir.Type, bool]:
@@ -25,8 +26,7 @@ class Type:
 		pass
 
 
-TYPE2LLVM	= [ ir.IntType(32), ir.FloatType(), ir.DoubleType(), ir.IntType(8), ir.IntType(8).as_pointer(), ir.VoidType(), ir.IntType(1) ]
-TYPE2C		= [ ctypes.c_int32, ctypes.c_float, ctypes.c_double, ctypes.c_char, ctypes.c_char_p, None, ctypes.c_bool ]
+TYPE2LLVM	= [ ir.IntType(32), ir.FloatType(), ir.DoubleType(), ir.IntType(8), ir.IntType(8).as_pointer(), ir.VoidType(), ir.IntType(1), ir.IntType(64) ]
 STORAGE2I	= {
 	"public": 1,
 	"private": 0

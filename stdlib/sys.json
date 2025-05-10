@@ -1,0 +1,21 @@
+{
+	"format": 3,
+	"namespace": "_sys__",
+	"functions": {
+		"exit": {
+			"return": "VOID",
+			"args": ["INT"],
+			"vararg": false
+		},
+		"time": {
+			"return": "LONG",
+			"args": [],
+			"vararg": false
+		},
+		"sleep": {
+			"return": "VOID",
+			"args": ["INT"],
+			"vararg": false
+		}
+	}
+}

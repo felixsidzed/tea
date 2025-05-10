@@ -165,10 +165,10 @@ class AST(lark.Transformer):
 		return DivNode(left.line, left.column, left, right)
 
 	def rreturn(self, items: list[lark.Token | lark.Tree | Node]):
-		value = None
+		value = items[0]
 		try:
-			value = items[0]
-			return ReturnNode(value, Type.get(value.type), value.line, value.column)
+			value = items[1]
+			return ReturnNode(value, Type.get(value.type)[0], value.line, value.column)
 		except IndexError:
 			return ReturnNode(None, Type.VOID, value.line, value.column)
 		except AttributeError:

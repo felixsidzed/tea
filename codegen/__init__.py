@@ -200,14 +200,17 @@ class CodeGen:
 		for node in root.body:
 			if type(node) == ReturnNode:
 				expected: ir.Type = self._block.block.function.return_value.type
-				type_, value = self._emitExpression(node.value)
-				if type_ != expected:
-					if checki(type_, expected):
-						value = ir.Constant(expected, value.constant) if type(value) == ir.Constant else self._block.zext(value, expected)
-					else:
-						self.panic("return value (%s) is incompatible with function return type (%s). line %d, column %d", str(type_), str(expected), node.line, node.column)
-						continue
-				self._block.ret(value)
+				if node.value is not None:
+					type_, value = self._emitExpression(node.value)
+					if type_ != expected:
+						if checki(type_, expected):
+							value = ir.Constant(expected, value.constant) if type(value) == ir.Constant else self._block.zext(value, expected)
+						else:
+							self.panic("return value (%s) is incompatible with function return type (%s). line %d, column %d", str(type_), str(expected), node.line, node.column)
+							continue
+					self._block.ret(value)
+				else:
+					self._block.ret_void()
 
 			elif type(node) == CallNode:
 				self._emitCall(node)

@@ -28,7 +28,8 @@ variable: "var" IDENTF ":" TYPE "=" expr ";"
 global_var: STORAGE_TYPE "var" IDENTF ":" TYPE ";"
 			| STORAGE_TYPE "var" IDENTF ":" TYPE "=" expr ";"
 
-rreturn: "return" expr ";"
+rreturn: RETURN expr ";"
+		| RETURN ";"
 
 // Control Flow
 if_block:        "if" "(" expr ")" "do" stat* "end"
@@ -92,7 +93,7 @@ sc__assign:		IDENTF "=" expr 	 -> assign
 	   | "&" IDENTF
 
 // Types
-TYPE: /(?:const\s+)?(int|float|double|char|string|void|bool)\*?/
+TYPE: /(?:const\s+)?(int|float|double|char|string|void|bool|long)\*?/
 STORAGE_TYPE: "public" | "private"
 
 // Terminals
@@ -106,6 +107,7 @@ CALLING_CONV: "__stdcall"
 			| "__fastcall"
 			| "__cdecl"
 ELSE: "else"
+RETURN: "return"
 
 // Imports
 %import common.ESCAPED_STRING -> STRING
