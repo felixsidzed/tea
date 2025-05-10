@@ -2,6 +2,8 @@
 
 **Tea**, pronounced /teə/, is a lightweight, general purpose scripting language inspired by Lua. Its designed to be easy to understand while having low-level access, and it compiles down to a native object file.
 
+Full documentation at https://felixsidzed.github.io/tea-docs/
+
 ---
 
 ## Features
@@ -39,7 +41,7 @@ tea test.tea -o build/test.o
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.11
 - Microsoft Visual Studio Build Tools (for `link.exe`)
 
 ---
