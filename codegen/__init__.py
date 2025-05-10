@@ -1,4 +1,6 @@
 import re
+import sys
+import traceback
 
 from lark import Token as LarkToken
 from llvmlite import ir, binding as llvm
@@ -127,7 +129,9 @@ class CodeGen:
 			return obj
 		except Exception as e:
 			if self.verbose:
-				self.panic("code generation failed due to a fatal error: %s", e)
+				_, _, tb = sys.exc_info()
+				fr = traceback.extract_tb(tb)[-1]
+				self.panic("code generation failed due to a fatal error (%s : %d): %s", fr.filename, fr.lineno, e)
 			else:
 				self.panic("code generation failed due to a fatal error")
 			del self._module, self._machine
@@ -152,6 +156,20 @@ class CodeGen:
 					f.close()
 				fixTypes(parsed)
 				self._modules[node.name] = parsed
+			
+			elif type(node) == GlobalVariableNode:
+				expected, const = node.dataType
+				type_, value = self._emitExpression(node.value)
+				if type_ != expected:
+					if checki(type_, expected):
+						value = ir.Constant(expected, value.constant) if type(value) == ir.Constant else self._block.zext(value, expected)
+					else:
+						self.panic("constant (%s) is incompatible with function return value type (%s). line %d, column %d", str(type_), str(expected), node.line, node.column)
+						continue
+				var = ir.GlobalVariable(self._module, type_, node.name)
+				var.initializer = value
+				var.linkage = "public" if node.storage == STORAGE_PUBLIC else "private"
+				var.global_constant = const
 
 			else:
 				self.panic("invalid root statement '%s'", type(node).__name__[:-4])
@@ -187,7 +205,7 @@ class CodeGen:
 					if checki(type_, expected):
 						value = ir.Constant(expected, value.constant) if type(value) == ir.Constant else self._block.zext(value, expected)
 					else:
-						self.panic("return value (%s) is incompatible with function return value type (%s). line %d, column %d", str(type_), str(expected), node.line, node.column)
+						self.panic("return value (%s) is incompatible with function return type (%s). line %d, column %d", str(type_), str(expected), node.line, node.column)
 						continue
 				self._block.ret(value)
 
@@ -297,7 +315,7 @@ class CodeGen:
 		self._log("Leaving block '%s:%s' (%d locals)", getattr(root, "name", "<unnamed>"), name, len(self._locals))
 		del self._block, self._locals
 
-	def _emitExpression(self, node: ExpressionNode):
+	def _emitExpression(self, node: ExpressionNode, const: bool = False):
 		# we use some tricks to minimize the amount of duplicate code
 		if type(node) == LarkToken:
 			if node.type not in ("IDENTF", "STRING"):
@@ -305,6 +323,9 @@ class CodeGen:
 				return (T, ir.Constant(T, node.value))
 			
 			elif node.type == "IDENTF":
+				if const:
+					self.panic("'IDENTF' can not a constant expression")
+
 				if node.value in self._args:
 					arg = self._func.args[self._args.index(node.value)]
 					return (arg.type, arg)
@@ -312,7 +333,15 @@ class CodeGen:
 					local = self._locals[node.value]
 					return (local[1][0], self._block.load(local[0]))
 				else:
-					self.panic("undefined constant '%s' in expression", node.name)
+					try:
+						var = self._module.get_global(node.value)
+						if type(var) == ir.GlobalVariable:
+							print(repr(var.type))
+							return (var.type, self._block.load(var))
+						else:
+							raise KeyError
+					except KeyError:
+						self.panic("undefined constant '%s' in expression", getattr(node, "value", getattr(node, "name", str(node))))
 
 			elif node.type == "STRING":
 				value = bytearray(node.value.encode("utf8")) + b"\00"
@@ -329,17 +358,19 @@ class CodeGen:
 				self.panic("invalid constant '%s' in expression", node.value)
 
 		elif type(node) == CallNode:
+			if const:
+				self.panic("'CALL' can not be a constant expression")
 			return self._emitCall(node)
 
 		elif isinstance(node, ExpressionNode):
 			if type(node) in (AddNode, MulNode, SubNode, DivNode):
-				lhs = self._emitExpression(node.left)
-				rhs = self._emitExpression(node.right)
+				lhs = self._emitExpression(node.left, const)
+				rhs = self._emitExpression(node.right, const)
 				return (lhs[0], getattr(self._block, type(node).__name__.lower()[:-4].replace("div", "sdiv"))(lhs[1], rhs[1]))
 			
 			elif type(node) in (EqNode, NeqNode, LtNode, LeNode, GtNode, GeNode):
-				lhs = self._emitExpression(node.left)
-				rhs = self._emitExpression(node.right)
+				lhs = self._emitExpression(node.left, const)
+				rhs = self._emitExpression(node.right, const)
 				cmpop = NNAME2CMPOP[type(node).__name__[:-4]]
 				if lhs[0] in (F32, F64):
 					return (I1, self._block.fcmp_ordered(cmpop, lhs[1], rhs[1]))
@@ -349,7 +380,7 @@ class CodeGen:
 					self.panic("invalid lhs type '%s' in expression", lhs[0])
 			
 			elif type(node) == NotNode:
-				type_, value = self._emitExpression(node.value)
+				type_, value = self._emitExpression(node.value, const)
 				return (type_, self._block.not_(value))
 
 		else:

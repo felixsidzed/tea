@@ -1,48 +1,9 @@
 using "io";
-using "str";
-using "mem";
-using "math";
 
-private func mul(int x, int y) -> int
-    return x * y;
-end
+private var a: int = 5;
 
 public func main() -> int
-    // loop from 0 to 9
-    for (var i: int = 0; i < 10; i += 1) do
-        io::printf("%d\n", i);
-    end
+        io::printf("%d\n", a);
 
-    // prompt and read user input
-    io::print("enter something: ");
-    var input: string = io::readline();
-    io::printf("%d characters\n", str::len(input));
-
-    // conditional logic
-    if (str::len(input) > 5) do
-        io::print("longer than 5 characters\n");
-    elseif (str::len(input) == 5) do
-        io::print("exactly 5 characters\n");
-    else
-        io::print("shorter than 5 characters\n");
-    end
-
-    // loop with while
-    var count: int = 0;
-    while (count < 3) do
-        io::printf("count: %d\n", count);
-        count += 1;
-    end
-
-    // expression test
-    var result: int = 5 * (2 + 3);
-
-    // Call to another function
-    var doubled: int = mul(result, 2);
-    io::printf("doubled result: %d\n", doubled);
-
-    // clean up
-    mem::free(input);
-
-    return 0;
+        return 0;
 end

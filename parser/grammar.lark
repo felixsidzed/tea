@@ -1,5 +1,5 @@
 // Root Elements
-module: (using | function | function2 | function_declaration)*
+module: (using | function | function2 | function_declaration | global_var)*
 
 function: STORAGE_TYPE "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
 function2: STORAGE_TYPE CALLING_CONV "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
@@ -24,6 +24,9 @@ using: "using" STRING ";"
 
 variable: "var" IDENTF ":" TYPE "=" expr ";"
 		| "var" IDENTF ":" TYPE ";"
+
+global_var: STORAGE_TYPE "var" IDENTF ":" TYPE ";"
+			| STORAGE_TYPE "var" IDENTF ":" TYPE "=" expr ";"
 
 rreturn: "return" expr ";"
 
@@ -86,7 +89,7 @@ sc__assign:		IDENTF "=" expr 	 -> assign
 	   | STRING
 	   | CHAR
 	   | "(" expr ")"
-	   | "&" expr
+	   | "&" IDENTF
 
 // Types
 TYPE: /(?:const\s+)?(int|float|double|char|string|void|bool)\*?/

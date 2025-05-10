@@ -14,7 +14,6 @@ _functioncache = {}
 
 
 def resource(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
     try:
         base_path = sys._MEIPASS
     except AttributeError:
@@ -332,6 +331,18 @@ class AST(lark.Transformer):
 			items[3:],
 			items[0].line,
 			items[0].column
+		)
+	
+
+	def global_var(self, items: list[lark.Token | lark.Tree | Node]):
+		scope, name, dataType, *value = items
+		return GlobalVariableNode(
+			STORAGE2I[scope.value],
+			name.value,
+			Type.get(dataType.value),
+			value[0] if len(value) > 0 else None,
+			scope.line,
+			scope.column
 		)
 
 

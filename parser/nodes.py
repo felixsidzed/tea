@@ -237,3 +237,12 @@ class ForLoopNode(Node):
 		self.steps = steps
 		self.body = body
 		super().__init__(line, column)
+
+
+class GlobalVariableNode(Node):
+	def __init__(self, storage: int, name: str, dataType: int, value, line: int, column: int):
+		self.storage = storage
+		self.name = name
+		self.dataType = dataType
+		self.value = value
+		super().__init__(line, column)
