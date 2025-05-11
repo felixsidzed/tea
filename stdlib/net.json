@@ -1,0 +1,41 @@
+{
+	"format": 3,
+	"namespace": "_net__",
+	"functions": {
+		"connect": {
+			"return": "VOID*",
+			"args": ["STRING", "INT"],
+			"vararg": false
+		},
+		"listen": {
+			"return": "VOID*",
+			"args": ["VOID*", "INT"],
+			"vararg": false
+		},
+		"accept": {
+			"return": "VOID*",
+			"args": ["VOID*"],
+			"vararg": false
+		},
+		"send": {
+			"return": "BOOL",
+			"args": ["VOID*", "STRING"],
+			"vararg": false
+		},
+		"recv": {
+			"return": "STRING",
+			"args": ["VOID*", "INT"],
+			"vararg": false
+		},
+		"close": {
+			"return": "VOID",
+			"args": ["VOID*"],
+			"vararg": false
+		},
+		"settimeout": {
+			"return": "VOID",
+			"args": ["VOID*", "INT"],
+			"vararg": false
+		}
+	}
+}

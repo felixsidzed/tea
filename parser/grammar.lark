@@ -19,8 +19,8 @@ arg: expr
 
 using: "using" STRING ";"
 
-?call: IDENTF "(" args ")" ";" -> direct_call
-	 | IDENTF "::" IDENTF ("::" IDENTF)* "(" args ")" ";" -> scoped_call
+?call: IDENTF "(" args ")" ";"								-> direct_call
+	 | IDENTF "::" IDENTF ("::" IDENTF)* "(" args ")" ";"	-> scoped_call
 
 variable: "var" IDENTF ":" TYPE "=" expr ";"
 		| "var" IDENTF ":" TYPE ";"

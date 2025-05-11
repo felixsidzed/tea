@@ -70,7 +70,7 @@ class AST(lark.Transformer):
 			name.line,
 			name.column
 		)
-		_functioncache[name.value] = node
+		_functioncache[name] = node
 		return node
 
 	def function2(self, items: list[lark.Token | lark.Tree | Node]):
@@ -91,7 +91,7 @@ class AST(lark.Transformer):
 			name.line,
 			name.column
 		)
-		_functioncache[name.value] = node
+		_functioncache[name] = node
 		return node
 
 	def function_declaration(self, items: list[lark.Token | lark.Tree | Node]):
@@ -123,16 +123,16 @@ class AST(lark.Transformer):
 		)
 
 	def direct_call(self, items: list[lark.Token | lark.Tree | Node]):
-		name = items[0]
+		callee = items[0]
 		args = items[1] if len(items) > 1 else []
 
 		return CallNode(
-			name.value,
+			callee,
 			[arg.children[0] for arg in args.children],
 			[],
-			_functioncache.get(name.value, None),
-			name.line,
-			name.column
+			_functioncache.get(callee, None),
+			callee.line,
+			callee.column
 		)
 
 	def scoped_call(self, items: list[lark.Token | lark.Tree | Node]):
@@ -143,7 +143,7 @@ class AST(lark.Transformer):
 			name.value,
 			[arg.children[0] for arg in args.children],
 			scope,
-			_functioncache.get("::".join(scope + [name.value]), None),
+			None,
 			name.line,
 			name.column
 		)

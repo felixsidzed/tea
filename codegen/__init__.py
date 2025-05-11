@@ -115,6 +115,8 @@ class CodeGen:
 		self._module.data_layout = self._machine.target_data
 		self._log("Target machine: '%s'", str(target))
 
+		#ir.GlobalVariable(self._module, I8.as_pointer(), "nullptr").linkage = "internal"
+
 		try:
 			self._emitCode(root)
 
@@ -135,7 +137,6 @@ class CodeGen:
 				_, _, tb = sys.exc_info()
 				fr = traceback.extract_tb(tb)[-1]
 				self.panic("code generation failed due to a fatal error (%s : %d): %s", fr.filename, fr.lineno, e)
-				raise
 			else:
 				self.panic("code generation failed due to a fatal error")
 			del self._module, self._machine
@@ -192,8 +193,17 @@ class CodeGen:
 		if root.storage == STORAGE_PRIVATE: self._func.linkage = "private"
 		self._args = tuple(root.args.keys())
 		self._argsTi = tuple(root.args.values())
+		self._returned = False
 
 		self._emitBlock(root, "entry", self._func)
+		
+		if not self._returned:
+			if root.returnType[0] == VOID:
+				b = ir.IRBuilder(self._func.blocks[-1])
+				b.ret_void()
+				del b
+			else:
+				self.panic("missing return statement in non-void function")
 
 		del self._func
 
@@ -204,11 +214,14 @@ class CodeGen:
 
 		for node in root.body:
 			if type(node) == ReturnNode:
+				self._returned = True
 				expected: ir.Type = self._block.block.function.return_value.type
 				if node.value is not None:
 					type_, value = self._emitExpression(node.value)
 					if type_ != expected:
-						if checki(type_, expected):
+						if (type_.is_pointer or type(type_) == ir.FunctionType) and expected.is_pointer:
+							value = self._block.bitcast(value, expected)
+						elif checki(type_, expected):
 							value = ir.Constant(expected, value.constant) if type(value) == ir.Constant else self._block.zext(value, expected)
 						else:
 							self.panic("return value (%s) is incompatible with function return type (%s). line %d, column %d", str(type_), str(expected), node.line, node.column)
@@ -345,6 +358,8 @@ class CodeGen:
 						var = self._module.get_global(node.value)
 						if type(var) == ir.GlobalVariable:
 							return (var.type, self._block.load(var))
+						elif isinstance(var, ir.Function):
+							return (var.function_type, var)
 						else:
 							raise KeyError
 					except KeyError:
@@ -379,6 +394,8 @@ class CodeGen:
 						var = self._module.get_global(node.value)
 						if isinstance(var, ir.GlobalVariable):
 							return (var.type, var)
+						elif isinstance(var, ir.Function):
+							return (var.function_type, var)
 						else:
 							raise KeyError
 					except KeyError:
@@ -402,6 +419,7 @@ class CodeGen:
 		elif type(node) == CallNode:
 			if const:
 				self.panic("'CALL' can not be a constant expression")
+
 			return self._emitCall(node)
 
 		elif isinstance(node, ExpressionNode):
@@ -429,48 +447,64 @@ class CodeGen:
 			self.panic("invalid statement '%s' in expression", type(node).__name__[:-4])
 
 	def _emitCall(self, node: CallNode):
-		if len(node.scope) == 0 and node.name not in self._module.globals:
-			self.panic("call to undefined function '%s'. line %d, column %d", node.name, node.line, node.column)
-			return
+		callee = node.name
+		args = [list(self._emitExpression(arg)) for arg in node.args]
 
-		args = []
-		for arg in node.args:
-			args.append(self._emitExpression(arg))
+		func = None
+		vararg = False
 
+		module = None
 		if len(node.scope) == 0:
-			func: ir.Function = self._module.get_global(node.name)
+			if callee not in self._module.globals:
+				self.panic("reference to undefined function '%s'. line %d, column %d", callee, node.line, node.column)
+				return
+			func: ir.Function = self._module.get_global(callee)
 			vararg = func.function_type.var_arg
 		else:
-			module = self._modules.get(node.scope[0], None)
-			if (module["namespace"] + node.name) in self._module.globals:
-				func: ir.Function = self._module.get_global(module["namespace"] + node.name)
+			module = self._modules
+			fqn = ""
+
+			for scope in node.scope:
+				module = module.get(scope)
+				if module is None:
+					self.panic("'%s' does not name a valid scope. line %d, column %d", scope, node.line, node.column)
+					return
+				fqn += module["namespace"]
+			fqn += callee
+
+			if fqn in self._module.globals:
+				func: ir.Function = self._module.get_global(fqn)
 				vararg = func.function_type.var_arg
 			else:
-				if module is None:
-					self.panic("'%s' does not name any valid scope. line %d, column %d", node.scope[0], node.line, node.column)
+				finfo = module["functions"].get(callee)
+				if finfo is None:
+					self.panic("reference to undefined function '%s'. line %d, column %d", fqn, node.line, node.column)
 					return
-				funcDef = module["functions"][node.name]
-				vararg = funcDef["vararg"]
-				func: ir.Function = ir.Function(self._module, ir.FunctionType(funcDef["return"], funcDef["args"], vararg), module["namespace"] + node.name)
-		
-		if not vararg:
-			if len(func.function_type.args) != len(args):
-				self.panic("argument count mismatch. line %d, column %d", node.line, node.column)
-				return
-		else:
-			if len(args) < len(func.function_type.args):
-				self.panic("argument count mismatch. line %d, column %d", node.line, node.column)
-				return
+				ftype = ir.FunctionType(finfo["return"], finfo["args"], finfo["vararg"])
+				func: ir.Function = ir.Function(self._module, ftype, fqn)
+				vararg = finfo["vararg"]
 
-		for i, expected in enumerate(func.function_type.args):
+		expectedArgs = func.function_type.args
+		if not vararg and len(args) != len(expectedArgs):
+			self.panic("argument count mismatch. expected %d, got %d. line %d, column %d", len(expectedArgs), len(args), node.line, node.column)
+			return
+		elif vararg and len(args) < len(expectedArgs):
+			self.panic("argument count mismatch. expected at least %d, got %d. line %d, column %d", len(expectedArgs), len(args), node.line, node.column)
+			return
+
+		for i, expected in enumerate(expectedArgs):
 			got = args[i][0]
-			if expected != got:
-				self.panic("argument %d: argument type (%s) does not match function argument type (%s). line %d, column %d",
-					i,
-					expected, got,
-					node.line, node.column
-				)
-				return
+			if got != expected:
+				if (got.is_pointer or type(got) == ir.FunctionType) and expected.is_pointer:
+					args[i][1] = self._block.bitcast(args[i][1], expected)
+				elif checki(got, expected):
+					args[i][1] = ir.Constant(expected, args[i][1].constant) if type(args[i][1]) == ir.Constant else self._block.zext(args[i][1], expected)
+				else:
+					self.panic(
+						"argument %d: expected type %s, got %s. line %d, column %d",
+						i, expected, got, node.line, node.column
+					)
+					continue
 
 		return (func.function_type.return_type, self._block.call(func, (value for _, value in args)))
 	

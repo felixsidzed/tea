@@ -1,14 +1,9 @@
 using "io";
-
-private func test(int* a) -> void
-	*a = 10;
-	return;
-end
+using "net";
 
 public func main() -> int
-	var a: int = 5;
-	test(&a);
-	io::printf("a = %d\n", a);
+	var sock: void* = net::connect("127.0.0.1", 8080);
+	net::send(sock, "Hello, World!\n");
 
 	return 0;
 end
