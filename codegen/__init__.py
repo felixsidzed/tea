@@ -120,7 +120,7 @@ class CodeGen:
 		try:
 			self._emitCode(root)
 
-			if self.verbose: print(self._module)
+			#if self.verbose: print(self._module)
 
 			split = str(self._module).split("\n", 1)
 			ref = llvm.parse_assembly(f"{split[0]}\nsource_filename = \"{self._module.name}\"\n{split[1]}")
