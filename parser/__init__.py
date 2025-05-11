@@ -344,6 +344,14 @@ class AST(lark.Transformer):
 			scope.line,
 			scope.column
 		)
+	
+
+	def reference(self, items: list[lark.Token | lark.Tree | Node]):
+		return lark.Token("REF", items[0], line=items[0].line, column=items[0].column)
+	
+
+	def dereference(self, items: list[lark.Token | lark.Tree | Node]):
+		return lark.Token("DEREF", items[0], line=items[0].line, column=items[0].column)
 
 
 class Parser:

@@ -1,5 +1,14 @@
-using "sys";
+using "io";
 
-public func main() -> long
-	return sys::time();
+private func test(int* a) -> void
+	*a = 10;
+	return;
+end
+
+public func main() -> int
+	var a: int = 5;
+	test(&a);
+	io::printf("a = %d\n", a);
+
+	return 0;
 end

@@ -41,7 +41,10 @@ def defaultPanic(fmt: str, *args):
 
 
 def checki(i1: ir.Type, i2: ir.Type):
-	return int(str(i1)[1:]) <= int(str(i2)[1:])
+	try:
+		return int(str(i1)[1:]) <= int(str(i2)[1:])
+	except:
+		return False
 
 
 # TODO: clean
@@ -132,6 +135,7 @@ class CodeGen:
 				_, _, tb = sys.exc_info()
 				fr = traceback.extract_tb(tb)[-1]
 				self.panic("code generation failed due to a fatal error (%s : %d): %s", fr.filename, fr.lineno, e)
+				raise
 			else:
 				self.panic("code generation failed due to a fatal error")
 			del self._module, self._machine
@@ -187,6 +191,7 @@ class CodeGen:
 		self._func.calling_convention = CCONV[root.conv]
 		if root.storage == STORAGE_PRIVATE: self._func.linkage = "private"
 		self._args = tuple(root.args.keys())
+		self._argsTi = tuple(root.args.values())
 
 		self._emitBlock(root, "entry", self._func)
 
@@ -321,13 +326,13 @@ class CodeGen:
 	def _emitExpression(self, node: ExpressionNode, const: bool = False):
 		# we use some tricks to minimize the amount of duplicate code
 		if type(node) == LarkToken:
-			if node.type not in ("IDENTF", "STRING"):
+			if node.type not in ("IDENTF", "STRING", "REF", "DEREF"):
 				T = Type.get(node.type)[0]
 				return (T, ir.Constant(T, node.value))
 			
 			elif node.type == "IDENTF":
 				if const:
-					self.panic("'IDENTF' can not a constant expression")
+					self.panic("'IDENTF' can not be a constant expression")
 
 				if node.value in self._args:
 					arg = self._func.args[self._args.index(node.value)]
@@ -339,12 +344,11 @@ class CodeGen:
 					try:
 						var = self._module.get_global(node.value)
 						if type(var) == ir.GlobalVariable:
-							print(repr(var.type))
 							return (var.type, self._block.load(var))
 						else:
 							raise KeyError
 					except KeyError:
-						self.panic("undefined constant '%s' in expression", getattr(node, "value", getattr(node, "name", str(node))))
+						self.panic("undefined reference to '%s' in expression", node.value)
 
 			elif node.type == "STRING":
 				value = bytearray(node.value.encode("utf8")) + b"\00"
@@ -357,8 +361,43 @@ class CodeGen:
 				
 				return (PI8, self._block.bitcast(g, PI8))
 			
+			elif node.type == "REF":
+				if const:
+					self.panic("'REFERENCE' can not be a constant expression")
+
+				if node.value in self._args:
+					arg = self._func.args[self._args.index(node.value)]
+					ptr = self._block.bitcast(arg, ir.PointerType(arg.type))
+					return (ptr.type, ptr)
+				
+				elif node.value in self._locals:
+					local = self._locals[node.value]
+					return (local[0].type, local[0])
+				
+				else:
+					try:
+						var = self._module.get_global(node.value)
+						if isinstance(var, ir.GlobalVariable):
+							return (var.type, var)
+						else:
+							raise KeyError
+					except KeyError:
+						self.panic("undefined reference to '%s' in expression", node.value)
+
+			elif node.type == "DEREF":
+				if const:
+					self.panic("'DEREFERENCE' can not be a constant expression")
+
+				type_, val = self._emitExpression(node.value, const=False)
+
+				if not type_.is_pointer:
+					self.panic("cannot dereference non-pointer type '%s'" % str(type_))
+
+				val = self._block.load(val)
+				return (type_.pointee, val)
+			
 			else:
-				self.panic("invalid constant '%s' in expression", node.value)
+				self.panic("invalid constant '%s' in expression", node)
 
 		elif type(node) == CallNode:
 			if const:
@@ -436,6 +475,8 @@ class CodeGen:
 		return (func.function_type.return_type, self._block.call(func, (value for _, value in args)))
 	
 	def _emitVariable(self, node: VariableNode):
+		self._log("Emitting local %s '%s' (initialized = %s)", node.dataType[0], node.name, node.value is not None)
+
 		expected = node.dataType[0]
 		alloca = self._block.alloca(expected, name=node.name)
 
@@ -452,31 +493,53 @@ class CodeGen:
 		self._locals[node.name] = (alloca, node.dataType)
 	
 	def _emitAssignment(self, node: AssignNode):
-		if node.lhs not in self._locals:
-			self.panic("invalid lhs operator '%s' in assignment. line %d, column %d", node.lhs, node.line, node.column)
-			return
-		local = self._locals[node.lhs]
-		if local[1][1]:
+		def _emitLhs(val):
+			if type(val) == LarkToken and val.type == "DEREF":
+				old = val
+				val = _emitLhs(val.value)
+				if old in self._locals:
+					return (
+						self._block.load(val[0]),
+						(val[0].allocated_type.pointee, val[1][1])
+					)
+				else:
+					return (
+						val[0],
+						(val[0].type.pointee, val[1][1])
+					)
+				
+			elif val in self._locals:
+				return self._locals[val]
+			
+			elif val in self._module.globals:
+				val: ir.GlobalVariable = self._module.get_global(val)
+				return (val, (val.type.pointee, val.global_constant))
+			
+			elif val in self._args:
+				idx = self._args.index(val)
+				arg = self._func.args[idx]
+				ti = self._argsTi[idx]
+				return (arg, ti)
+			
+			else:
+				self.panic("invalid lhs operator '%s' in assignment. line %d, column %d", node.lhs, node.line, node.column)
+		lhs = _emitLhs(node.lhs)
+		
+		if lhs[1][1]:
 			self.panic("assignment to a constant variable '%s'. line %d, column %d", node.lhs, node.line, node.column)
 			return
 		rhs = list(self._emitExpression(node.rhs))
-		if rhs[0] != local[1][0]:
-			self.panic("value type (%s) does not match variable type (%s). line %d, column %d", rhs[0], local[1][0], node.line, node.column)
+		if rhs[0] != lhs[1][0]:
+			self.panic("value type (%s) does not match variable type (%s). line %d, column %d", rhs[0], lhs[1][0], node.line, node.column)
 			return
 		
-		if node.extra:
-			ptr = self._block.load(local[0])
-		if node.extra == "+":
-			rhs[1] = self._block.add(ptr, rhs[1])
-		elif node.extra == "-":
-			rhs[1] = self._block.sub(ptr, rhs[1])
-		elif node.extra == "*":
-			rhs[1] = self._block.mul(ptr, rhs[1])
-		elif node.extra == "/":
-			rhs[1] = self._block.sdiv(ptr, rhs[1])
-		elif node.extra is None: pass
-		else:
+		if node.extra: val = self._block.load(lhs[0])
+		if node.extra == "+": rhs[1] = self._block.add(val, rhs[1])
+		elif node.extra == "-": rhs[1] = self._block.sub(val, rhs[1])
+		elif node.extra == "*": rhs[1] = self._block.mul(val, rhs[1])
+		elif node.extra == "/": rhs[1] = self._block.sdiv(val, rhs[1])
+		elif node.extra is not None:
 			self.panic("invalid operator '%s' in assignment. line %d, column %d", node.extra, node.line, node.column)
 			return
 
-		self._block.store(rhs[1], local[0])
+		self._block.store(rhs[1], lhs[0])
