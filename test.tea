@@ -3,7 +3,11 @@ using "net";
 
 public func main() -> int
 	var sock: void* = net::connect("127.0.0.1", 8080);
-	net::send(sock, "Hello, World!\n");
+	net::send(sock, "Hello, Server!\n");
+	var response: string = net::recv(sock, 1024);
+	io::print(response);
+	net::close(sock);
+	net::cleanup();
 
 	return 0;
 end

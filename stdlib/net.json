@@ -36,6 +36,11 @@
 			"return": "VOID",
 			"args": ["VOID*", "INT"],
 			"vararg": false
+		},
+		"cleanup": {
+			"return": "VOID",
+			"args": [],
+			"vararg": false
 		}
 	}
 }

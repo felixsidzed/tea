@@ -6,38 +6,95 @@
 
 static BOOL initialized = FALSE;
 
-int net_init() {
-	initialized = TRUE;
-	WSADATA wsaData;
-	return WSAStartup(MAKEWORD(2, 2), &wsaData);
+void* _net__connect(const char* address, int port) {
+	if (!initialized) {
+		initialized = TRUE;
+		WSADATA wsaData;
+		WSAStartup(MAKEWORD(2, 2), &wsaData);
+	}
+
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (sock == INVALID_SOCKET)
+		return NULL;
+
+	struct sockaddr_in server;
+	server.sin_family = AF_INET;
+	server.sin_port = htons(port);
+	server.sin_addr.s_addr = inet_addr(address);
+
+	if (connect(sock, (struct sockaddr*)&server, sizeof(server)) == SOCKET_ERROR) {
+		closesocket(sock);
+		return NULL;
+	}
+
+	return (void*)sock;
 }
 
-void* _net__connect(const char* address, int port) {
-	if (!initialized)
-		net_init();
+void* _net__listen(int port) {
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (sock == INVALID_SOCKET)
+		return NULL;
 
-    SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == INVALID_SOCKET) {
-        return NULL;
-    }
+	struct sockaddr_in server;
+	server.sin_family = AF_INET;
+	server.sin_port = htons(port);
+	server.sin_addr.s_addr = INADDR_ANY;
 
-    struct sockaddr_in server;
-    server.sin_family = AF_INET;
-    server.sin_port = htons(port);
-    server.sin_addr.s_addr = inet_addr(address);
+	if (bind(sock, (struct sockaddr*)&server, sizeof(server)) == SOCKET_ERROR) {
+		closesocket(sock);
+		return NULL;
+	}
 
-    if (connect(sock, (struct sockaddr*)&server, sizeof(server)) == SOCKET_ERROR) {
-        closesocket(sock);
-        return NULL;
-    }
+	if (listen(sock, 5) == SOCKET_ERROR) {
+		closesocket(sock);
+		return NULL;
+	}
 
-    return (void*)sock;
+	return (void*)sock;
+}
+
+void* _net__accept(void* sock) {
+	struct sockaddr_in clientAddr;
+	int addrLen = sizeof(clientAddr);
+
+	SOCKET client = accept((SOCKET)sock, (struct sockaddr*)&clientAddr, &addrLen);
+	if (client == INVALID_SOCKET)
+		return NULL;
+
+	return (void*)client;
 }
 
 BOOL _net__send(void* socket, const char* data) {
-    SOCKET sock = (SOCKET)socket;
-    int result = send(sock, data, (int)lstrlenA(data), 0);
-    return result != SOCKET_ERROR;
+	int result = send((SOCKET)socket, data, (int)lstrlenA(data), 0);
+	return result != SOCKET_ERROR;
+}
+
+const char* _net__recv(void* socket, int bufferSize) {
+	char* buffer = (char*)HeapAlloc(GetProcessHeap(), 0, bufferSize);
+
+	int result = recv((SOCKET)socket, buffer, bufferSize, 0);
+	if (result == SOCKET_ERROR) {
+		HeapFree(GetProcessHeap(), 0, buffer);
+		return NULL;
+	}
+
+	buffer[result] = '\0';
+	return buffer;
+}
+
+void _net__close(void* socket) {
+	closesocket((SOCKET)socket);
+}
+
+void _net__settimeout(void* socket, int timeout) {
+	struct timeval tv;
+	tv.tv_sec = timeout;
+	tv.tv_usec = 0;
+	setsockopt((SOCKET)socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&tv, sizeof(tv));
+}
+
+void _net__cleanup() {
+	WSACleanup();
 }
 
 #else
