@@ -4,6 +4,8 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
+extern BOOL _io__printf(const char* message, ...);
+
 static BOOL initialized = FALSE;
 
 void* _net__connect(const char* address, int port) {
@@ -30,10 +32,23 @@ void* _net__connect(const char* address, int port) {
 	return (void*)sock;
 }
 
+
 void* _net__listen(int port) {
+	if (!initialized) {
+		WSADATA wsaData;
+		WSAStartup(MAKEWORD(2, 2), &wsaData);
+		initialized = TRUE;
+	}
+	
 	SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (sock == INVALID_SOCKET)
 		return NULL;
+
+	int opt = 1;
+	if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt)) == SOCKET_ERROR) {
+		closesocket(sock);
+		return NULL;
+	}
 
 	struct sockaddr_in server;
 	server.sin_family = AF_INET;
@@ -54,6 +69,9 @@ void* _net__listen(int port) {
 }
 
 void* _net__accept(void* sock) {
+	if (sock == NULL)
+		return NULL;
+
 	struct sockaddr_in clientAddr;
 	int addrLen = sizeof(clientAddr);
 
@@ -94,7 +112,10 @@ void _net__settimeout(void* socket, int timeout) {
 }
 
 void _net__cleanup() {
-	WSACleanup();
+	if (initialized) {
+		WSACleanup();
+		initialized = FALSE;
+	}
 }
 
 #else

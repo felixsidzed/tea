@@ -1,13 +1,69 @@
 using "io";
 using "net";
+using "str";
+using "sys";
+using "mem";
 
 public func main() -> int
-	var sock: void* = net::connect("127.0.0.1", 8080);
-	net::send(sock, "Hello, Server!\n");
-	var response: string = net::recv(sock, 1024);
-	io::print(response);
-	net::close(sock);
+	io::print("enter username: ");
+	var username: string = io::readline();
+
+	var conn: void*;
+	var socket: void*;
+
+	var host: bool = str::eq(username, "server");
+
+	if (host) do
+		socket = net::listen(8080);
+		conn = net::accept(socket);
+	else
+		conn = net::connect("127.0.0.1", 8080);
+	end
+
+	var running: bool = true;
+
+	while (running) do
+		if (host) do
+			io::print("you:: ");
+			var input: string = io::readline();
+
+			if (str::eq(input, ".quit")) do
+				running = false;
+			else
+				var msg: string = str::cat(4, username, ": ", input, "\n");
+				net::send(conn, msg);
+				mem::free(msg);
+			end
+		end
+
+		var received: string = net::recv(conn, 1024);
+		if (str::len(received) > 0) do
+			io::print(received);
+			mem::free(received);
+		end
+
+		if (!host) do
+			io::print("you: ");
+			var input: string = io::readline();
+
+			if (str::eq(input, ".quit")) do
+				running = false;
+			else
+				var msg: string = str::cat(4, username, ": ", input, "\n");
+				net::send(conn, msg);
+				mem::free(msg);
+			end
+		end
+
+		sys::sleep(100);
+	end
+
+	net::close(conn);
+	if (host) do
+		net::close(socket);
+	end
 	net::cleanup();
+	mem::free(username);
 
 	return 0;
 end

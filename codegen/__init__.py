@@ -18,6 +18,7 @@ I8	 = TYPE2LLVM[3]
 PI8	 = TYPE2LLVM[4]
 VOID = TYPE2LLVM[5]
 I1	 = TYPE2LLVM[6]
+I64	 = TYPE2LLVM[7]
 
 CCONV = {
 	"__cdecl": "ccc",
@@ -120,7 +121,7 @@ class CodeGen:
 		try:
 			self._emitCode(root)
 
-			#if self.verbose: print(self._module)
+			if self.verbose: print(self._module)
 
 			split = str(self._module).split("\n", 1)
 			ref = llvm.parse_assembly(f"{split[0]}\nsource_filename = \"{self._module.name}\"\n{split[1]}")
@@ -207,7 +208,7 @@ class CodeGen:
 
 		del self._func
 
-	def _emitBlock(self, root: Node, name: str, parent=None) -> None:
+	def _emitBlock(self, root: Node, name: str, parent=None, preserve: bool = True) -> None:
 		if parent is not None:
 			self._block = ir.IRBuilder(parent.append_basic_block(name))
 		self._locals = getattr(self, "_locals", {})
@@ -237,48 +238,32 @@ class CodeGen:
 				self._emitVariable(node)
 
 			elif type(node) == IfNode:
-				_, cond = self._emitExpression(node.condition)
+				_, firstCond = self._emitExpression(node.condition)
+				
+				if len(node.elseIf) == 0 and node.else_ is None:
+					with self._block.if_then(firstCond):
+						self._emitBlock(node, "then", preserve=True)
+				
+				else:
+					with self._block.if_else(firstCond) as (then, otherwise):
+						with then:
+							self._emitBlock(node, "then", preserve=True)
+						
+						if len(node.elseIf) > 0:
+							for i, elseIf in enumerate(node.elseIf):
+								with otherwise:
+									_, elifCond = self._emitExpression(elseIf.condition)
+									with self._block.if_else(elifCond) as (then, otherwise):
+										with then:
+											self._emitBlock(elseIf, f"elseIf_{i}", preserve=True)
 
-				thenBlock: ir.Block = self._block.append_basic_block("then")
-				elseBlock: ir.Block = self._block.append_basic_block("else") if node.else_ else None
-				elseIfBlocks = [(self._block.append_basic_block(f"elseif{i}"), 
-								self._block.append_basic_block(f"elseif{i}.body")) for i in range(len(node.elseIf))]
-				mergeBlock: ir.Block = self._block.append_basic_block("merge")
+										if node.else_ is not None:
+											with otherwise:
+												self._emitBlock(node.else_, "else", preserve=True)
 
-				firstFallback = elseIfBlocks[0][0] if elseIfBlocks else (elseBlock or mergeBlock)
-				self._block.cbranch(cond, thenBlock, firstFallback)
-
-				thenBuilder = ir.IRBuilder(thenBlock)
-				self._block = thenBuilder
-				oldLocals = self._locals
-				self._emitBlock(node, "then")
-				if not thenBlock.is_terminated:
-					thenBuilder.branch(mergeBlock)
-
-				for i, (condBlock, bodyBlock) in enumerate(elseIfBlocks):
-					self._locals = oldLocals
-					self._block = ir.IRBuilder(condBlock)
-					_, elseifCond = self._emitExpression(node.elseIf[i].condition)
-
-					nextFallback = elseIfBlocks[i+1][0] if i+1 < len(elseIfBlocks) else (elseBlock or mergeBlock)
-					self._block.cbranch(elseifCond, bodyBlock, nextFallback)
-
-					bodyBuilder = ir.IRBuilder(bodyBlock)
-					self._block = bodyBuilder
-					self._emitBlock(node.elseIf[i], f"elseif{i}.body")
-					if not bodyBlock.is_terminated:
-						bodyBuilder.branch(mergeBlock)
-
-				if node.else_ is not None:
-					elseBuilder = ir.IRBuilder(elseBlock)
-					self._locals = oldLocals
-					self._block = elseBuilder
-					self._emitBlock(node.else_, "else")
-					if not elseBlock.is_terminated:
-						elseBuilder.branch(mergeBlock)
-
-				self._block = ir.IRBuilder(mergeBlock)
-				self._locals = oldLocals
+						elif node.else_ is not None:
+							with otherwise:
+								self._emitBlock(node.else_, "else", preserve=True)
 			
 			elif type(node) == AssignNode:
 				self._emitAssignment(node)
@@ -286,20 +271,17 @@ class CodeGen:
 			elif type(node) == WhileLoopNode:
 				condBlock: ir.Block  = self._block.append_basic_block("loop.cond")
 				bodyBlock: ir.Block  = self._block.append_basic_block("loop.body")
-				mergeBlock: ir.Block = self._block.append_basic_block("merge")
+				mergeBlock: ir.Block = self._block.append_basic_block("loop.merge")
 
 				self._block.branch(condBlock)
 				self._block = ir.IRBuilder(condBlock)
 				_, cond = self._emitExpression(node.condition)
 				self._block.cbranch(cond, bodyBlock, mergeBlock)
 
-				oldLocals = self._locals
-				bodyBuilder = ir.IRBuilder(bodyBlock)
-				self._block = bodyBuilder
-				self._emitBlock(node, "loop.body")
-				self._locals = oldLocals
-				if not bodyBlock.is_terminated:
-					bodyBuilder.branch(condBlock)
+				self._block = ir.IRBuilder(bodyBlock)
+				self._emitBlock(node, "loop.body", preserve=True)
+				if not self._block.block.is_terminated:
+					self._block.branch(condBlock)
 
 				self._block = ir.IRBuilder(mergeBlock)
 
@@ -316,17 +298,13 @@ class CodeGen:
 				_, cond = self._emitExpression(node.condition)
 				self._block.cbranch(cond, bodyBlock, mergeBlock)
 
-				oldLocals = self._locals
-				bodyBuilder = ir.IRBuilder(bodyBlock)
-				self._block = bodyBuilder
-				self._emitBlock(node, "loop.body")
-				self._locals = oldLocals
-				if not bodyBlock.is_terminated:
-					self._block = bodyBuilder
+				self._block = ir.IRBuilder(bodyBlock)
+				self._emitBlock(node, "loop.body", preserve=True)
+				if not self._block.block.is_terminated:
 					for step in node.steps:
 						self._emitAssignment(step)
 						
-					bodyBuilder.branch(condBlock)
+					self._block.branch(condBlock)
 
 				self._block = ir.IRBuilder(mergeBlock)
 
@@ -334,7 +312,8 @@ class CodeGen:
 				self.panic("invalid statement '%s' in block", type(node).__name__[:-4])
 
 		self._log("Leaving block '%s:%s' (%d locals)", getattr(root, "name", "<unnamed>"), name, len(self._locals))
-		del self._block, self._locals
+		if not preserve:
+			del self._block, self._locals
 
 	def _emitExpression(self, node: ExpressionNode, const: bool = False):
 		# we use some tricks to minimize the amount of duplicate code
@@ -366,13 +345,16 @@ class CodeGen:
 						self.panic("undefined reference to '%s' in expression", node.value)
 
 			elif node.type == "STRING":
-				value = bytearray(node.value.encode("utf8")) + b"\00"
-				type_ = ir.ArrayType(ir.IntType(8), len(value))
-				
-				g = ir.GlobalVariable(self._module, type_, str2name(node.value))
-				g.linkage = "internal"
-				g.global_constant = True
-				g.initializer = ir.Constant(type_, value)
+				name = str2name(node.value)
+				g = self._module.globals.get(name)
+				if g is None:
+					value = bytearray(node.value.encode("utf8")) + b"\00"
+					type_ = ir.ArrayType(ir.IntType(8), len(value))
+					
+					g = ir.GlobalVariable(self._module, type_, name)
+					g.linkage = "internal"
+					g.global_constant = True
+					g.initializer = ir.Constant(type_, value)
 				
 				return (PI8, self._block.bitcast(g, PI8))
 			
@@ -434,7 +416,7 @@ class CodeGen:
 				cmpop = NNAME2CMPOP[type(node).__name__[:-4]]
 				if lhs[0] in (F32, F64):
 					return (I1, self._block.fcmp_ordered(cmpop, lhs[1], rhs[1]))
-				elif lhs[0] in (I32, I8):
+				elif lhs[0] in (I32, I8, I64):
 					return (I1, self._block.icmp_signed(cmpop, lhs[1], rhs[1]))
 				else:
 					self.panic("invalid lhs type '%s' in expression", lhs[0])
@@ -442,6 +424,16 @@ class CodeGen:
 			elif type(node) == NotNode:
 				type_, value = self._emitExpression(node.value, const)
 				return (type_, self._block.not_(value))
+			
+			elif type(node) == AndNode:
+				lhs = self._emitExpression(node.left, const)
+				rhs = self._emitExpression(node.right, const)
+				return (I1, self._block.and_(lhs[1], rhs[1]))
+			
+			elif type(node) == OrNode:
+				lhs = self._emitExpression(node.left, const)
+				rhs = self._emitExpression(node.right, const)
+				return (I1, self._block.or_(lhs[1], rhs[1]))
 
 		else:
 			self.panic("invalid statement '%s' in expression", type(node).__name__[:-4])

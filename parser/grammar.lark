@@ -1,4 +1,4 @@
-// Root Elements
+// Top-level Entities
 module: (using | function | function2 | function_declaration | global_var)*
 
 function: STORAGE_TYPE "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
@@ -15,7 +15,7 @@ args: arg ("," arg)*
 arg: expr
 
 // Statements
-?stat: (rreturn | call | variable | if_block | ifelse_block | assign | while_loop | for_loop)
+?stat: (rreturn | call | variable | if_block | ifelse_block | assign | while_loop | for_loop | ";")
 
 using: "using" STRING ";"
 

@@ -9,7 +9,7 @@
 		},
 		"listen": {
 			"return": "VOID*",
-			"args": ["VOID*", "INT"],
+			"args": ["INT"],
 			"vararg": false
 		},
 		"accept": {

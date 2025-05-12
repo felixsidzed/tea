@@ -211,8 +211,7 @@ class OrNode(ExpressionNode):
 
 class NotNode(ExpressionNode):
 	def __init__(self, operand: ExpressionNode, line: int, column: int):
-		self.operand = operand
-		super().__init__(line, column)
+		super().__init__(line, column, operand)
 
 
 class AssignNode(Node):
