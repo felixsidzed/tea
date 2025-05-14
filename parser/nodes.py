@@ -245,3 +245,13 @@ class GlobalVariableNode(Node):
 		self.dataType = dataType
 		self.value = value
 		super().__init__(line, column)
+
+
+class BreakNode(Node):
+	def __init__(self, line: int, column: int):
+		super().__init__(line, column)
+
+
+class ContinueNode(Node):
+	def __init__(self, line: int, column: int):
+		super().__init__(line, column)

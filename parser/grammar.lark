@@ -15,7 +15,7 @@ args: arg ("," arg)*
 arg: expr
 
 // Statements
-?stat: (rreturn | call | variable | if_block | ifelse_block | assign | while_loop | for_loop | ";")
+?stat: (rreturn | call | variable | if_block | ifelse_block | assign | while_loop | for_loop | break_ | continue_ | ";")
 
 using: "using" STRING ";"
 
@@ -41,6 +41,9 @@ else_block:      ELSE stat*
 while_loop:		"while" "(" expr ")" "do" stat* "end"
 
 for_loop:		"for" "(" variable expr ";" sc__assign ")" "do" stat* "end"
+
+break_: BREAK ";"
+continue_: CONTINUE ";"
 
 // Assignments
 ?alhs: 			IDENTF
@@ -112,6 +115,8 @@ CALLING_CONV: "__stdcall"
 			| "__cdecl"
 ELSE: "else"
 RETURN: "return"
+BREAK: "break"
+CONTINUE: "continue"
 
 // Imports
 %import common.ESCAPED_STRING -> STRING

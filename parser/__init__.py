@@ -352,6 +352,14 @@ class AST(lark.Transformer):
 
 	def dereference(self, items: list[lark.Token | lark.Tree | Node]):
 		return lark.Token("DEREF", items[0], line=items[0].line, column=items[0].column)
+	
+
+	def break_(self, items: list[lark.Token | lark.Tree | Node]):
+		return BreakNode(items[0].line, items[0].column)
+
+	
+	def continue_(self, items: list[lark.Token | lark.Tree | Node]):
+		return ContinueNode(items[0].line, items[0].column)
 
 
 class Parser:

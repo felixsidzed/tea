@@ -101,7 +101,7 @@ class CodeGen:
 		if self.verbose:
 			print(" -", fmt % args)
 
-	def generate(self, root: ModuleNode) -> bytes:
+	def generate(self, root: ModuleNode, optimize: bool = True) -> bytes:
 		llvm.initialize()
 		llvm.initialize_native_target()
 		llvm.initialize_native_asmprinter()
@@ -111,24 +111,24 @@ class CodeGen:
 			"x86_64-pc-windows-msvc" if self.is64Bit else "i386-pc-windows-msvc"
 		)
 		self._machine = target.create_target_machine(codemodel="default")
-		self._module = ir.Module("[module]")
-		self._module.triple = self._machine.triple
-		self._module.data_layout = self._machine.target_data
+		module = ir.Module("[module]")
+		self._module = module
+		module.triple = self._machine.triple
+		module.data_layout = self._machine.target_data
 		self._log("Target machine: '%s'", str(target))
-
-		#ir.GlobalVariable(self._module, I8.as_pointer(), "nullptr").linkage = "internal"
 
 		try:
 			self._emitCode(root)
 
-			if self.verbose: print(self._module)
+			if self.verbose: print(module)
 
-			split = str(self._module).split("\n", 1)
-			ref = llvm.parse_assembly(f"{split[0]}\nsource_filename = \"{self._module.name}\"\n{split[1]}")
-			ref.name = self._module.name
+			split = str(module).split("\n", 1)
+			ref = llvm.parse_assembly(f"{split[0]}\nsource_filename = \"{module.name}\"\n{split[1]}")
+			ref.name = module.name
 			ref.verify()
 
-			self._optimizer.run(ref)
+			if optimize:
+				self._optimizer.run(ref)
 			
 			obj = self._machine.emit_object(ref)
 			del self._module, self._machine
@@ -138,6 +138,7 @@ class CodeGen:
 				_, _, tb = sys.exc_info()
 				fr = traceback.extract_tb(tb)[-1]
 				self.panic("code generation failed due to a fatal error (%s : %d): %s", fr.filename, fr.lineno, e)
+				raise
 			else:
 				self.panic("code generation failed due to a fatal error")
 			del self._module, self._machine
@@ -195,8 +196,20 @@ class CodeGen:
 		self._args = tuple(root.args.keys())
 		self._argsTi = tuple(root.args.values())
 		self._returned = False
+		self._block = ir.IRBuilder(self._func.append_basic_block("entry"))
+
+		# TODO: find a better way to fix possible rsp overflow
+		self._preallocated = {}
+		def preallocate(root):
+			for node in root.body:
+				if type(node) == VariableNode:
+					self._preallocated[node.name] = self._block.alloca(node.dataType[0], name=node.name)
+				elif hasattr(node, "body"):
+					preallocate(node)
+		preallocate(root)
 
 		self._emitBlock(root, "entry", self._func)
+		del self._block, self._locals
 		
 		if not self._returned:
 			if root.returnType[0] == VOID:
@@ -206,17 +219,17 @@ class CodeGen:
 			else:
 				self.panic("missing return statement in non-void function")
 
-		del self._func
+		del self._func, self._preallocated
 
-	def _emitBlock(self, root: Node, name: str, parent=None, preserve: bool = True) -> None:
-		if parent is not None:
-			self._block = ir.IRBuilder(parent.append_basic_block(name))
+	def _emitBlock(self, root: Node, name: str, parent = None) -> None:
 		self._locals = getattr(self, "_locals", {})
+		oldLocals = self._locals.copy()
 
 		for node in root.body:
 			if type(node) == ReturnNode:
 				self._returned = True
 				expected: ir.Type = self._block.block.function.return_value.type
+
 				if node.value is not None:
 					type_, value = self._emitExpression(node.value)
 					if type_ != expected:
@@ -242,12 +255,12 @@ class CodeGen:
 				
 				if len(node.elseIf) == 0 and node.else_ is None:
 					with self._block.if_then(firstCond):
-						self._emitBlock(node, "then", preserve=True)
+						self._emitBlock(node, "then")
 				
 				else:
 					with self._block.if_else(firstCond) as (then, otherwise):
 						with then:
-							self._emitBlock(node, "then", preserve=True)
+							self._emitBlock(node, "then")
 						
 						if len(node.elseIf) > 0:
 							for i, elseIf in enumerate(node.elseIf):
@@ -255,15 +268,15 @@ class CodeGen:
 									_, elifCond = self._emitExpression(elseIf.condition)
 									with self._block.if_else(elifCond) as (then, otherwise):
 										with then:
-											self._emitBlock(elseIf, f"elseIf_{i}", preserve=True)
+											self._emitBlock(elseIf, f"elseIf_{i}")
 
 										if node.else_ is not None:
 											with otherwise:
-												self._emitBlock(node.else_, "else", preserve=True)
+												self._emitBlock(node.else_, "else")
 
 						elif node.else_ is not None:
 							with otherwise:
-								self._emitBlock(node.else_, "else", preserve=True)
+								self._emitBlock(node.else_, "else")
 			
 			elif type(node) == AssignNode:
 				self._emitAssignment(node)
@@ -278,10 +291,21 @@ class CodeGen:
 				_, cond = self._emitExpression(node.condition)
 				self._block.cbranch(cond, bodyBlock, mergeBlock)
 
+				oldBreak = getattr(self, "_break", None)
+				oldContinue = getattr(self, "_continue", None)
+				self._break = mergeBlock
+				self._continue = condBlock
+
 				self._block = ir.IRBuilder(bodyBlock)
-				self._emitBlock(node, "loop.body", preserve=True)
+				self._emitBlock(node, "loop.body")
 				if not self._block.block.is_terminated:
 					self._block.branch(condBlock)
+
+				if oldBreak is not None: self._break = oldBreak
+				else: del self._break
+
+				if oldContinue is not None: self._continue = oldContinue
+				else: del self._continue
 
 				self._block = ir.IRBuilder(mergeBlock)
 
@@ -298,22 +322,40 @@ class CodeGen:
 				_, cond = self._emitExpression(node.condition)
 				self._block.cbranch(cond, bodyBlock, mergeBlock)
 
+				oldBreak = getattr(self, "_break", None)
+				oldContinue = getattr(self, "_continue", None)
+				self._break = mergeBlock
+				self._continue = condBlock
+
 				self._block = ir.IRBuilder(bodyBlock)
-				self._emitBlock(node, "loop.body", preserve=True)
+				self._emitBlock(node, "loop.body")
 				if not self._block.block.is_terminated:
 					for step in node.steps:
 						self._emitAssignment(step)
 						
 					self._block.branch(condBlock)
+				
+				if oldBreak is not None: self._break = oldBreak
+				else: del self._break
+
+				if oldContinue is not None: self._continue = oldContinue
+				else: del self._continue
 
 				self._block = ir.IRBuilder(mergeBlock)
+
+			elif type(node) == BreakNode:
+				self._block.branch(self._break)
+				break
+
+			elif type(node) == ContinueNode:
+				self._block.branch(self._continue)
+				break
 
 			else:
 				self.panic("invalid statement '%s' in block", type(node).__name__[:-4])
 
 		self._log("Leaving block '%s:%s' (%d locals)", getattr(root, "name", "<unnamed>"), name, len(self._locals))
-		if not preserve:
-			del self._block, self._locals
+		self._locals = oldLocals
 
 	def _emitExpression(self, node: ExpressionNode, const: bool = False):
 		# we use some tricks to minimize the amount of duplicate code
@@ -501,10 +543,16 @@ class CodeGen:
 		return (func.function_type.return_type, self._block.call(func, (value for _, value in args)))
 	
 	def _emitVariable(self, node: VariableNode):
-		self._log("Emitting local %s '%s' (initialized = %s)", node.dataType[0], node.name, node.value is not None)
+		if self._locals.get(node):
+			return self.panic("local '%s' is already defined", node.name)
+
+		self._log("Emitting local '%s' of type '%s' (initialized = %s)", node.dataType[0], node.name, node.value is not None)
 
 		expected = node.dataType[0]
-		alloca = self._block.alloca(expected, name=node.name)
+		# TODO: find a better way to fix possible rsp overflow
+		alloca = self._preallocated.get(node.name)
+		if alloca is None:
+			alloca = self._block.alloca(expected, name=node.name)
 
 		if node.value is not None:
 			type_, value = self._emitExpression(node.value)
