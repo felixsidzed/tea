@@ -5,8 +5,7 @@ import traceback
 from lark import Token as LarkToken
 from llvmlite import ir, binding as llvm
 
-from parser.nodes import *
-from codegen.teaimport import *
+from parser import *
 
 STORAGE_PRIVATE = STORAGE2I["private"]
 STORAGE_PUBLIC = STORAGE2I["public"]
@@ -48,7 +47,7 @@ def checki(i1: ir.Type, i2: ir.Type):
 		return False
 	
 
-def fixType(block: ir.IRBuilder, expected: ir.Type, value):
+def cast(block: ir.IRBuilder, expected: ir.Type, value):
 	got: ir.Type = value.type
 	if expected == got:
 		return value, True
@@ -124,10 +123,13 @@ class CodeGen:
 		llvm.initialize_native_target()
 		llvm.initialize_native_asmprinter()
 
-		# hard coded triple :(
-		target = llvm.Target.from_triple(
-			"x86_64-pc-windows-msvc" if self.is64Bit else "i386-pc-windows-msvc"
-		)
+		triple = llvm.get_default_triple()
+		if not self.is64Bit:
+			split = triple.split("-")
+			split[0] = "i386"
+			triple = "-".join(split)
+			del split
+		target = llvm.Target.from_triple(triple)
 		self._machine = target.create_target_machine(codemodel="default")
 		module = ir.Module(root.name)
 		self._module = module
@@ -160,6 +162,7 @@ class CodeGen:
 				_, _, tb = sys.exc_info()
 				fr = traceback.extract_tb(tb)[-1]
 				self.panic("code generation failed due to a fatal error (%s : %d): %s", fr.filename, fr.lineno, e)
+				raise
 			else:
 				self.panic("code generation failed due to a fatal error")
 			del self._module, self._machine
@@ -178,7 +181,9 @@ class CodeGen:
 			elif type(node) == UsingNode:
 				try:
 					with open(node.path) as f:
-						imported = getModuleInclude(f.read(), node.path)
+						parser = Parser()
+						imported = parser.parse(f.read(), node.name)
+						del parser
 						f.close()
 				except Exception as e:
 					self.panic(f"failed to import module '{node.path}': {e}")
@@ -200,7 +205,7 @@ class CodeGen:
 			elif type(node) == GlobalVariableNode:
 				expected, const = node.dataType
 				type_, value = self._emitExpression(node.value)
-				value, success = fixType(self._block, expected, value)
+				value, success = cast(self._block, expected, value)
 				if not success:
 					self.panic("constant (%s) is incompatible with function return value type (%s). line %d, column %d", str(type_), str(expected), node.line, node.column)
 					continue
@@ -221,7 +226,12 @@ class CodeGen:
 			root.name,
 			len(root.args)
 		)
-		self._func = ir.Function(self._module, ir.FunctionType(root.returnType[0], (T for T, _ in root.args.values()), root.vararg), root.name)
+		self._func = ir.Function(self._module, ir.FunctionType(
+			root.returnType[0] if root.returnType is not None else VOID,
+			(T for T, _ in root.args.values()),
+			root.vararg
+		), root.name)
+		self._funcNode = root
 		self._func.calling_convention = CCONV[root.conv]
 		if root.storage == STORAGE_PRIVATE: self._func.linkage = "private"
 		self._args = tuple(root.args.keys())
@@ -233,14 +243,14 @@ class CodeGen:
 		self._preallocated = {}
 		def preallocate(root):
 			for node in root.body:
-				if type(node) == VariableNode:
-					self._preallocated[node.name] = self._block.alloca(node.dataType[0], name=node.name)
+				if type(node) == VariableNode and node.dataType is not None:
+					self._preallocated[id(node)] = self._block.alloca(node.dataType[0], name=node.name)
 				elif hasattr(node, "body"):
 					preallocate(node)
 		preallocate(root)
 
 		self._emitBlock(root, "entry", self._func)
-		del self._block, self._locals
+		del self._block, self._locals, self._preallocated
 		
 		if not self._returned:
 			if root.returnType[0] == VOID:
@@ -250,7 +260,7 @@ class CodeGen:
 			else:
 				self.panic("missing return statement in non-void function")
 
-		del self._func, self._preallocated
+		del self._func, self._funcNode
 
 	def _emitBlock(self, root: Node, name: str, parent = None) -> None:
 		self._locals = getattr(self, "_locals", {})
@@ -259,17 +269,41 @@ class CodeGen:
 		for node in root.body:
 			if type(node) == ReturnNode:
 				self._returned = True
-				expected: ir.Type = self._block.block.function.return_value.type
+				if self._funcNode.returnType is None:
+					if self._funcNode.returnType is None and node.value is not None:
+						type_, value = self._emitExpression(node.value)
+						self._log("Guessed return type for function '%s': %s", self._func.name, type_)
+						self._funcNode.returnType = type_
 
-				if node.value is not None:
-					type_, value = self._emitExpression(node.value)
-					value, success = fixType(self._block, expected, value)
-					if not success:
-						self.panic("return value (%s) is incompatible with function return type (%s). line %d, column %d", str(type_), str(expected), node.line, node.column)
-						continue
-					self._block.ret(value)
+						del self._module.globals[self._func.name]
+						self._module.scope._useset.remove(self._func.name)
+						patched = ir.Function(self._func.module, ir.FunctionType(type_, self._func.ftype.args, self._func.ftype.var_arg), self._func.name)
+						patched.calling_convention = CCONV[self._funcNode.conv]
+						if self._funcNode.storage == STORAGE_PRIVATE: patched.linkage = "private"
+						mapping = {}
+						for old in self._func.blocks:
+							mapping[old] = patched.append_basic_block(old.name)
+						self._func = patched
+
+						current = mapping.get(self._block.block)
+						self._block = ir.IRBuilder(current)
+						self._block.position_at_end(current)
+						
+						self._block.ret(value)
+					else:
+						self._block.ret_void()
 				else:
-					self._block.ret_void()
+					expected: ir.Type = self._block.block.function.return_value.type
+
+					if node.value is not None:
+						type_, value = self._emitExpression(node.value)
+						value, success = cast(self._block, expected, value)
+						if not success:
+							self.panic("return value (%s) is incompatible with function return type (%s). line %d, column %d", str(type_), str(expected), node.line, node.column)
+							continue
+						self._block.ret(value)
+					else:
+						self._block.ret_void()
 
 			elif type(node) == CallNode:
 				self._emitCall(node)
@@ -279,7 +313,7 @@ class CodeGen:
 
 			elif type(node) == IfNode:
 				_, firstCond = self._emitExpression(node.condition)
-				firstCond, _ = fixType(self._block, I1, firstCond)
+				firstCond, _ = cast(self._block, I1, firstCond)
 				
 				if len(node.elseIf) == 0 and node.else_ is None:
 					with self._block.if_then(firstCond):
@@ -294,7 +328,7 @@ class CodeGen:
 							for i, elseIf in enumerate(node.elseIf):
 								with otherwise:
 									_, elifCond = self._emitExpression(elseIf.condition)
-									elifCond, _ = fixType(self._block, I1, elifCond)
+									elifCond, _ = cast(self._block, I1, elifCond)
 
 									with self._block.if_else(elifCond) as (then, otherwise):
 										with then:
@@ -319,7 +353,7 @@ class CodeGen:
 				self._block.branch(condBlock)
 				self._block = ir.IRBuilder(condBlock)
 				_, cond = self._emitExpression(node.condition)
-				cond, _ = fixType(self._block, I1, cond)
+				cond, _ = cast(self._block, I1, cond)
 				self._block.cbranch(cond, bodyBlock, mergeBlock)
 
 				oldBreak = getattr(self, "_break", None)
@@ -351,7 +385,7 @@ class CodeGen:
 				self._block.branch(condBlock)
 				self._block = ir.IRBuilder(condBlock)
 				_, cond = self._emitExpression(node.condition)
-				cond, _ = fixType(self._block, I1, cond)
+				cond, _ = cast(self._block, I1, cond)
 				self._block.cbranch(cond, bodyBlock, mergeBlock)
 
 				oldBreak = getattr(self, "_break", None)
@@ -497,7 +531,7 @@ class CodeGen:
 			
 			elif type(node) == NotNode:
 				type_, value = self._emitExpression(node.value)
-				value, _ = fixType(self._block, I1, value)
+				value, _ = cast(self._block, I1, value)
 				return (type_, self._block.not_(value))
 			
 			elif type(node) == AndNode:
@@ -512,7 +546,7 @@ class CodeGen:
 			
 			elif type(node) == CastNode:
 				type_, value = self._emitExpression(node.value)
-				value, success = fixType(self._block, node.type_[0], value)
+				value, success = cast(self._block, node.type_[0], value)
 				if not success:
 					self.panic("unable to cast '%s' '%s'", node.type_[0])
 				return (node.type_[0], value)
@@ -567,7 +601,7 @@ class CodeGen:
 		for i, expected in enumerate(expectedArgs):
 			got = args[i][0]
 			if got != expected:
-				value, success = fixType(self._block, expected, args[i][1])
+				value, success = cast(self._block, expected, args[i][1])
 				args[i[1]] = value
 				if not success:
 					self.panic(
@@ -582,20 +616,25 @@ class CodeGen:
 		if self._locals.get(node):
 			return self.panic("local '%s' is already defined", node.name)
 
-		self._log("Emitting local '%s' of type '%s' (initialized = %s)", node.dataType[0], node.name, node.value is not None)
+		self._log("Emitting local '%s' of type '%s' (initialized = %s)", (node.dataType or ("Unknown",))[0], node.name, node.value is not None)
 
-		expected = node.dataType[0]
-		# TODO: find a better way to fix possible rsp overflow
-		alloca = self._preallocated.get(node.name)
-		if alloca is None:
-			alloca = self._block.alloca(expected, name=node.name)
+		alloca = None
+		if node.dataType is not None:
+			expected = node.dataType[0]
+			# TODO: find a better way to fix possible rsp overflow
+			alloca = self._preallocated.get(id(node))
+			if alloca is None:
+				alloca = self._block.alloca(expected, name=node.name)
 
 		if node.value is not None:
 			type_, value = self._emitExpression(node.value)
-			if type_ != expected:
-				if checki(type_, expected):
-					value = ir.Constant(expected, value.constant) if isinstance(value, ir.Constant) else self._block.zext(value, expected)
-				else:
+			if node.dataType is None:
+				node.dataType = (type_, False)
+				alloca = self._block.alloca(type_, name=node.name)
+				self._log("Guessed type for variable '%s': %s", node.name, type_)
+			else:
+				value, success = cast(self._block, expected, value)
+				if not success:
 					self.panic("variable value type (%s) is incompatible with variable type (%s). line %d, column %d", str(expected), str(type_), node.line, node.column)
 					return
 

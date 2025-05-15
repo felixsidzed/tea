@@ -1,9 +1,11 @@
 // Top-level Entities
-module: (using | function | function2 | function_import | global_var | macro)*
+module: (using | function | function2 | function_import | function3 | function4 | global_var | macro)*
 
 function: STORAGE_TYPE "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
 function2: STORAGE_TYPE CALLING_CONV "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
 function_import: "import" CALLING_CONV "func" IDENTF "(" typed_args ")" "->" TYPE ";"
+function3: STORAGE_TYPE "func" IDENTF "(" typed_args ")" stat* "end"
+function4: STORAGE_TYPE CALLING_CONV "func" IDENTF "(" typed_args ")" stat* "end"
 
 // Arguments
 typed_args: typed_arg ("," typed_arg)*
@@ -16,7 +18,7 @@ args: arg ("," arg)*
 arg: expr
 
 // Statements
-?stat: (rreturn | call | variable | if_block | ifelse_block | assign | while_loop | for_loop | break_ | continue_ | ";")
+?stat: (rreturn | call | variable | variable2 | if_block | ifelse_block | assign | while_loop | for_loop | break_ | continue_ | ";")
 
 using: "using" STRING ";"
 
@@ -25,6 +27,8 @@ using: "using" STRING ";"
 
 variable: "var" IDENTF ":" TYPE "=" expr ";"
 		| "var" IDENTF ":" TYPE ";"
+
+variable2: "var" IDENTF "=" expr ";"
 
 global_var: STORAGE_TYPE "var" IDENTF ":" TYPE ";"
 			| STORAGE_TYPE "var" IDENTF ":" TYPE "=" expr ";"

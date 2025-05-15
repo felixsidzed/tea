@@ -68,13 +68,13 @@ class AST(lark.Transformer):
 			if arg.children[1].type == "VARARG":
 				vararg = True
 			else:
-				fixedArgs[arg.children[1].value] = Type.get(arg.children.value)
+				fixedArgs[arg.children[1].value] = Type.get(arg.children[0].value)
 
 		node = FunctionNode(
 			STORAGE2I[storageType],
 			"__cdecl",
 			name.value,
-			Type.get(returnType),
+			Type.get(returnType) if returnType is not None else returnType,
 			fixedArgs,
 			vararg,
 			body,
@@ -112,6 +112,14 @@ class AST(lark.Transformer):
 			name.line,
 			name.column
 		)
+		return node
+	
+	def function3(self, items: list[lark.Token | lark.Tree | Node]):
+		return self.function([items[0], items[1], items[2], None] + items[3:])
+
+	def function4(self, items: list[lark.Token | lark.Tree | Node]):
+		node = self.function3([items[0], items[2], items[3]] + items[4:])
+		node.conv = items[1].value
 		return node
 
 	def using(self, items: list[lark.Token | lark.Tree | Node]):
@@ -186,6 +194,15 @@ class AST(lark.Transformer):
 			value[0] if len(value) > 0 else None,
 			name.line,
 			name.column
+		)
+	
+	def variable2(self, items: list[lark.Token | lark.Tree | Node]):
+		return VariableNode(
+			items[0].value,
+			None,
+			items[1],
+			items[0].line,
+			items[0].column
 		)
 
 	def if_block(self, items: list[lark.Token | lark.Tree | Node]):
