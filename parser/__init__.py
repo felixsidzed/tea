@@ -10,15 +10,12 @@ MODULE_LOOKUP = [
 	"stdlib",
 	"."
 ]
-_functioncache = {}
 
 
-def resource(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except AttributeError:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
+def resource(rel):
+	try: base = sys._MEIPASS
+	except AttributeError: base = os.path.abspath(".")
+	return os.path.join(base, rel)
 
 
 def resolveImport(path: pathlib.Path):
@@ -32,6 +29,8 @@ def resolveImport(path: pathlib.Path):
 class AST(lark.Transformer):
 	def __init__(self, filename: str | None = None):
 		self.filename = filename or "[module]"
+		self._functions = {}
+		self._macros = {}
 
 	def module(self, children):
 		return ModuleNode(1, 1, children, self.filename)
@@ -51,7 +50,7 @@ class AST(lark.Transformer):
 	def IDENTF(self, token: lark.Token):
 		if token.value in ("true", "false"):
 			return lark.Token("BOOL", True if token.value == "true" else (False if token.value == "false" else token), line=token.line, column=token.column)
-		return token
+		return self._macros.get(token.value, token)
 
 	def CHAR(self, token: lark.Token):
 		return lark.Token("CHAR", ord(token.value[1:-1].encode("utf-8").decode("unicode_escape")), line=token.line, column=token.column)
@@ -82,7 +81,7 @@ class AST(lark.Transformer):
 			name.line,
 			name.column
 		)
-		_functioncache[name] = node
+		self._functions[name] = node
 		return node
 
 	def function2(self, items: list[lark.Token | lark.Tree | Node]):
@@ -135,7 +134,7 @@ class AST(lark.Transformer):
 			callee,
 			[arg.children[0] for arg in args.children],
 			[],
-			_functioncache.get(callee, None),
+			self._functions.get(callee, None),
 			callee.line,
 			callee.column
 		)
@@ -369,6 +368,11 @@ class AST(lark.Transformer):
 
 	def cast(self, items: list[lark.Token | lark.Tree | Node]):
 		return CastNode(Type.get(items[0]), items[1], items[0].line, items[0].column)
+	
+
+	def macro(self, items: list[lark.Token | lark.Tree | Node]):
+		self._macros[items[0].value] = items[1]
+		return lark.Discard
 
 
 class Parser:

@@ -1,13 +1,13 @@
 using "io";
 
+macro abc test();
+
+public func test() -> int
+	return 5;
+end
+
 public func main() -> int
-	var f: double = 42.42;
-	var pf: double* = &f;
-
-	var pi: int* = (int*)pf;
-
-	io::printf("float: %f\n", f);
-	io::printf("int: %d\n", *pi);
+	io::printf("%d\n", abc);
 
 	return 0;
 end

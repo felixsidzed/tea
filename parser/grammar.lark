@@ -1,5 +1,5 @@
 // Top-level Entities
-module: (using | function | function2 | function_import | global_var)*
+module: (using | function | function2 | function_import | global_var | macro)*
 
 function: STORAGE_TYPE "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
 function2: STORAGE_TYPE CALLING_CONV "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
@@ -102,6 +102,9 @@ cast: "(" TYPE ")" expr
 	   | "(" expr ")"
 	   | "&" IDENTF										-> reference
 	   | "*" IDENTF										-> dereference
+
+// Macros
+macro: "macro" IDENTF expr ";"
 
 // Types
 TYPE: /(?:const\s+)?(int|float|double|char|string|void|bool|long)\*?/
