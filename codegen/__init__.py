@@ -282,7 +282,12 @@ class CodeGen:
 						if self._funcNode.storage == STORAGE_PRIVATE: patched.linkage = "private"
 						mapping = {}
 						for old in self._func.blocks:
-							mapping[old] = patched.append_basic_block(old.name)
+							block = ir.Block(parent=patched, name=name)
+							block.instructions = old.instructions
+							block.terminator = old.terminator
+							block.scope = old.scope
+							patched.blocks.append(block)
+							mapping[old] = block
 						self._func = patched
 
 						current = mapping.get(self._block.block)
