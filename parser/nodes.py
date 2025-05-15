@@ -257,3 +257,9 @@ class BreakNode(Node):
 class ContinueNode(Node):
 	def __init__(self, line: int, column: int):
 		super().__init__(line, column)
+
+
+class CastNode(ExpressionNode):
+	def __init__(self, type_, value: Node, line: int, column: int):
+		self.type_ = type_
+		super().__init__(line, column, value)

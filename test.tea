@@ -1,10 +1,13 @@
 using "io";
 
 public func main() -> int
-	var value: int = 0;
-	if (value) do
-		io::print("abc\n");
-	end
+	var f: double = 42.42;
+	var pf: double* = &f;
+
+	var pi: int* = (int*)pf;
+
+	io::printf("float: %f\n", f);
+	io::printf("int: %d\n", *pi);
 
 	return 0;
 end

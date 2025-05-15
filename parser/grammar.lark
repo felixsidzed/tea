@@ -66,18 +66,20 @@ sc__assign:		alhs "=" expr 	 -> assign
 ?expr: logic_or
 
 ?logic_or: logic_or "||" logic_and		-> bor
-		| logic_and
+		 | logic_and
 
 ?logic_and: logic_and "&&" comparison	-> band
 		| comparison
 
 ?comparison: comparison "==" atom		-> eq
-		| comparison "!=" atom			-> neq
-		| comparison "<" atom			-> lt
-		| comparison "<=" atom			-> le
-		| comparison ">" atom			-> gt
-		| comparison ">=" atom			-> ge
-		| atom
+		   | comparison "!=" atom			-> neq
+		   | comparison "<" atom			-> lt
+		   | comparison "<=" atom			-> le
+		   | comparison ">" atom			-> gt
+		   | comparison ">=" atom			-> ge
+		   | atom
+
+cast: "(" TYPE ")" expr
 
 ?atom:	expr "+" term -> add
 	|	expr "-" term -> sub
@@ -96,6 +98,7 @@ sc__assign:		alhs "=" expr 	 -> assign
 	   | INT
 	   | STRING
 	   | CHAR
+	   | cast
 	   | "(" expr ")"
 	   | "&" IDENTF										-> reference
 	   | "*" IDENTF										-> dereference

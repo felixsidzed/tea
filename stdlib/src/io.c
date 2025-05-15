@@ -117,6 +117,38 @@ BOOL _io__printf(const char* fmt, ...) {
 					success = success && WriteConsoleA(stdout, str, len, &written, NULL) && written == len;
 				} break;
 
+				case 'f': {
+					double val = va_arg(va, double);
+					char* p = buf;
+
+					if (val < 0) {
+						*p++ = '-';
+						val = -val;
+					}
+
+					unsigned int whole = (unsigned int)val;
+					float decimal = (float)(val - whole);
+
+					char ibuf[16];
+					_itoa_unsigned(whole, ibuf, 10, FALSE);
+					char* i = ibuf;
+					while (*i) *p++ = *i++;
+
+					*p++ = '.';
+
+					for (int i = 0; i < 6; i++) {
+						decimal *= 10.0f;
+						int digit = (int)decimal;
+						*p++ = '0' + digit;
+						decimal -= digit;
+					}
+
+					*p = '\0';
+
+					int len = (int)(p - buf);
+					success = success && WriteConsoleA(stdout, buf, len, &written, NULL) && written == len;
+				} break;
+
 				default:
 					success = success && WriteConsoleA(stdout, c, 1, &written, NULL) && written == 1;
 					break;

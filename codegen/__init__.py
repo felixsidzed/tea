@@ -136,9 +136,13 @@ class CodeGen:
 		self._log("Target machine: '%s'", str(target))
 
 		try:
+			fltused = ir.GlobalVariable(module, I32, name="_fltused")
+			fltused.initializer = ir.Constant(I32, 1)
+			fltused.global_constant = False
+
 			self._emitCode(root)
 
-			#if self.verbose: print(module)
+			if self.verbose: print(module)
 
 			split = str(module).split("\n", 1)
 			ref = llvm.parse_assembly(f"{split[0]}\nsource_filename = \"{module.name}\"\n{split[1]}")
@@ -156,7 +160,6 @@ class CodeGen:
 				_, _, tb = sys.exc_info()
 				fr = traceback.extract_tb(tb)[-1]
 				self.panic("code generation failed due to a fatal error (%s : %d): %s", fr.filename, fr.lineno, e)
-				raise
 			else:
 				self.panic("code generation failed due to a fatal error")
 			del self._module, self._machine
@@ -506,6 +509,13 @@ class CodeGen:
 				lhs = self._emitExpression(node.left, const)
 				rhs = self._emitExpression(node.right, const)
 				return (I1, self._block.or_(lhs[1], rhs[1]))
+			
+			elif type(node) == CastNode:
+				type_, value = self._emitExpression(node.value)
+				value, success = fixType(self._block, node.type_[0], value)
+				if not success:
+					self.panic("unable to cast '%s' '%s'", node.type_[0])
+				return (node.type_[0], value)
 
 		else:
 			self.panic("invalid statement '%s' in expression", type(node).__name__[:-4])

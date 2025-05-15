@@ -365,6 +365,10 @@ class AST(lark.Transformer):
 	
 	def continue_(self, items: list[lark.Token | lark.Tree | Node]):
 		return ContinueNode(items[0].line, items[0].column)
+	
+
+	def cast(self, items: list[lark.Token | lark.Tree | Node]):
+		return CastNode(Type.get(items[0]), items[1], items[0].line, items[0].column)
 
 
 class Parser:
