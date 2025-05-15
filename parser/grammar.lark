@@ -1,14 +1,15 @@
 // Top-level Entities
-module: (using | function | function2 | function_declaration | global_var)*
+module: (using | function | function2 | function_import | global_var)*
 
 function: STORAGE_TYPE "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
 function2: STORAGE_TYPE CALLING_CONV "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
-function_declaration: STORAGE_TYPE CALLING_CONV "func" IDENTF "(" typed_args ")" "->" TYPE ";"
+function_import: "import" CALLING_CONV "func" IDENTF "(" typed_args ")" "->" TYPE ";"
 
 // Arguments
 typed_args: typed_arg ("," typed_arg)*
 		  |
 typed_arg: TYPE IDENTF
+		 | VARARG
 
 args: arg ("," arg)*
 	|
@@ -117,6 +118,7 @@ ELSE: "else"
 RETURN: "return"
 BREAK: "break"
 CONTINUE: "continue"
+VARARG: "..."
 
 // Imports
 %import common.ESCAPED_STRING -> STRING

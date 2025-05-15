@@ -21,17 +21,20 @@ def resource(relative_path):
     return os.path.join(base_path, relative_path)
 
 
-def resolvePath(path: pathlib.Path):
+def resolveImport(path: pathlib.Path):
 	for directory in MODULE_LOOKUP:
-		path = pathlib.Path(directory) / (path.name + ".json")
+		path = pathlib.Path(directory) / (path.name + ".tea")
 		if path.exists():
 			return path
 	return None
 
 
 class AST(lark.Transformer):
+	def __init__(self, filename: str | None = None):
+		self.filename = filename or "[module]"
+
 	def module(self, children):
-		return ModuleNode(1, 1, children)
+		return ModuleNode(1, 1, children, self.filename)
 
 	def STRING(self, token: lark.Token):
 		return lark.Token("STRING", token.value[1:-1].encode("utf-8").decode("unicode_escape"), line=token.line, column=token.column)
@@ -60,12 +63,21 @@ class AST(lark.Transformer):
 		returnType = items[3]
 		body = items[4:]
 
+		vararg = False
+		fixedArgs = {}
+		for arg in args:
+			if arg.children[1].type == "VARARG":
+				vararg = True
+			else:
+				fixedArgs[arg.children[1].value] = Type.get(arg.children.value)
+
 		node = FunctionNode(
 			STORAGE2I[storageType],
 			"__cdecl",
 			name.value,
 			Type.get(returnType),
-			{arg.children[1].value: Type.get(arg.children[0].value) for arg in args},
+			fixedArgs,
+			vararg,
 			body,
 			name.line,
 			name.column
@@ -74,46 +86,39 @@ class AST(lark.Transformer):
 		return node
 
 	def function2(self, items: list[lark.Token | lark.Tree | Node]):
-		storageType = items[0].value
-		conv = items[1].value
-		name = items[2]
-		args = items[3].children
-		returnType = items[4]
-		body = items[5:]
-
-		node = FunctionNode(
-			STORAGE2I[storageType],
-			conv,
-			name.value,
-			Type.get(returnType),
-			{arg.children[1].value: Type.get(arg.children[0].value) for arg in args},
-			body,
-			name.line,
-			name.column
-		)
-		_functioncache[name] = node
+		node = self.function([items[0], items[2], items[3], items[4]] + items[5:])
+		node.conv = items[1].value
 		return node
 
-	def function_declaration(self, items: list[lark.Token | lark.Tree | Node]):
-		storageType = items[0].value
-		conv = items[1].value
-		name = items[2]
-		args = items[3].children
-		returnType = items[4]
+	def function_import(self, items: list[lark.Token | lark.Tree | Node]):
+		conv = items[0].value
+		name = items[1]
+		args = items[2].children
+		returnType = items[3]
 
-		node = FunctionDeclarationNode(
-			STORAGE2I[storageType],
+		vararg = False
+		fixedArgs = {}
+		for arg in args:
+			if arg.children[0].type == "VARARG":
+				vararg = True
+			else:
+				fixedArgs[arg.children[1].value] = Type.get(arg.children[0].value)
+
+		node = FunctionImportNode(
 			conv,
 			name.value,
 			Type.get(returnType),
-			{arg.children[1].value: Type.get(arg.children[0].value) for arg in args},
+			fixedArgs,
+			vararg,
 			name.line,
 			name.column
 		)
 		return node
 
 	def using(self, items: list[lark.Token | lark.Tree | Node]):
-		path = resolvePath(pathlib.Path(items[0].value))
+		path = resolveImport(pathlib.Path(items[0].value))
+		if path is None:
+			raise Exception(f"Failed to resolve module '{items[0].value}'")
 
 		return UsingNode(
 			path.name.split(".")[0] if path is not None else items[0].value,
@@ -370,5 +375,5 @@ class Parser:
 			f.close()
 		self.lark = lark.Lark(grammar, propagate_positions=True, start="module")
 
-	def parse(self, src: str) -> ModuleNode:
-		return AST().transform(self.lark.parse(src))
+	def parse(self, src: str, filename: str | None = None) -> ModuleNode:
+		return AST(filename=filename).transform(self.lark.parse(src))

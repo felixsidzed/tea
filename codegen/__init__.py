@@ -6,7 +6,7 @@ from lark import Token as LarkToken
 from llvmlite import ir, binding as llvm
 
 from parser.nodes import *
-from codegen.teaparse import *
+from codegen.teaimport import *
 
 STORAGE_PRIVATE = STORAGE2I["private"]
 STORAGE_PUBLIC = STORAGE2I["public"]
@@ -46,10 +46,32 @@ def checki(i1: ir.Type, i2: ir.Type):
 		return int(str(i1)[1:]) <= int(str(i2)[1:])
 	except:
 		return False
+	
+
+def fixType(block: ir.IRBuilder, expected: ir.Type, value):
+	got: ir.Type = value.type
+	if expected == got:
+		return value, True
+
+	if expected.is_pointer and got.is_pointer:
+		return block.bitcast(value, expected), True
+	
+	if expected == I1:
+		if got.is_pointer:
+			return block.icmp_unsigned("==", value, ir.Constant(got, None)), True
+		else:
+			return block.icmp_signed("==", value, ir.Constant(got, 0)), True
+	else:
+		if checki(expected, got):
+			return (ir.Constant(expected, value.constant) if type(value) == ir.Constant else block.trunc(value, expected)), True
+		elif checki(got, expected):
+			return (ir.Constant(expected, value.constant) if type(value) == ir.Constant else block.zext(value, expected)), True
+	
+	return value, False
 
 
 # TODO: clean
-def str2name(s: str, max_length: int = 16) -> str:
+def str2name(s: str, maxLen: int = 16) -> str:
 	s = list("".join(c for c in s if 32 <= ord(c) < 127) \
 		.replace("*", "Star ") \
 		.replace(".", "Dot ") \
@@ -61,7 +83,9 @@ def str2name(s: str, max_length: int = 16) -> str:
 		.replace(":", "Colon ") \
 		.replace("!", "Exclamation ") \
 		.replace("?", "Question ") \
-		.replace("-", "Minus "))
+		.replace("-", "Minus ") \
+		.replace("\n", "Newline ")
+	)
 	if len(s) > 0:
 		s[0] = s[0].upper()
 		for i in range(0, len(s)):
@@ -69,18 +93,11 @@ def str2name(s: str, max_length: int = 16) -> str:
 		s = "".join(s)
 		match = re.match(r"([a-zA-Z0-9]+)", s.replace(" ", ""))
 		if match:
-			return "a" + match.group(1)[:max_length]
+			return "a" + match.group(1)[:maxLen]
 		else:
 			return "string"
 	else:
 		return "string"
-
-
-def fixTypes(module: dict):
-	for f in module["functions"].values():
-		f["return"] = Type.get(f["return"])[0]
-		for i, arg in enumerate(f["args"]):
-			f["args"][i] = Type.get(arg)[0]
 
 
 class CodeGen:
@@ -95,9 +112,10 @@ class CodeGen:
 		opt.add_instruction_combining_pass()
 		opt.add_dead_code_elimination_pass()
 		opt.add_reassociate_expressions_pass()
+		opt.add_global_dce_pass()
 		self._optimizer = opt
 
-	def _log(self, fmt, *args):
+	def _log(self, fmt: str, *args):
 		if self.verbose:
 			print(" -", fmt % args)
 
@@ -111,7 +129,7 @@ class CodeGen:
 			"x86_64-pc-windows-msvc" if self.is64Bit else "i386-pc-windows-msvc"
 		)
 		self._machine = target.create_target_machine(codemodel="default")
-		module = ir.Module("[module]")
+		module = ir.Module(root.name)
 		self._module = module
 		module.triple = self._machine.triple
 		module.data_layout = self._machine.target_data
@@ -120,7 +138,7 @@ class CodeGen:
 		try:
 			self._emitCode(root)
 
-			if self.verbose: print(module)
+			#if self.verbose: print(module)
 
 			split = str(module).split("\n", 1)
 			ref = llvm.parse_assembly(f"{split[0]}\nsource_filename = \"{module.name}\"\n{split[1]}")
@@ -151,28 +169,38 @@ class CodeGen:
 			if type(node) == FunctionNode:
 				self._emitFunction(node)
 
-			elif type(node) == FunctionDeclarationNode:
-				ir.Function(
-					self._module,
-					ir.FunctionType(node.returnType[0], (T for T, _ in node.args.values())
-				), node.name).calling_convention = CCONV[node.conv]
+			elif type(node) == FunctionImportNode:
+				self._emitImport(node)
 
 			elif type(node) == UsingNode:
-				with open(node.path) as f:
-					parsed = parseJSON(f.read())
-					f.close()
-				fixTypes(parsed)
-				self._modules[node.name] = parsed
+				try:
+					with open(node.path) as f:
+						imported = getModuleInclude(f.read(), node.path)
+						f.close()
+				except Exception as e:
+					self.panic(f"failed to import module '{node.path}': {e}")
+					continue
+
+				included = {}
+				for _node in imported.body:
+					if type(_node) == FunctionImportNode:
+						origName = _node.name
+						_node.name = f"_{node.name}__{_node.name}"
+						included[origName] = self._emitImport(_node)
+						del origName
+					else:
+						self.panic("module '%s' is not a valid module: '%s' is not a valid top-level entity in this context", node.name, type(_node).__name__)
+						continue
+
+				self._modules[node.name] = included
 			
 			elif type(node) == GlobalVariableNode:
 				expected, const = node.dataType
 				type_, value = self._emitExpression(node.value)
-				if type_ != expected:
-					if checki(type_, expected):
-						value = ir.Constant(expected, value.constant) if type(value) == ir.Constant else self._block.zext(value, expected)
-					else:
-						self.panic("constant (%s) is incompatible with function return value type (%s). line %d, column %d", str(type_), str(expected), node.line, node.column)
-						continue
+				value, success = fixType(self._block, expected, value)
+				if not success:
+					self.panic("constant (%s) is incompatible with function return value type (%s). line %d, column %d", str(type_), str(expected), node.line, node.column)
+					continue
 				var = ir.GlobalVariable(self._module, type_, node.name)
 				var.initializer = value
 				var.linkage = "public" if node.storage == STORAGE_PUBLIC else "private"
@@ -190,7 +218,7 @@ class CodeGen:
 			root.name,
 			len(root.args)
 		)
-		self._func = ir.Function(self._module, ir.FunctionType(root.returnType[0], (T for T, _ in root.args.values())), root.name)
+		self._func = ir.Function(self._module, ir.FunctionType(root.returnType[0], (T for T, _ in root.args.values()), root.vararg), root.name)
 		self._func.calling_convention = CCONV[root.conv]
 		if root.storage == STORAGE_PRIVATE: self._func.linkage = "private"
 		self._args = tuple(root.args.keys())
@@ -232,14 +260,10 @@ class CodeGen:
 
 				if node.value is not None:
 					type_, value = self._emitExpression(node.value)
-					if type_ != expected:
-						if (type_.is_pointer or type(type_) == ir.FunctionType) and expected.is_pointer:
-							value = self._block.bitcast(value, expected)
-						elif checki(type_, expected):
-							value = ir.Constant(expected, value.constant) if type(value) == ir.Constant else self._block.zext(value, expected)
-						else:
-							self.panic("return value (%s) is incompatible with function return type (%s). line %d, column %d", str(type_), str(expected), node.line, node.column)
-							continue
+					value, success = fixType(self._block, expected, value)
+					if not success:
+						self.panic("return value (%s) is incompatible with function return type (%s). line %d, column %d", str(type_), str(expected), node.line, node.column)
+						continue
 					self._block.ret(value)
 				else:
 					self._block.ret_void()
@@ -252,6 +276,7 @@ class CodeGen:
 
 			elif type(node) == IfNode:
 				_, firstCond = self._emitExpression(node.condition)
+				firstCond, _ = fixType(self._block, I1, firstCond)
 				
 				if len(node.elseIf) == 0 and node.else_ is None:
 					with self._block.if_then(firstCond):
@@ -266,6 +291,8 @@ class CodeGen:
 							for i, elseIf in enumerate(node.elseIf):
 								with otherwise:
 									_, elifCond = self._emitExpression(elseIf.condition)
+									elifCond, _ = fixType(self._block, I1, elifCond)
+
 									with self._block.if_else(elifCond) as (then, otherwise):
 										with then:
 											self._emitBlock(elseIf, f"elseIf_{i}")
@@ -289,6 +316,7 @@ class CodeGen:
 				self._block.branch(condBlock)
 				self._block = ir.IRBuilder(condBlock)
 				_, cond = self._emitExpression(node.condition)
+				cond, _ = fixType(self._block, I1, cond)
 				self._block.cbranch(cond, bodyBlock, mergeBlock)
 
 				oldBreak = getattr(self, "_break", None)
@@ -320,6 +348,7 @@ class CodeGen:
 				self._block.branch(condBlock)
 				self._block = ir.IRBuilder(condBlock)
 				_, cond = self._emitExpression(node.condition)
+				cond, _ = fixType(self._block, I1, cond)
 				self._block.cbranch(cond, bodyBlock, mergeBlock)
 
 				oldBreak = getattr(self, "_break", None)
@@ -354,7 +383,7 @@ class CodeGen:
 			else:
 				self.panic("invalid statement '%s' in block", type(node).__name__[:-4])
 
-		self._log("Leaving block '%s:%s' (%d locals)", getattr(root, "name", "<unnamed>"), name, len(self._locals))
+		self._log("Leaving block '%s:%s' (%d local(s))", getattr(root, "name", "<unnamed>"), name, len(self._locals) - len(oldLocals))
 		self._locals = oldLocals
 
 	def _emitExpression(self, node: ExpressionNode, const: bool = False):
@@ -464,7 +493,8 @@ class CodeGen:
 					self.panic("invalid lhs type '%s' in expression", lhs[0])
 			
 			elif type(node) == NotNode:
-				type_, value = self._emitExpression(node.value, const)
+				type_, value = self._emitExpression(node.value)
+				value, _ = fixType(self._block, I1, value)
 				return (type_, self._block.not_(value))
 			
 			elif type(node) == AndNode:
@@ -503,20 +533,18 @@ class CodeGen:
 				if module is None:
 					self.panic("'%s' does not name a valid scope. line %d, column %d", scope, node.line, node.column)
 					return
-				fqn += module["namespace"]
+				fqn += f"_{scope}__"
 			fqn += callee
 
 			if fqn in self._module.globals:
 				func: ir.Function = self._module.get_global(fqn)
 				vararg = func.function_type.var_arg
 			else:
-				finfo = module["functions"].get(callee)
-				if finfo is None:
+				func: ir.Function = module.get(callee)
+				if func is None:
 					self.panic("reference to undefined function '%s'. line %d, column %d", fqn, node.line, node.column)
 					return
-				ftype = ir.FunctionType(finfo["return"], finfo["args"], finfo["vararg"])
-				func: ir.Function = ir.Function(self._module, ftype, fqn)
-				vararg = finfo["vararg"]
+				vararg = func.function_type.var_arg
 
 		expectedArgs = func.function_type.args
 		if not vararg and len(args) != len(expectedArgs):
@@ -529,11 +557,9 @@ class CodeGen:
 		for i, expected in enumerate(expectedArgs):
 			got = args[i][0]
 			if got != expected:
-				if (got.is_pointer or type(got) == ir.FunctionType) and expected.is_pointer:
-					args[i][1] = self._block.bitcast(args[i][1], expected)
-				elif checki(got, expected):
-					args[i][1] = ir.Constant(expected, args[i][1].constant) if type(args[i][1]) == ir.Constant else self._block.zext(args[i][1], expected)
-				else:
+				value, success = fixType(self._block, expected, args[i][1])
+				args[i[1]] = value
+				if not success:
 					self.panic(
 						"argument %d: expected type %s, got %s. line %d, column %d",
 						i, expected, got, node.line, node.column
@@ -617,3 +643,15 @@ class CodeGen:
 			return
 
 		self._block.store(rhs[1], lhs[0])
+
+	def _emitImport(self, node: FunctionImportNode):
+		if type(node) == FunctionImportNode:
+			f = ir.Function(
+				self._module,
+				ir.FunctionType(node.returnType[0], (T for T, _ in node.args.values()), node.vararg),
+				node.name
+			)
+			f.calling_convention = CCONV[node.conv]
+			return f
+		else:
+			return self.panic("'%s' is not a valid import", type(node).__name__[:-4])

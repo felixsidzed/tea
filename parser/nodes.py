@@ -47,12 +47,13 @@ class UsingNode(Node):
 
 
 class FunctionNode(Node):
-	def __init__(self, storage: int, conv: str, name: str, returnType: tuple[ir.Type, bool], args: dict[str: tuple[ir.Type, bool]], body: list[Node], line: int, column: int):
+	def __init__(self, storage: int, conv: str, name: str, returnType: tuple[ir.Type, bool], args: dict[str: tuple[ir.Type, bool]], vararg: bool, body: list[Node], line: int, column: int):
 		self.storage = storage
 		self.conv = conv
 		self.name = name
 		self.returnType = returnType
 		self.args = args
+		self.vararg = vararg
 		self.body = body
 		super().__init__(line, column)
 
@@ -74,9 +75,10 @@ class ReturnNode(Node):
 
 
 class ModuleNode(Node):
-	def __init__(self, line: int, column: int, body):
+	def __init__(self, line: int, column: int, body, name: str):
 		super().__init__(line, column)
 		self.body = body
+		self.name = name
 
 
 class ExpressionNode(Node):
@@ -121,13 +123,13 @@ class VariableNode(Node):
 		super().__init__(line, column)
 
 
-class FunctionDeclarationNode(Node):
-	def __init__(self, storage: int, conv: str, name: str, returnType: list[int, bool, bool, bool], args: dict[str: int], line: int, column: int):
-		self.storage = storage
+class FunctionImportNode(Node):
+	def __init__(self, conv: str, name: str, returnType: list[int, bool, bool, bool], args: dict[str: int], vararg: bool, line: int, column: int):
+		self.conv = conv
 		self.name = name
 		self.returnType = returnType
 		self.args = args
-		self.conv = conv
+		self.vararg = vararg
 		super().__init__(line, column)
 
 

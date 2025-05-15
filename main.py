@@ -1,6 +1,6 @@
 import os
-import sys
 import platform
+from sys import exit
 
 import argparse
 
@@ -27,8 +27,6 @@ def main() -> None:
 		args.force64bit = False
 	elif not args.force64bit:
 		args.force64bit = platform.architecture()[0] == "64bit"
-	if args.verbose:
-		print(f" Using {64 if args.force64bit else 32}-bit code generation")
 
 	if args.output is None:
 		args.output = ".".join(args.source.split(".")[:-1]) + ".o"
@@ -37,25 +35,27 @@ def main() -> None:
 		with open(args.source, "r") as f:
 			src = f.read()
 			f.close()
-	except FileNotFoundError:
-		print(f"1 error(s):\n(1) error: {args.source}: file not found")
-		sys.exit(1)
 	except Exception as e:
-		print(f"1 error(s):\n(1) error: could not open '{args.source}' file: {e}")
-		sys.exit(1)
+		print(f"1 error(s):\n(1) error: '{args.source}': {e}")
+		exit(1)
 
-	parser = Parser()
-	module = parser.parse(src)
+	try:
+		parser = Parser()
+		module = parser.parse(src)
+	except Exception as e:
+		print(f"1 error(s):\n(1) parse error: {e}")
+		exit(1)
 
+	if args.verbose:
+		print(f" Using {64 if args.force64bit else 32}-bit code generation")
 	codegen = CodeGen(verbose=args.verbose, is64Bit=args.force64bit, panic=panic)
-
 	coff = codegen.generate(module, optimize=not args.no_optimize)
 
 	if len(errors) > 0:
 		print(f"{len(errors)} error(s):")
 		for i, error in enumerate(errors, 1):
 			print(f"({i}) {error}")
-		sys.exit(1)
+		exit(1)
 
 	try:
 		with open(os.path.abspath(args.output), "wb") as f:
@@ -63,7 +63,7 @@ def main() -> None:
 			f.close()
 	except Exception as e:
 		print(f"error: failed to write to output file '{args.output}': {e}")
-		sys.exit(1)
+		exit(1)
 
 if __name__ == "__main__":
 	main()

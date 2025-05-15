@@ -1,0 +1,8 @@
+import __cdecl func connect(string address, int port) -> void*;
+import __cdecl func listen(int port) -> void*;
+import __cdecl func accept(void* socket) -> void*;
+import __cdecl func send(void* socket, string data) -> bool;
+import __cdecl func recv(void* socket, int length) -> string;
+import __cdecl func close(void* socket) -> void;
+import __cdecl func settimeout(void* socket, int milliseconds) -> void;
+import __cdecl func cleanup() -> void;
