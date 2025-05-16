@@ -1,8 +1,11 @@
 using "io";
 
 public func main()
-	var a = 5;
-	io::printf("%d\n", a);
+	var a: int[4] = [ 1 ];
+	io::printf("0: %d\n", a[0]);
+	io::printf("1: %d\n", a[1]);
+	io::printf("2: %d\n", a[2]);
+	io::printf("3: %d\n", a[3]);
 
 	return 0;
 end

@@ -1,4 +1,5 @@
-import ctypes
+import re
+
 from llvmlite import ir
 
 
@@ -14,20 +15,36 @@ class Type:
 
 	@staticmethod
 	def get(name: str) -> tuple[ir.Type, bool]:
-		type_: ir.Type = TYPE2LLVM[getattr(Type, name.upper().replace("*", "").replace("const ", "").replace(" ", "_"))]
-		if name.find("*") != -1:
-			if type_ == TYPE2LLVM[5]:
-				type_ = TYPE2LLVM[3]
-			type_ = type_.as_pointer()
-		return (type_, name.find("const") != -1)
+		const = "const" in name
+		name = name.replace("const", "").strip()
 
-	@staticmethod
-	def size(T: list[int, bool, bool, bool], is64bit: bool = True) -> int:
-		pass
+		nptr = name.count("*")
+		name = name.replace("*", "").strip()
+
+		base_match = re.match(r"([a-zA-Z_]+)(\s*(\[[^\]]*\])*)?", name)
+
+		base_type_name = base_match.group(1).upper()
+		array_part = base_match.group(2)
+
+		base_type_enum = getattr(Type, base_type_name)
+		
+		llvm = TYPE2LLVM[base_type_enum]
+		
+		if array_part:
+			dims = re.findall(r"\[(\d*)\]", array_part)
+			for dim in reversed(dims):
+				if dim == "":
+					raise ValueError("array size not specified")
+				llvm = ir.ArrayType(llvm, int(dim))
+
+		for _ in range(nptr):
+			llvm = llvm.as_pointer()
+
+		return (llvm, const)
 
 
-TYPE2LLVM	= [ ir.IntType(32), ir.FloatType(), ir.DoubleType(), ir.IntType(8), ir.IntType(8).as_pointer(), ir.VoidType(), ir.IntType(1), ir.IntType(64) ]
-STORAGE2I	= {
+TYPE2LLVM = [ir.IntType(32), ir.FloatType(), ir.DoubleType(), ir.IntType(8), ir.IntType(8).as_pointer(), ir.VoidType(), ir.IntType(1), ir.IntType(64)]
+STORAGE2I = {
 	"public": 1,
 	"private": 0
 }
@@ -260,6 +277,17 @@ class ContinueNode(Node):
 
 
 class CastNode(ExpressionNode):
-	def __init__(self, type_, value: Node, line: int, column: int):
+	def __init__(self, type_, value: ExpressionNode, line: int, column: int):
 		self.type_ = type_
 		super().__init__(line, column, value)
+
+
+class IndexNode(ExpressionNode):
+	def __init__(self, arr: ExpressionNode, value: int, line: int, column: int):
+		self.arr = arr
+		super().__init__(line, column, value)
+
+
+class ArrayNode(ExpressionNode):
+	def __init__(self, elements: list[ExpressionNode], line: int, column: int):
+		super().__init__(line, column, elements)

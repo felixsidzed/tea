@@ -162,7 +162,6 @@ class CodeGen:
 				_, _, tb = sys.exc_info()
 				fr = traceback.extract_tb(tb)[-1]
 				self.panic("code generation failed due to a fatal error (%s : %d): %s", fr.filename, fr.lineno, e)
-				raise
 			else:
 				self.panic("code generation failed due to a fatal error")
 			del self._module, self._machine
@@ -249,7 +248,7 @@ class CodeGen:
 					preallocate(node)
 		preallocate(root)
 
-		self._emitBlock(root, "entry", self._func)
+		self._emitBlock(root, "entry")
 		del self._block, self._locals, self._preallocated
 		
 		if not self._returned:
@@ -262,7 +261,7 @@ class CodeGen:
 
 		del self._func, self._funcNode
 
-	def _emitBlock(self, root: Node, name: str, parent = None) -> None:
+	def _emitBlock(self, root: Node, name: str) -> None:
 		self._locals = getattr(self, "_locals", {})
 		oldLocals = self._locals.copy()
 
@@ -503,7 +502,7 @@ class CodeGen:
 				type_, val = self._emitExpression(node.value, const=False)
 
 				if not type_.is_pointer:
-					self.panic("cannot dereference non-pointer type '%s'" % str(type_))
+					self.panic("cannot dereference non-pointer type '%s'", type_)
 
 				val = self._block.load(val)
 				return (type_.pointee, val)
@@ -532,7 +531,7 @@ class CodeGen:
 				elif lhs[0] in (I32, I8, I64):
 					return (I1, self._block.icmp_signed(cmpop, lhs[1], rhs[1]))
 				else:
-					self.panic("invalid lhs type '%s' in expression", lhs[0])
+					self.panic("invalid lhs type '%s' in expression. line %d, column %d", lhs[0], node.line, node.column)
 			
 			elif type(node) == NotNode:
 				type_, value = self._emitExpression(node.value)
@@ -553,8 +552,41 @@ class CodeGen:
 				type_, value = self._emitExpression(node.value)
 				value, success = cast(self._block, node.type_[0], value)
 				if not success:
-					self.panic("unable to cast '%s' '%s'", node.type_[0])
+					self.panic("unable to cast '%s' '%s'. line %d, column %d", node.type_[0], node.line, node.column)
 				return (node.type_[0], value)
+			
+			elif type(node) == IndexNode:
+				itype, index = self._emitExpression(node.value)
+				type_, arr = self._emitExpression(LarkToken("REF", node.arr, node.line, node.column))
+				if type(type_.pointee) != ir.ArrayType:
+					self.panic("'%s' is not an array type. line %d, column %d", type_, node.line, node.column)
+				if str(itype)[0] == "i" and node.value.value >= type_.pointee.count:
+					self.panic("index out of bounds. line %d, column %d", node.line, node.column)
+				return (type_.pointee.element, self._block.load(self._block.gep(arr, [ir.Constant(I32, 0), index])))
+			
+			elif type(node) == ArrayNode:
+				if const:
+					self.panic("array creation can't be a constant expression. line %d, column %d", node.line, node.column)
+
+				elems = [self._emitExpression(elem, const=False)[1] for elem in node.value]
+
+				# ts should never happen
+				if not elems:
+					self.panic("can't create an empty array")
+
+				elementType = elems[0].type
+				for elem in elems:
+					if elem.type != elementType:
+						self.panic("invalid element type: expected '%s', got '%s'. line %d, column %d", elementType, elem.type, node.line, node. column)
+
+				allocated = self._block.alloca(ir.ArrayType(elementType, len(elems)))
+				for i, val in enumerate(elems):
+					self._block.store(val, self._block.gep(allocated, [ir.Constant(I32, 0), ir.Constant(I32, i)]))
+
+				return (allocated.allocated_type, allocated)
+
+			else:
+				self.panic("whoopsies")
 
 		else:
 			self.panic("invalid statement '%s' in expression", type(node).__name__[:-4])
@@ -621,7 +653,7 @@ class CodeGen:
 		if self._locals.get(node):
 			return self.panic("local '%s' is already defined", node.name)
 
-		self._log("Emitting local '%s' of type '%s' (initialized = %s)", (node.dataType or ("Unknown",))[0], node.name, node.value is not None)
+		self._log("Emitting local '%s' of type '%s' (initialized = %s)", node.name, (node.dataType or ("Unknown",))[0], node.value is not None)
 
 		alloca = None
 		if node.dataType is not None:
@@ -633,6 +665,25 @@ class CodeGen:
 
 		if node.value is not None:
 			type_, value = self._emitExpression(node.value)
+
+			if type(type_) == ir.ArrayType:
+				if node.dataType is None or node.dataType[0] == type_:
+					node.dataType = (type_, False)	
+					self._log("Guessed type for variable '%s': %s", node.name, type_)
+					self._locals[node.name] = (value, (type_, False))
+					return
+				
+				if type(node.dataType[0]) == ir.ArrayType:
+					alloca = self._block.alloca(node.dataType[0])
+					for i in range(type_.count):
+						idx = I32(i)
+						self._block.store(
+							self._block.load(self._block.gep(value, [I32(0), idx])),
+							self._block.gep(alloca, [I32(0), idx])
+						)
+					self._locals[node.name] = (alloca, node.dataType)
+					return
+			
 			if node.dataType is None:
 				node.dataType = (type_, False)
 				alloca = self._block.alloca(type_, name=node.name)

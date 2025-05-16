@@ -13,9 +13,7 @@ MODULE_LOOKUP = [
 
 
 def resource(rel):
-	try: base = sys._MEIPASS
-	except AttributeError: base = os.path.abspath(".")
-	return os.path.join(base, rel)
+	return os.path.join(getattr(sys, "base", os.path.abspath(".")), rel)
 
 
 def resolveImport(path: pathlib.Path):
@@ -113,7 +111,7 @@ class AST(lark.Transformer):
 			name.column
 		)
 		return node
-	
+
 	def function3(self, items: list[lark.Token | lark.Tree | Node]):
 		return self.function([items[0], items[1], items[2], None] + items[3:])
 
@@ -195,7 +193,7 @@ class AST(lark.Transformer):
 			name.line,
 			name.column
 		)
-	
+
 	def variable2(self, items: list[lark.Token | lark.Tree | Node]):
 		return VariableNode(
 			items[0].value,
@@ -298,7 +296,7 @@ class AST(lark.Transformer):
 			items[0].line,
 			items[0].column
 		)
-	
+
 	def assign_add(self, items: list[lark.Token | lark.Tree | Node]):
 		return AssignNode(
 			items[0],
@@ -307,7 +305,7 @@ class AST(lark.Transformer):
 			items[0].column,
 			"+"
 		)
-	
+
 	def assign_sub(self, items: list[lark.Token | lark.Tree | Node]):
 		return AssignNode(
 			items[0],
@@ -316,7 +314,7 @@ class AST(lark.Transformer):
 			items[0].column,
 			"-"
 		)
-	
+
 	def assign_mul(self, items: list[lark.Token | lark.Tree | Node]):
 		return AssignNode(
 			items[0],
@@ -325,7 +323,7 @@ class AST(lark.Transformer):
 			items[0].column,
 			"*"
 		)
-	
+
 	def assign_div(self, items: list[lark.Token | lark.Tree | Node]):
 		return AssignNode(
 			items[0],
@@ -334,7 +332,7 @@ class AST(lark.Transformer):
 			items[0].column,
 			"/"
 		)
-	
+
 	def while_loop(self, items: list[lark.Token | lark.Tree | Node]):
 		return WhileLoopNode(
 			items[0],
@@ -342,7 +340,6 @@ class AST(lark.Transformer):
 			items[0].line,
 			items[0].column
 		)
-	
 
 	def for_loop(self, items: list[lark.Token | lark.Tree | Node]):
 		return ForLoopNode(
@@ -353,7 +350,6 @@ class AST(lark.Transformer):
 			items[0].line,
 			items[0].column
 		)
-	
 
 	def global_var(self, items: list[lark.Token | lark.Tree | Node]):
 		scope, name, dataType, *value = items
@@ -365,31 +361,31 @@ class AST(lark.Transformer):
 			scope.line,
 			scope.column
 		)
-	
 
 	def reference(self, items: list[lark.Token | lark.Tree | Node]):
 		return lark.Token("REF", items[0], line=items[0].line, column=items[0].column)
-	
 
 	def dereference(self, items: list[lark.Token | lark.Tree | Node]):
 		return lark.Token("DEREF", items[0], line=items[0].line, column=items[0].column)
-	
 
 	def break_(self, items: list[lark.Token | lark.Tree | Node]):
 		return BreakNode(items[0].line, items[0].column)
 
-	
 	def continue_(self, items: list[lark.Token | lark.Tree | Node]):
 		return ContinueNode(items[0].line, items[0].column)
-	
 
 	def cast(self, items: list[lark.Token | lark.Tree | Node]):
 		return CastNode(Type.get(items[0]), items[1], items[0].line, items[0].column)
-	
 
 	def macro(self, items: list[lark.Token | lark.Tree | Node]):
 		self._macros[items[0].value] = items[1]
 		return lark.Discard
+	
+	def array(self, items: list[lark.Token | lark.Tree | Node]):
+		return ArrayNode(items[1:], items[0].line, items[0].column)
+	
+	def index(self, items: list[lark.Token | lark.Tree | Node]):
+		return IndexNode(items[0], items[1], items[0].line, items[0].column)
 
 
 class Parser:
