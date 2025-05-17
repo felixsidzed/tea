@@ -286,7 +286,8 @@ class CastNode(ExpressionNode):
 
 
 class IndexNode(ExpressionNode):
-	def __init__(self, arr: ExpressionNode, value: int, line: int, column: int):
+	def __init__(self, kind: int, arr: ExpressionNode, value: int, line: int, column: int):
+		self.kind = kind
 		self.arr = arr
 		super().__init__(line, column, value)
 
@@ -307,5 +308,12 @@ class FieldNode(Node):
 class ObjectNode(Node):
 	def __init__(self, name: str, body: list[FunctionNode | FieldNode], line: int, column: int):
 		self.name = name
-		self.body = body
+		self.fields = tuple(filter(lambda x: type(x) == FieldNode, body))
+		self.methods = tuple(filter(lambda x: type(x) == FunctionNode, body))
 		super().__init__(line, column)
+
+
+class NewNode(ExpressionNode):
+	def __init__(self, name: str, args: list[ExpressionNode], line: int, column: int):
+		self.args = args
+		super().__init__(line, column, name)

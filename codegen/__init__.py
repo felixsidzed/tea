@@ -19,6 +19,8 @@ VOID = TYPE2LLVM[5]
 I1	 = TYPE2LLVM[6]
 I64	 = TYPE2LLVM[7]
 
+I32_0 = ir.Constant(I32, 0)
+
 CCONV = {
 	"__cdecl": "ccc",
 	"__fastcall": "fastcc",
@@ -110,10 +112,11 @@ def str2name(s: str, maxLen: int = 16) -> str:
 
 
 class CodeGen:
-	def __init__(self, verbose: bool = False, is64Bit: bool = True, panic=defaultPanic) -> None:
+	def __init__(self, verbose: bool = False, is64Bit: bool = True, panic = defaultPanic, objectAllocator: str = "_mem__alloc") -> None:
 		self.verbose = verbose
 		self.is64Bit = is64Bit
 		self.panic = panic
+		self.objectAllocator = objectAllocator
 
 		opt = llvm.create_module_pass_manager()
 		opt.add_gvn_pass()
@@ -156,7 +159,16 @@ class CodeGen:
 			null.initializer = ir.Constant(PI8, None)
 			null.global_constant = True
 
+			try:
+				self._allocator = ir.Function(self._module, ir.FunctionType(PI8, [I32]), self.objectAllocator)
+			except Exception: pass
+
+			self.ctors = {}
+			self.dtors = {}
+			self.objects = {}
+
 			self._emitCode(root)
+			del self.ctors, self.dtors, self.objects
 
 			if self.verbose: print(module)
 
@@ -276,7 +288,7 @@ class CodeGen:
 			else:
 				self.panic("missing return statement in non-void function")
 
-		del self._func, self._funcNode
+		del self._func, self._funcNode, self._args, self._argsTi, self._returned
 
 	def _emitBlock(self, root: Node, name: str) -> None:
 		self._locals = getattr(self, "_locals", {})
@@ -573,13 +585,30 @@ class CodeGen:
 				return (node.type_[0], value)
 			
 			elif type(node) == IndexNode:
-				itype, index = self._emitExpression(node.value)
-				type_, arr = self._emitExpression(LarkToken("REF", node.arr, node.line, node.column))
-				if type(type_.pointee) != ir.ArrayType:
-					self.panic("'%s' is not an array type. line %d, column %d", type_, node.line, node.column)
-				if str(itype)[0] == "i" and node.value.value >= type_.pointee.count:
-					self.panic("index out of bounds. line %d, column %d", node.line, node.column)
-				return (type_.pointee.element, self._block.load(self._block.gep(arr, [ir.Constant(I32, 0), index])))
+				if node.kind == 0: # array index
+					itype, index = self._emitExpression(node.value)
+					type_, arr = self._emitExpression(LarkToken("REF", node.arr, node.line, node.column))
+					if str(itype)[0] != "i":
+						self.panic("'%s' is not a valid index", itype)
+					if type(type_.pointee) != ir.ArrayType:
+						self.panic("'%s' is not an array type. line %d, column %d", type_, node.line, node.column)
+					if node.value.value >= type_.pointee.count:
+						self.panic("index out of bounds. line %d, column %d", node.line, node.column)
+					return (type_.pointee.element, self._block.load(self._block.gep(arr, [I32_0, index])))
+				elif node.kind == 1: # object index
+					type_, this = self._emitExpression(node.arr)
+					for objName, obj in self.objects.items():
+						if obj[1].type == this.type: break
+					else:
+						return self.panic("reference to undefined object '%s' in expression. line %d, column %d", node.value, node.line, node.column)
+					
+					field = obj[2].get(node.value.value)
+					if field:
+						if field[0] == STORAGE_PRIVATE:
+							return self.panic("storage type violation. line %d, column %d", node.line, node.column)
+						idx = tuple(obj[2].keys()).index(node.value.value)
+						return (field[1][1], self._block.load(self._block.gep(this, [I32_0, ir.Constant(I32, idx + 1)])))
+					return self.panic("'%s' is not a valid member of object '%s'. line %d, column %d", node.value, this.pointee, node.line, node.column)
 			
 			elif type(node) == ArrayNode:
 				if const:
@@ -598,9 +627,18 @@ class CodeGen:
 
 				allocated = self._block.alloca(ir.ArrayType(elementType, len(elems)))
 				for i, val in enumerate(elems):
-					self._block.store(val, self._block.gep(allocated, [ir.Constant(I32, 0), ir.Constant(I32, i)]))
+					self._block.store(val, self._block.gep(allocated, [I32_0, ir.Constant(I32, i)]))
 
 				return (allocated.allocated_type, allocated)
+
+			elif type(node) == NewNode:
+				obj = self.objects.get(node.value)
+				if obj is None:
+					return self.panic("reference to undefined object '%s' in expression. line %d, column %d", node.value, node.line, node.column)
+
+				# TODO: type check args
+				args = [self._emitExpression(arg)[1] for arg in node.args]
+				return (obj[0], self._block.call(self.ctors[node.value], args))
 
 			else:
 				self.panic("whoopsies")
@@ -778,5 +816,78 @@ class CodeGen:
 		else:
 			return self.panic("'%s' is not a valid import", type(node).__name__[:-4])
 
+	# TODO: clean
 	def _emitObject(self, node: ObjectNode):
-		pass
+		struct = ir.global_context.get_identified_type(node.name)
+		fields = {}
+		body_ = [ I32 ]
+		for field in node.fields:
+			fields[field.name] = (field.storage, field.dataType)
+			body_.append(field.dataType[0])
+		struct.set_body(*body_)
+		del body_
+
+		pstruct = struct.as_pointer()
+		sizeof = struct.get_abi_size(self._machine.target_data)
+
+		def createMethodContext(f: ir.Function, method: FunctionNode, this=None):
+			block = None
+			if hasattr(self, "_block"):
+				block = self._block.block
+			else:
+				block = f.append_basic_block("entry")
+				self._block = ir.IRBuilder(block)
+				
+			self._func = f
+			self._funcNode = method
+			self._args = tuple(method.args.keys())
+			self._argsTi = tuple(method.args.values())
+
+			classLocals = {}
+
+			if this:
+				i = 1
+				for name, (_, T) in fields.items():
+					classLocals[name] = (self._block.gep(this, [I32_0, ir.Constant(I32, i)]), T)
+					i += 1
+
+			self._locals = classLocals
+			
+		def delMethodContext():
+			del self._func, self._funcNode, self._block, self._args, self._argsTi, self._locals
+
+		methods = {}
+		for method in node.methods:
+			if method.name == ".ctor":
+				f = ir.Function(self._module, ir.FunctionType(
+					pstruct,
+					(T for T, _ in method.args.values()),
+					method.vararg
+				), f"_{node.name}_new")
+
+				self._block = ir.IRBuilder(f.append_basic_block("entry"))
+				allocated = self._block.call(self._allocator, [ir.Constant(I32, sizeof)])
+				this = self._block.bitcast(allocated, pstruct)
+				self._block.store(ir.Constant(I32, 1), self._block.gep(this, [I32_0, I32_0]))
+
+				createMethodContext(f, method, this)
+				self._emitBlock(method, method.name)
+				if self._block.block.is_terminated:
+					self.panic("constructor can not return")
+					continue
+				self._block.ret(this)
+				delMethodContext()
+				self.ctors[node.name] = f
+			else:
+				f = ir.Function(self._module, ir.FunctionType(
+					method.returnType[0],
+					[pstruct] + [T for T, _ in method.args.values()],
+					method.vararg
+				), f"_{node.name}_{method.name}")
+				createMethodContext(f, method, f.args[0])
+				self._emitBlock(method, method.name)
+				delMethodContext()
+				methods[method.name] = (method.storage, f)
+
+		self._log("Created object '%s' (%d bytes)", node.name, sizeof)
+		self.objects[node.name] = (pstruct, this, fields, methods)

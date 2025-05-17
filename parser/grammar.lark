@@ -1,7 +1,7 @@
 // Top-level Entities
-module: (using | function1 | function2 | function_import | function3 | function4 | global_var | macro)*
+module: (using | function | function2 | function_import | function3 | function4 | global_var | macro | object_)*
 
-function1: STORAGE_TYPE "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
+function: STORAGE_TYPE "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
 function2: STORAGE_TYPE CALLING_CONV "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
 function_import: "import" CALLING_CONV "func" IDENTF "(" typed_args ")" "->" TYPE ";"
 function3: STORAGE_TYPE "func" IDENTF "(" typed_args ")" stat* "end"
@@ -75,7 +75,7 @@ sc__assign:		alhs "=" expr 	 -> assign
 ?logic_and: logic_and "&&" comparison	-> band
 		| comparison
 
-?comparison: comparison "==" atom		-> eq
+?comparison: comparison "==" atom			-> eq
 		   | comparison "!=" atom			-> neq
 		   | comparison "<" atom			-> lt
 		   | comparison "<=" atom			-> le
@@ -106,15 +106,17 @@ cast: "(" TYPE ")" expr
 	   | "(" expr ")"
 	   | "&" IDENTF										-> reference
 	   | "*" IDENTF										-> dereference
-	   | expr "[" expr "]"								-> index
+	   | factor "[" atom "]"							-> index
 	   | SQRBRCK expr (", " expr)* "]"					-> array
+	   | "new" IDENTF "(" args ")"						-> object_new
+	   | factor "." IDENTF								-> object_index
 
 // Macros
 macro: "macro" IDENTF expr ";"
 
 // Objects
 object_field: STORAGE_TYPE IDENTF ":" TYPE ";"
-object_method: function1 | function2 | (CTOR "(" typed_args ")" stat* "end")
+object_method: function | function2 | (CTOR "(" typed_args ")" stat* "end")
 object_: "class" IDENTF "{" (object_field | object_method)* "}"
 
 // Terminals

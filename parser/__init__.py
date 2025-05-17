@@ -53,7 +53,7 @@ class AST(lark.Transformer):
 	def CHAR(self, token: lark.Token):
 		return lark.Token("CHAR", ord(token.value[1:-1].encode("utf-8").decode("unicode_escape")), line=token.line, column=token.column)
 
-	def function1(self, items: list[lark.Token | lark.Tree | Node]):
+	def function(self, items: list[lark.Token | lark.Tree | Node]):
 		storageType = items[0].value
 		name = items[1]
 		args = items[2].children
@@ -83,7 +83,7 @@ class AST(lark.Transformer):
 		return node
 
 	def function2(self, items: list[lark.Token | lark.Tree | Node]):
-		node = self.function1([items[0], items[2], items[3], items[4]] + items[5:])
+		node = self.function([items[0], items[2], items[3], items[4]] + items[5:])
 		node.conv = items[1].value
 		return node
 
@@ -113,7 +113,7 @@ class AST(lark.Transformer):
 		return node
 
 	def function3(self, items: list[lark.Token | lark.Tree | Node]):
-		return self.function1([items[0], items[1], items[2], None] + items[3:])
+		return self.function([items[0], items[1], items[2], None] + items[3:])
 
 	def function4(self, items: list[lark.Token | lark.Tree | Node]):
 		node = self.function3([items[0], items[2], items[3]] + items[4:])
@@ -385,7 +385,7 @@ class AST(lark.Transformer):
 		return ArrayNode(items[1:], items[0].line, items[0].column)
 
 	def index(self, items: list[lark.Token | lark.Tree | Node]):
-		return IndexNode(items[0], items[1], items[0].line, items[0].column)
+		return IndexNode(0, items[0], items[1], items[0].line, items[0].column)
 
 	def object_field(self, items: list[lark.Token | lark.Tree | Node]):
 		return FieldNode(
@@ -428,6 +428,17 @@ class AST(lark.Transformer):
 			items[0].line,
 			items[0].column,
 		)
+	
+	def object_new(self, items: list[lark.Token | lark.Tree | Node]):
+		return NewNode(
+			items[0].value,
+			[arg.children[0] for arg in items[1].children],
+			items[0].line,
+			items[0].column,
+		)
+	
+	def object_index(self, items: list[lark.Token | lark.Tree | Node]):
+		return IndexNode(1, items[0], items[1], items[0].line, items[0].column)
 
 
 class Parser:

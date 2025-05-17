@@ -1,15 +1,22 @@
 using "io";
 
-public func main() -> int
-    var height: int = 5;
-    for (var row: int = 1; row <= height; row += 1) do
-        for (var space: int = 0; space < height - row; space += 1) do
-            io::print(" ");
-        end
-        for (var star: int = 0; star < 2 * row - 1; star += 1) do
-            io::print("*");
-        end
-        io::print("\n");
-    end
-    return 0;
+class Test {
+	public a: int;
+	private b: int;
+
+	constructor(int n)
+		a = n;
+		b = 5;
+	end
+
+	public func compute() -> int
+		return a + b;
+	end
+}
+
+public func main()
+	var ts = new Test(1);
+	io::printf("Test.a = %d\n", ts.a);
+
+	return 0;
 end
