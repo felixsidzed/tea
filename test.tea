@@ -1,17 +1,24 @@
 using "io";
+using "str";
 using "core";
 
 public func test() -> void
-	core::throw("ts real bad error brochacho");
+	core::throw("ts error could lowkey bsod but wtv");
+end
+
+// returns if the exception was handled
+public func handler(string error) -> bool
+	if (str::eq(error, "ts real bad error brochacho")) do
+		io::print("haha error caught!\n");
+		return true;
+	end
+	return false;
 end
 
 public func main()
-	var error = core::pcall(test);	// pcall returns a 'null' if the function did not throw
-									// otherwise the error message
-	if (!error) do
-		io::printf("error: %s\n", error);
-	else
-		io::printf("w*rks\n");
+	var handled = core::xpcall(test, handler);
+	if (!handled) do
+		io::printf("whoops unhandled error\n");
 	end
 
 	return 0;

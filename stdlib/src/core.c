@@ -21,6 +21,8 @@ void _core__throw(const char* message) {
 }
 
 const char* _core__pcall(void(*func)()) {
+	if (!func) return NULL;
+
 	exception_t exc;
 	exc.thrown = FALSE;
 	exc.message = NULL;
@@ -36,6 +38,16 @@ const char* _core__pcall(void(*func)()) {
 
 	curExc = NULL;
 	return NULL;
+}
+
+BOOL _core__xpcall(void(*func)(), BOOL(*handler)(const char*)) {
+	if (!func) return TRUE;
+
+	const char* error = _core__pcall(func);
+	if (handler && error)
+		return handler(error);
+
+	return !error;
 }
 
 #else
