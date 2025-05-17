@@ -71,22 +71,23 @@ def cast(block: ir.IRBuilder, expected: ir.Type, value):
 	
 	return value, False
 
-
-# TODO: clean
+defined = set()
 def str2name(s: str, maxLen: int = 16) -> str:
+	global defined
+	basename = "aEmpty"
 	s = list("".join(c for c in s if 32 <= ord(c) < 127) \
 		.replace("*", "Star ") \
 		.replace(".", "Dot ") \
 		.replace("%", "Percent ") \
 		.replace("/", "Slash ") \
+		.replace("\n", "Newline ") \
 		.replace("\\", "Backslash ") \
 		.replace("+", "Plus ") \
 		.replace(";", "Semicolon ") \
 		.replace(":", "Colon ") \
 		.replace("!", "Exclamation ") \
 		.replace("?", "Question ") \
-		.replace("-", "Minus ") \
-		.replace("\n", "Newline ")
+		.replace("-", "Minus ")
 	)
 	if len(s) > 0:
 		s[0] = s[0].upper()
@@ -95,11 +96,17 @@ def str2name(s: str, maxLen: int = 16) -> str:
 		s = "".join(s)
 		match = re.match(r"([a-zA-Z0-9]+)", s.replace(" ", ""))
 		if match:
-			return "a" + match.group(1)[:maxLen]
+			basename = "a" + match.group(1)[:maxLen]
 		else:
-			return "string"
-	else:
-		return "string"
+			basename = "string"
+		
+	name = basename
+	count = 1
+	while name in defined:
+		name = f"{basename}.{count}"
+		count += 1
+	defined.add(name)
+	return name
 
 
 class CodeGen:
@@ -219,6 +226,9 @@ class CodeGen:
 				var.initializer = value
 				var.linkage = "public" if node.storage == STORAGE_PUBLIC else "private"
 				var.global_constant = const
+
+			elif type(node) == ObjectNode:
+				self._emitObject(node)
 
 			else:
 				self.panic("invalid root statement '%s'", type(node).__name__[:-4])
@@ -767,3 +777,6 @@ class CodeGen:
 			return f
 		else:
 			return self.panic("'%s' is not a valid import", type(node).__name__[:-4])
+
+	def _emitObject(self, node: ObjectNode):
+		pass

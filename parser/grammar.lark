@@ -1,7 +1,7 @@
 // Top-level Entities
-module: (using | function | function2 | function_import | function3 | function4 | global_var | macro)*
+module: (using | function1 | function2 | function_import | function3 | function4 | global_var | macro)*
 
-function: STORAGE_TYPE "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
+function1: STORAGE_TYPE "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
 function2: STORAGE_TYPE CALLING_CONV "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
 function_import: "import" CALLING_CONV "func" IDENTF "(" typed_args ")" "->" TYPE ";"
 function3: STORAGE_TYPE "func" IDENTF "(" typed_args ")" stat* "end"
@@ -112,6 +112,11 @@ cast: "(" TYPE ")" expr
 // Macros
 macro: "macro" IDENTF expr ";"
 
+// Objects
+object_field: STORAGE_TYPE IDENTF ":" TYPE ";"
+object_method: function1 | function2 | (CTOR "(" typed_args ")" stat* "end")
+object_: "class" IDENTF "{" (object_field | object_method)* "}"
+
 // Terminals
 TYPE: /(?:const\s+)?(int|float|double|char|string|void|bool|long)\*?(\s*\[\s*\d*\s*\])?/
 STORAGE_TYPE: "public" | "private"
@@ -131,6 +136,7 @@ BREAK: "break"
 CONTINUE: "continue"
 VARARG: "..."
 SQRBRCK: "["
+CTOR: "constructor"
 
 // Imports
 %import common.ESCAPED_STRING -> STRING

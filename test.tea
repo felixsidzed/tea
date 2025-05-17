@@ -1,13 +1,15 @@
 using "io";
-using "str";
-using "core";
 
-public func test() -> void
-	core::throw("ts error could lowkey bsod but wtv");
-end
-
-public func main()
-	test();
-
-	return 0;
+public func main() -> int
+    var height: int = 5;
+    for (var row: int = 1; row <= height; row += 1) do
+        for (var space: int = 0; space < height - row; space += 1) do
+            io::print(" ");
+        end
+        for (var star: int = 0; star < 2 * row - 1; star += 1) do
+            io::print("*");
+        end
+        io::print("\n");
+    end
+    return 0;
 end

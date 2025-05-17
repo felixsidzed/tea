@@ -31,7 +31,7 @@ class Type:
 			enum = Type.CHAR
 
 		llvm = TYPE2LLVM[enum]
-		
+
 		if array:
 			dims = re.findall(r"\[(\d*)\]", array)
 			for dim in reversed(dims):
@@ -45,7 +45,8 @@ class Type:
 		return (llvm, const)
 
 
-TYPE2LLVM = [ir.IntType(32), ir.FloatType(), ir.DoubleType(), ir.IntType(8), ir.IntType(8).as_pointer(), ir.VoidType(), ir.IntType(1), ir.IntType(64)]
+TYPE2LLVM = [ir.IntType(32), ir.FloatType(), ir.DoubleType(), ir.IntType(
+	8), ir.IntType(8).as_pointer(), ir.VoidType(), ir.IntType(1), ir.IntType(64)]
 STORAGE2I = {
 	"public": 1,
 	"private": 0
@@ -293,3 +294,18 @@ class IndexNode(ExpressionNode):
 class ArrayNode(ExpressionNode):
 	def __init__(self, elements: list[ExpressionNode], line: int, column: int):
 		super().__init__(line, column, elements)
+
+
+class FieldNode(Node):
+	def __init__(self, storage: int, name: str, dataType: tuple[ir.Type, bool], line: int, column: int):
+		self.storage = storage
+		self.name = name
+		self.dataType = dataType
+		super().__init__(line, column)
+
+
+class ObjectNode(Node):
+	def __init__(self, name: str, body: list[FunctionNode | FieldNode], line: int, column: int):
+		self.name = name
+		self.body = body
+		super().__init__(line, column)

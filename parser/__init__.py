@@ -53,7 +53,7 @@ class AST(lark.Transformer):
 	def CHAR(self, token: lark.Token):
 		return lark.Token("CHAR", ord(token.value[1:-1].encode("utf-8").decode("unicode_escape")), line=token.line, column=token.column)
 
-	def function(self, items: list[lark.Token | lark.Tree | Node]):
+	def function1(self, items: list[lark.Token | lark.Tree | Node]):
 		storageType = items[0].value
 		name = items[1]
 		args = items[2].children
@@ -83,7 +83,7 @@ class AST(lark.Transformer):
 		return node
 
 	def function2(self, items: list[lark.Token | lark.Tree | Node]):
-		node = self.function([items[0], items[2], items[3], items[4]] + items[5:])
+		node = self.function1([items[0], items[2], items[3], items[4]] + items[5:])
 		node.conv = items[1].value
 		return node
 
@@ -113,7 +113,7 @@ class AST(lark.Transformer):
 		return node
 
 	def function3(self, items: list[lark.Token | lark.Tree | Node]):
-		return self.function([items[0], items[1], items[2], None] + items[3:])
+		return self.function1([items[0], items[1], items[2], None] + items[3:])
 
 	def function4(self, items: list[lark.Token | lark.Tree | Node]):
 		node = self.function3([items[0], items[2], items[3]] + items[4:])
@@ -380,12 +380,54 @@ class AST(lark.Transformer):
 	def macro(self, items: list[lark.Token | lark.Tree | Node]):
 		self._macros[items[0].value] = items[1]
 		return lark.Discard
-	
+
 	def array(self, items: list[lark.Token | lark.Tree | Node]):
 		return ArrayNode(items[1:], items[0].line, items[0].column)
-	
+
 	def index(self, items: list[lark.Token | lark.Tree | Node]):
 		return IndexNode(items[0], items[1], items[0].line, items[0].column)
+
+	def object_field(self, items: list[lark.Token | lark.Tree | Node]):
+		return FieldNode(
+			STORAGE2I[items[0].value],
+			items[1],
+			Type.get(items[2].value),
+			items[0].line,
+			items[0].column,
+		)
+
+	def object_method(self, items: list[lark.Token | lark.Tree | Node]):
+		if type(items[0]) == FunctionNode:
+			return items[0]
+		else:
+			args = items[1].children
+
+			vararg = False
+			fixedArgs = {}
+			for arg in args:
+				if arg.children[1].type == "VARARG":
+					vararg = True
+				else:
+					fixedArgs[arg.children[1].value] = Type.get(arg.children[0].value)
+			return FunctionNode(
+				STORAGE2I["public"],
+				"__cdecl",
+				".ctor",
+				(TYPE2LLVM[Type.VOID], False),
+				fixedArgs,
+				vararg,
+				items[2:],
+				items[0].line,
+				items[0].column
+			)
+
+	def object_(self, items: list[lark.Token | lark.Tree | Node]):
+		return ObjectNode(
+			items[0].value,
+			items[1:],
+			items[0].line,
+			items[0].column,
+		)
 
 
 class Parser:
