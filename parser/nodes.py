@@ -21,17 +21,19 @@ class Type:
 		nptr = name.count("*")
 		name = name.replace("*", "").strip()
 
-		base_match = re.match(r"([a-zA-Z_]+)(\s*(\[[^\]]*\])*)?", name)
+		base = re.match(r"([a-zA-Z_]+)(\s*(\[[^\]]*\])*)?", name)
 
-		base_type_name = base_match.group(1).upper()
-		array_part = base_match.group(2)
+		basename = base.group(1).upper()
+		array = base.group(2)
 
-		base_type_enum = getattr(Type, base_type_name)
+		enum = getattr(Type, basename)
+		if enum == Type.VOID and nptr > 0:
+			enum = Type.CHAR
+
+		llvm = TYPE2LLVM[enum]
 		
-		llvm = TYPE2LLVM[base_type_enum]
-		
-		if array_part:
-			dims = re.findall(r"\[(\d*)\]", array_part)
+		if array:
+			dims = re.findall(r"\[(\d*)\]", array)
 			for dim in reversed(dims):
 				if dim == "":
 					raise ValueError("array size not specified")

@@ -1,11 +1,18 @@
 using "io";
+using "core";
+
+public func test() -> void
+	core::throw("ts real bad error brochacho");
+end
 
 public func main()
-	var a: int[4] = [ 1 ];
-	io::printf("0: %d\n", a[0]);
-	io::printf("1: %d\n", a[1]);
-	io::printf("2: %d\n", a[2]);
-	io::printf("3: %d\n", a[3]);
+	var error = core::pcall(test);	// pcall returns a 'null' if the function did not throw
+									// otherwise the error message
+	if (!error) do
+		io::printf("error: %s\n", error);
+	else
+		io::printf("w*rks\n");
+	end
 
 	return 0;
 end

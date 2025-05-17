@@ -65,6 +65,9 @@ def cast(block: ir.IRBuilder, expected: ir.Type, value):
 			return (ir.Constant(expected, value.constant) if type(value) == ir.Constant else block.trunc(value, expected)), True
 		elif checki(got, expected):
 			return (ir.Constant(expected, value.constant) if type(value) == ir.Constant else block.zext(value, expected)), True
+		
+	if expected.is_pointer and type(got) == ir.IntType and got.width >= 32:
+		return block.inttoptr(value, expected), True
 	
 	return value, False
 
@@ -141,6 +144,10 @@ class CodeGen:
 			fltused = ir.GlobalVariable(module, I32, name="_fltused")
 			fltused.initializer = ir.Constant(I32, 1)
 			fltused.global_constant = False
+
+			null = ir.GlobalVariable(module, PI8, name="null")
+			null.initializer = ir.Constant(PI8, None)
+			null.global_constant = True
 
 			self._emitCode(root)
 
@@ -281,7 +288,7 @@ class CodeGen:
 						if self._funcNode.storage == STORAGE_PRIVATE: patched.linkage = "private"
 						mapping = {}
 						for old in self._func.blocks:
-							block = ir.Block(parent=patched, name=name)
+							block = ir.Block(patched, old.name)
 							block.instructions = old.instructions
 							block.terminator = old.terminator
 							block.scope = old.scope
@@ -552,7 +559,7 @@ class CodeGen:
 				type_, value = self._emitExpression(node.value)
 				value, success = cast(self._block, node.type_[0], value)
 				if not success:
-					self.panic("unable to cast '%s' '%s'. line %d, column %d", node.type_[0], node.line, node.column)
+					self.panic("unable to cast '%s' to '%s'. line %d, column %d", type_, node.type_[0], node.line, node.column)
 				return (node.type_[0], value)
 			
 			elif type(node) == IndexNode:
@@ -639,7 +646,7 @@ class CodeGen:
 			got = args[i][0]
 			if got != expected:
 				value, success = cast(self._block, expected, args[i][1])
-				args[i[1]] = value
+				args[i][1] = value
 				if not success:
 					self.panic(
 						"argument %d: expected type %s, got %s. line %d, column %d",
