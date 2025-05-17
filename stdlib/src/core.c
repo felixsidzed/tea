@@ -12,8 +12,16 @@ typedef struct {
 static exception_t* curExc = NULL;
 
 void _core__throw(const char* message) {
-	if (!curExc)
+	if (!message) message = "[exception]";
+	if (!curExc) {
+		DWORD written;
+		HANDLE stderr = GetStdHandle(-12);
+		WriteConsoleA(stderr, "unhandled exception: ", 21, &written, NULL);
+		WriteConsoleA(stderr, message, lstrlenA(message), &written, NULL);
+		WriteConsoleA(stderr, "\n", 1, &written, NULL);
+		ExitThread(1);
 		return;
+	}
 
 	curExc->thrown = TRUE;
 	curExc->message = message;

@@ -6,20 +6,8 @@ public func test() -> void
 	core::throw("ts error could lowkey bsod but wtv");
 end
 
-// returns if the exception was handled
-public func handler(string error) -> bool
-	if (str::eq(error, "ts real bad error brochacho")) do
-		io::print("haha error caught!\n");
-		return true;
-	end
-	return false;
-end
-
 public func main()
-	var handled = core::xpcall(test, handler);
-	if (!handled) do
-		io::printf("whoops unhandled error\n");
-	end
+	test();
 
 	return 0;
 end
