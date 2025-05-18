@@ -1,22 +1,8 @@
 using "io";
 
-class Test {
-	public a: int;
-	private b: int;
-
-	constructor(int n)
-		a = n;
-		b = 5;
-	end
-
-	public func compute() -> int
-		return a + b;
-	end
-}
-
 public func main()
-	var ts = new Test(1);
-	io::printf("Test.a = %d\n", ts.a);
+	var ts = "Hello, World!";
+	io::printf("%c\n", ts[0]);
 
 	return 0;
 end

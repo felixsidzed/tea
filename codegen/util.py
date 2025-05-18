@@ -102,3 +102,8 @@ def str2name(s: str, maxLen: int = 16) -> str:
 		count += 1
 	defined.add(name)
 	return name
+
+def getElementType(t: ir.Type):
+	if t.is_pointer:
+		return t.pointee
+	return None

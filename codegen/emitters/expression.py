@@ -51,7 +51,7 @@ def emit(self, node: ExpressionNode, const: bool = False):
 
 			if node.value in self._args:
 				arg = self._func.args[self._args.index(node.value)]
-				ptr = self._block.bitcast(arg, ir.PointerType(arg.type))
+				ptr = self._block.bitcast(arg, arg.type.as_pointer())
 				return (ptr.type, ptr)
 			
 			elif node.value in self._locals:
@@ -133,14 +133,23 @@ def emit(self, node: ExpressionNode, const: bool = False):
 		elif type(node) == IndexNode:
 			if node.kind == 0: # array index
 				itype, index = self._emitExpression(node.value)
-				type_, arr = self._emitExpression(LarkToken("REF", node.arr, node.line, node.column))
+				type_, arr = self._emitExpression(node.arr)
+
 				if str(itype)[0] != "i":
 					self.panic("'%s' is not a valid index", itype)
-				if type(type_.pointee) != ir.ArrayType:
-					self.panic("'%s' is not an array type. line %d, column %d", type_, node.line, node.column)
-				if node.value.value >= type_.pointee.count:
-					self.panic("index out of bounds. line %d, column %d", node.line, node.column)
-				return (type_.pointee.element, self._block.load(self._block.gep(arr, [I32_0, index])))
+
+				if type(type_) == ir.ArrayType:
+					element = type_.element
+					type_, arr = self._emitExpression(LarkToken("REF", arr, node.line, node.column))
+					if node.value.value >= type_.pointee.count:
+						self.panic("index out of bounds. line %d, column %d", node.line, node.column)
+					return (element, self._block.load(self._block.gep(arr, [I32_0, index])))
+				else:
+					element = getElementType(type_)
+					if element is None:
+						self.panic("'%s' is not an indexable type", type_)
+					return (element, self._block.load(self._block.gep(arr, [index])))
+
 			elif node.kind == 1: # object index
 				type_, this = self._emitExpression(node.arr)
 				for objName, obj in self._objects.items():
