@@ -89,7 +89,7 @@ def emit(self, node: ExpressionNode, const: bool = False):
 		else:
 			self.panic("invalid constant '%s' in expression", node)
 
-	elif type(node) == CallNode:
+	elif type(node) == CallNode or type(node) == MethodCallNode:
 		if const:
 			self.panic("'CALL' can not be a constant expression")
 
@@ -163,7 +163,7 @@ def emit(self, node: ExpressionNode, const: bool = False):
 					if field[0] == STORAGE_PRIVATE:
 						return self.panic("storage type violation. line %d, column %d", node.line, node.column)
 					idx = tuple(obj[2].keys()).index(node.value.value)
-					return (field[1][1], self._block.load(self._block.gep(this, [I32_0, ir.Constant(I32, idx + 1)])))
+					return (field[1][0], self._block.load(self._block.gep(this, [I32_0, ir.Constant(I32, idx + 1)])))
 				return self.panic("'%s' is not a valid member of object '%s'. line %d, column %d", node.value, this.pointee, node.line, node.column)
 		
 		elif type(node) == ArrayNode:

@@ -4,18 +4,27 @@ from parser.ast import ObjectNode, FunctionNode, ir
 # TODO: clean
 def emit(self, node: ObjectNode):
 	struct = ir.global_context.get_identified_type(node.name)
+	pstruct = struct.as_pointer()
+
+	_vtable = ir.global_context.get_identified_type(f"__{node.name}_vtable")
+	_vtable.set_body(I32, *[
+		ir.FunctionType(method.returnType[0], [pstruct] + [T for T, _ in method.args.values()], method.vararg).as_pointer()
+		for method in node.methods if method.name[0] != "."
+	])
+	pvtable = _vtable.as_pointer()
+
 	fields = {}
-	body_ = [ I32 ]
+	body_ = [ pvtable ]
 	for field in node.fields:
 		fields[field.name] = (field.storage, field.dataType)
 		body_.append(field.dataType[0])
 	struct.set_body(*body_)
 	del body_
 
-	pstruct = struct.as_pointer()
 	sizeof = struct.get_abi_size(self._machine.target_data)
+	sizeofVtable = _vtable.get_abi_size(self._machine.target_data)
 
-	self._log("Creating object '%s' (%d bytes, %d method(s), %d field(s))", node.name, sizeof - I32.get_abi_size(self._machine.target_data), len(node.methods), len(node.fields))
+	self._log("Creating object '%s' (%d bytes. VTable: %d bytes). %d method(s), %d field(s))", node.name, sizeof - I32.get_abi_size(self._machine.target_data), sizeofVtable, len(node.methods), len(node.fields))
 
 	def createMethodContext(f: ir.Function, method: FunctionNode, this):
 		block = None
@@ -44,14 +53,15 @@ def emit(self, node: ObjectNode):
 	def delMethodContext():
 		del self._func, self._funcNode, self._block, self._args, self._argsTi, self._locals, self._this
 
-	ctor = ir.Function(self._module, ir.FunctionType(
-		pstruct,
-		[]
-	), f"_{node.name}_new")
+	ctor = ir.Function(self._module, ir.FunctionType(pstruct, []), f"_{node.name}_new")
 	self._block = ir.IRBuilder(ctor.append_basic_block("entry"))
-	allocated = self._block.call(self._allocator, [ir.Constant(I32, sizeof)])
-	this = self._block.bitcast(allocated, pstruct)
-	self._block.store(ir.Constant(I32, 1), self._block.gep(this, [I32_0, I32_0]))
+	allocated_obj = self._block.call(self._allocator, [I32(sizeof)])
+	this = self._block.bitcast(allocated_obj, pstruct)
+	vtable = self._block.call(self._allocator, [I32(sizeofVtable)])
+	vtable = self._block.bitcast(vtable, pvtable)
+	refcount = self._block.gep(vtable, [I32_0, I32_0])
+	self._block.store(I32(1), refcount)
+	self._block.store(vtable, self._block.gep(this, [I32_0, I32_0]))
 	self._ctors[node.name] = ctor
 	del self._block
 
@@ -61,30 +71,33 @@ def emit(self, node: ObjectNode):
 	), f"_{node.name}_deconstruct")
 	dtor.args[0].name = "this"
 	self._block = ir.IRBuilder(dtor.append_basic_block("entry"))
-	prefcount = self._block.gep(dtor.args[0], [I32_0, I32_0], True)
+	vtable = self._block.load(self._block.gep(dtor.args[0], [I32_0, I32_0], True))
+	prefcount = self._block.gep(vtable, [I32_0, I32_0], True)
 	refcount = self._block.sub(self._block.load(prefcount), I32(1))
 	self._block.store(refcount, prefcount)
 	with self._block.if_then(self._block.icmp_signed("<=", refcount, I32_0)) as then:
+		self._block.call(self._deallocator, [self._block.bitcast(vtable, PI8)])
 		self._block.call(self._deallocator, [self._block.bitcast(dtor.args[0], PI8)])
 	self._block.ret_void()
 	self._dtors[node.name] = dtor
 	del self._block
 
 	methods = {}
+	vtableIdx = 1
 	for method in node.methods:
 		if method.name == ".ctor":
 			ctor.ftype.args = tuple(T for T, _ in method.args.values())
 			ctor.ftype.vararg = method.vararg
 			ctor.args = [ir.Argument(ctor, T, name) for name, (T, _) in method.args.items()]
-			self._block = ir.IRBuilder(ctor.entry_basic_block)
+			self._block = ir.IRBuilder(ctor.blocks[-1])
 
 			createMethodContext(ctor, method, this)
 			self._emitBlock(method, method.name)
 			if self._block.block.is_terminated:
 				self.panic("constructor can not return")
 				continue
-			self._block.ret(this)
 			delMethodContext()
+
 		elif method.name == ".dtor":
 			dtor.ftype.args = [pstruct] + list(T for T, _ in method.args.values())
 			dtor.ftype.vararg = method.vararg
@@ -98,6 +111,7 @@ def emit(self, node: ObjectNode):
 				continue
 			self._block.ret(this)
 			delMethodContext()
+
 		else:
 			f = ir.Function(self._module, ir.FunctionType(
 				method.returnType[0],
@@ -108,7 +122,15 @@ def emit(self, node: ObjectNode):
 			createMethodContext(f, method, f.args[0])
 			self._emitBlock(method, method.name)
 			delMethodContext()
-			methods[method.name] = (method.storage, f)
+			methods[method.name] = (method.storage, f.ftype, vtableIdx, f)
+			vtableIdx += 1
+
+	self._block = ir.IRBuilder(ctor.blocks[-1])
+	vtable = self._block.load(self._block.gep(this, [I32_0, I32_0], True))
+	for name, (_, sig, idx, f) in methods.items():
+		self._block.store(f, self._block.gep(vtable, [I32_0, I32(idx)], True))
+	self._block.ret(this)
+	del self._block
 
 	self._objects[node.name] = (pstruct, this, fields, methods)
 

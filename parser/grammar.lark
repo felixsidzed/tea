@@ -24,6 +24,7 @@ using: "using" STRING ";"
 
 ?call: IDENTF "(" args ")" ";"								-> direct_call
 	 | IDENTF "::" IDENTF ("::" IDENTF)* "(" args ")" ";"	-> scoped_call
+	 | IDENTF "." IDENTF "(" args ")"						-> method_call
 
 variable: "var" IDENTF ":" TYPE "=" expr ";"
 		| "var" IDENTF ":" TYPE ";"
@@ -110,6 +111,7 @@ cast: "(" TYPE ")" expr
 	   | SQRBRCK expr (", " expr)* "]"					-> array
 	   | "new" IDENTF "(" args ")"						-> object_new
 	   | factor "." IDENTF								-> object_index
+	   | IDENTF "." IDENTF "(" args ")"					-> method_call
 
 // Macros
 macro: "macro" IDENTF expr ";"

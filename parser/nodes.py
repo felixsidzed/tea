@@ -317,3 +317,11 @@ class NewNode(ExpressionNode):
 	def __init__(self, name: str, args: list[ExpressionNode], line: int, column: int):
 		self.args = args
 		super().__init__(line, column, name)
+
+
+class MethodCallNode(Node):
+	def __init__(self, value: str, name: str, args: list, line: int, column: int):
+		self.value = value
+		self.name = name
+		self.args = args
+		super().__init__(line, column)

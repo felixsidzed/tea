@@ -1,8 +1,23 @@
 using "io";
 
+class Test {
+	public value: int;
+	private factor: int;
+
+	constructor(int v)
+		value = v;
+		factor = 5;
+	end
+
+	public func compute() -> int
+		return value * factor;
+	end
+}
+
 public func main()
-	var a = "Hello, World!";
-	io::printf("%c\n", a[1]);
+	var object = new Test(3);
+	var result = object.compute();
+	io::printf("Test.compute = %d\n", result);
 
 	return 0;
 end

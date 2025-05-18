@@ -65,7 +65,7 @@ def emit(self, root: Node, name: str) -> None:
 				else:
 					self._block.ret_void()
 
-		elif type(node) == CallNode:
+		elif type(node) == CallNode or type(node) == MethodCallNode:
 			self._emitCall(node)
 
 		elif type(node) == VariableNode:

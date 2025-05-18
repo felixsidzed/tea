@@ -431,3 +431,12 @@ class AST(lark.Transformer):
 	
 	def object_index(self, items: list[lark.Token | lark.Tree | Node]):
 		return IndexNode(1, items[0], items[1], items[0].line, items[0].column)
+	
+	def method_call(self, items: list[lark.Token | lark.Tree | Node]):
+		return MethodCallNode(
+			items[0],
+			items[1],
+			[arg.children[0] for arg in items[2].children],
+			items[0].line,
+			items[1].column
+		)
