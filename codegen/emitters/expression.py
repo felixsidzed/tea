@@ -100,6 +100,24 @@ def emit(self, node: ExpressionNode, const: bool = False):
 		if type(node) in (AddNode, MulNode, SubNode, DivNode):
 			lhs = self._emitExpression(node.left, const)
 			rhs = self._emitExpression(node.right, const)
+			
+			if type(node) in (AddNode, SubNode):
+				if lhs[0].is_pointer and type(rhs[0]) == I32:
+					scaled = self._block.mul(rhs[1], I32(lhs[0].pointee.get_abi_size(self._machine.target_data)))
+
+					if type(node) == AddNode:
+						return (lhs[0], self._block.gep(lhs[1], [scaled]))
+					else:
+						return (lhs[0], self._block.gep(lhs[1], [self._block.neg(scaled)]))
+
+				elif rhs[0].is_pointer and type(lhs[0]) == I32:
+					scaled = self._block.mul(rhs[1], I32(lhs[0].pointee.get_abi_size(self._machine.target_data)))
+
+					if type(node) == AddNode:
+						return (rhs[0], self._block.gep(rhs[1], [scaled]))
+					else:
+						self.panic("invalid operation. line %d, column %d", node.line, node.column)
+
 			return (lhs[0], getattr(self._block, type(node).__name__.lower()[:-4].replace("div", "sdiv"))(lhs[1], rhs[1]))
 		
 		# *
