@@ -12,7 +12,7 @@ MODULE_LOOKUP = [
 
 
 def resource(rel):
-	return os.path.join(getattr(sys, "base", os.path.abspath(".")), rel)
+	return os.path.join(getattr(sys, "_MEIPASS", os.path.abspath(".")), rel)
 
 
 class Parser:

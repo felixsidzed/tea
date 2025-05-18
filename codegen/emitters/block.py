@@ -1,9 +1,20 @@
 from parser.nodes import *
-from codegen.util import CCONV, STORAGE_PRIVATE, cast, I1
+from codegen.util import CCONV, STORAGE_PRIVATE, cast, I1, PI8
 
 def emit(self, root: Node, name: str) -> None:
 	self._locals = getattr(self, "_locals", {})
 	oldLocals = self._locals.copy()
+
+	def deconstruct():
+		# TODO: call the deconstructor for the object instead of the deallocator
+		if not hasattr(self, "_this"):
+			i = 0
+			for name, (alloca, (T, _)) in self._locals.items():
+				if T.is_pointer and isinstance(T.pointee, ir.BaseStructType):
+					self._block.call(self._deallocator, [self._block.bitcast(
+						self._block.load(alloca),
+					PI8)])
+			self._log("%d objects deconstructed", i)
 
 	for node in root.body:
 		if type(node) == ReturnNode:
@@ -33,8 +44,10 @@ def emit(self, root: Node, name: str) -> None:
 					self._block = ir.IRBuilder(current)
 					self._block.position_at_end(current)
 					
+					deconstruct()
 					self._block.ret(value)
 				else:
+					deconstruct()
 					self._block.ret_void()
 			else:
 				expected: ir.Type = self._block.block.function.return_value.type
@@ -165,6 +178,7 @@ def emit(self, root: Node, name: str) -> None:
 			self.panic("invalid statement '%s' in block", type(node).__name__[:-4])
 
 	self._log("Leaving block '%s:%s' (%d local(s))", getattr(root, "name", "<unnamed>"), name, len(self._locals) - len(oldLocals))
+	if not self._block.block.is_terminated: deconstruct()
 	self._locals = oldLocals
 
 __all__ = ["emit"]

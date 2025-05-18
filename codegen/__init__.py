@@ -11,11 +11,12 @@ from parser.nodes import ModuleNode, FunctionNode, FunctionImportNode, UsingNode
 
 
 class CodeGen:
-	def __init__(self, verbose: bool = False, is64Bit: bool = True, panic = defaultPanic, objectAllocator: str = "_mem__alloc") -> None:
+	def __init__(self, verbose: bool = False, is64Bit: bool = True, panic = defaultPanic, objectAllocator: str = "_mem__alloc", objectDeallocator: str = "_mem__free") -> None:
 		self.verbose = verbose
 		self.is64Bit = is64Bit
 		self.panic = panic
 		self.objectAllocator = objectAllocator
+		self.objectDeallocator = objectDeallocator
 
 		opt = llvm.create_module_pass_manager()
 		opt.add_gvn_pass()
@@ -61,14 +62,19 @@ class CodeGen:
 			try:
 				self._allocator = ir.Function(self._module, ir.FunctionType(PI8, [I32]), self.objectAllocator)
 			except Exception as e:
-				self.log("Failed to import allocator: %s", e)
+				self._log("Failed to import allocator: %s", e)
+
+			try:
+				self._deallocator = ir.Function(self._module, ir.FunctionType(VOID, [PI8]), self.objectDeallocator)
+			except Exception as e:
+				self._log("Failed to import deallocator: %s", e)
 
 			self._ctors = {}
 			self._dtors = {}
 			self._objects = {}
 
 			self._emitCode(root)
-			del self._ctors, self._dtors, self._objects
+			del self._ctors, self._dtors, self._objects, self._allocator, self._deallocator
 
 			if self.verbose: print(module)
 

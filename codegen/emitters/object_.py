@@ -15,7 +15,9 @@ def emit(self, node: ObjectNode):
 	pstruct = struct.as_pointer()
 	sizeof = struct.get_abi_size(self._machine.target_data)
 
-	def createMethodContext(f: ir.Function, method: FunctionNode, this=None):
+	self._log("Creating object '%s' (%d bytes, %d method(s), %d field(s))", node.name, sizeof - I32.get_abi_size(self._machine.target_data), len(node.methods), len(node.fields))
+
+	def createMethodContext(f: ir.Function, method: FunctionNode, this):
 		block = None
 		if hasattr(self, "_block"):
 			block = self._block.block
@@ -27,6 +29,7 @@ def emit(self, node: ObjectNode):
 		self._funcNode = method
 		self._args = tuple(method.args.keys())
 		self._argsTi = tuple(method.args.values())
+		self._this = this
 
 		classLocals = {}
 
@@ -39,7 +42,7 @@ def emit(self, node: ObjectNode):
 		self._locals = classLocals
 		
 	def delMethodContext():
-		del self._func, self._funcNode, self._block, self._args, self._argsTi, self._locals
+		del self._func, self._funcNode, self._block, self._args, self._argsTi, self._locals, self._this
 
 	methods = {}
 	for method in node.methods:
@@ -69,12 +72,12 @@ def emit(self, node: ObjectNode):
 				[pstruct] + [T for T, _ in method.args.values()],
 				method.vararg
 			), f"_{node.name}_{method.name}")
+			f.args[0].name = "this"
 			createMethodContext(f, method, f.args[0])
 			self._emitBlock(method, method.name)
 			delMethodContext()
 			methods[method.name] = (method.storage, f)
 
-	self._log("Created object '%s' (%d bytes)", node.name, sizeof)
 	self._objects[node.name] = (pstruct, this, fields, methods)
 
 __all__ = ["emit"]
