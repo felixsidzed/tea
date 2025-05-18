@@ -5,7 +5,8 @@ import traceback
 from lark import Token as LarkToken
 from llvmlite import ir, binding as llvm
 
-from parser import *
+from parser.ast import *
+from parser import Parser
 
 STORAGE_PRIVATE = STORAGE2I["private"]
 STORAGE_PUBLIC = STORAGE2I["public"]
