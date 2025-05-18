@@ -1,8 +1,11 @@
 using "io";
 
 public func main()
-	var ts = "Hello, World!";
-	io::printf("%c\n", ts[0]);
+	var val1 = true;
+	var val2 = true;
+	if (val1 && val2) do
+		io::print("hi");
+	end
 
 	return 0;
 end

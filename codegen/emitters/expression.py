@@ -3,8 +3,9 @@ from codegen.util import *
 from lark import Token as LarkToken
 
 def emit(self, node: ExpressionNode, const: bool = False):
-	# we use some tricks to minimize the amount of duplicate code
+	# * = we use some tricks here to minimize the amount of duplicate code
 	if type(node) == LarkToken:
+		# *
 		if node.type not in ("IDENTF", "STRING", "REF", "DEREF"):
 			T = Type.get(node.type)[0]
 			return (T, ir.Constant(T, node.value))
@@ -92,11 +93,13 @@ def emit(self, node: ExpressionNode, const: bool = False):
 		return self._emitCall(node)
 
 	elif isinstance(node, ExpressionNode):
+		# *
 		if type(node) in (AddNode, MulNode, SubNode, DivNode):
 			lhs = self._emitExpression(node.left, const)
 			rhs = self._emitExpression(node.right, const)
 			return (lhs[0], getattr(self._block, type(node).__name__.lower()[:-4].replace("div", "sdiv"))(lhs[1], rhs[1]))
 		
+		# *
 		elif type(node) in (EqNode, NeqNode, LtNode, LeNode, GtNode, GeNode):
 			lhs = self._emitExpression(node.left, const)
 			rhs = self._emitExpression(node.right, const)
@@ -113,15 +116,10 @@ def emit(self, node: ExpressionNode, const: bool = False):
 			value, _ = cast(self._block, I1, value)
 			return (type_, self._block.not_(value))
 		
-		elif type(node) == AndNode:
+		elif type(node) in (AndNode, OrNode):
 			lhs = self._emitExpression(node.left, const)
 			rhs = self._emitExpression(node.right, const)
-			return (I1, self._block.and_(lhs[1], rhs[1]))
-		
-		elif type(node) == OrNode:
-			lhs = self._emitExpression(node.left, const)
-			rhs = self._emitExpression(node.right, const)
-			return (I1, self._block.or_(lhs[1], rhs[1]))
+			return (I1, getattr(self._block, type(node).__name__.lower()[:-4] + "_")(lhs[1], rhs[1]))
 		
 		elif type(node) == CastNode:
 			type_, value = self._emitExpression(node.value)
@@ -196,7 +194,7 @@ def emit(self, node: ExpressionNode, const: bool = False):
 			return (obj[0], self._block.call(self._ctors[node.value], args))
 
 		else:
-			self.panic("whoopsies")
+			self.panic("invalid statement '%s' in expression", type(node).__name__[:-4])
 
 	else:
 		self.panic("invalid statement '%s' in expression", type(node).__name__[:-4])
