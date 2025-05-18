@@ -11,10 +11,13 @@ def emit(self, root: Node, name: str) -> None:
 			i = 0
 			for name, (alloca, (T, _)) in self._locals.items():
 				if T.is_pointer and isinstance(T.pointee, ir.BaseStructType):
-					self._block.call(self._deallocator, [self._block.bitcast(
-						self._block.load(alloca),
-					PI8)])
-			self._log("%d objects deconstructed", i)
+					dtor = self._dtors.get(T.pointee.name)
+					if dtor:
+						self._block.call(dtor, [self._block.load(alloca)])
+						i += 1
+					else:
+						self._log("Object '%s' is missing deconstructor", T.pointee.name)
+			self._log("%d object(s) deconstructed", i)
 
 	for node in root.body:
 		if type(node) == ReturnNode:

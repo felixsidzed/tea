@@ -1,8 +1,22 @@
 using "io";
-using "bit32";
+
+class Test {
+	public a: int;
+	private b: int;
+
+	constructor(int n)
+		a = n;
+		b = 5;
+	end
+
+	public func compute() -> int
+		return a + b;
+	end
+}
 
 public func main()
-	io::printf("%d\n", bit32::band(13, 22));
+	var ts = new Test(1);
+	io::printf("Test.a = %d\n", ts.a);
 
 	return 0;
 end
