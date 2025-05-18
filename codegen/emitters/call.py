@@ -4,7 +4,7 @@ from codegen.util import cast, I32_0, I32, STORAGE_PRIVATE
 def virtualCall(self, node: MethodCallNode):
 	type_, this = self._emitExpression(node.value)
 	for objName, obj in self._objects.items():
-		if obj[1].type == this.type: break
+		if obj[1].type == type_: break
 	else:
 		return self.panic("reference to undefined object '%s' in expression. line %d, column %d", node.value, node.line, node.column)
 	
@@ -12,7 +12,7 @@ def virtualCall(self, node: MethodCallNode):
 
 	method = obj[3].get(node.name)
 	if not method:
-		return self.panic("'%s' is not a valid member of '%s'. line %d, column %d", node.name, this, node.line, node.column)
+		return self.panic("'%s' is not a valid member of '%s'. line %d, column %d", node.name, objName, node.line, node.column)
 	storage, sig, idx, _ = method
 	if storage == STORAGE_PRIVATE:
 		return self.panic("storage type violation. line %d, column %d", node.line, node.column)

@@ -172,7 +172,7 @@ class AST(lark.Transformer):
 			value = items[1]
 			return ReturnNode(value, Type.get(value.type)[0], value.line, value.column)
 		except IndexError:
-			return ReturnNode(None, Type.VOID, value.line, value.column)
+			return ReturnNode(None, Type.void_, value.line, value.column)
 		except AttributeError:
 			return ReturnNode(value, None, value.line, value.column)
 
@@ -405,7 +405,7 @@ class AST(lark.Transformer):
 				STORAGE2I["public"],
 				"__cdecl",
 				".ctor",
-				(TYPE2LLVM[Type.VOID], False),
+				(TYPE2LLVM[Type.void_], False),
 				fixedArgs,
 				vararg,
 				items[2:],
@@ -414,12 +414,15 @@ class AST(lark.Transformer):
 			)
 
 	def object_(self, items: list[lark.Token | lark.Tree | Node]):
-		return ObjectNode(
+		node = ObjectNode(
 			items[0].value,
 			items[1:],
 			items[0].line,
 			items[0].column,
 		)
+		struct = ir.global_context.get_identified_type(node.name)
+		Type.register(node.name, struct)
+		return node
 	
 	def object_new(self, items: list[lark.Token | lark.Tree | Node]):
 		return NewNode(

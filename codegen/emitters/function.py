@@ -35,7 +35,7 @@ def emit(self, root: FunctionNode):
 	del self._block, self._locals, self._preallocated
 	
 	if not self._returned:
-		if root.returnType[0] == VOID:
+		if self._func.ftype.return_type == VOID:
 			b = ir.IRBuilder(self._func.blocks[-1])
 			b.ret_void()
 			del b

@@ -24,7 +24,7 @@ using: "using" STRING ";"
 
 ?call: IDENTF "(" args ")" ";"								-> direct_call
 	 | IDENTF "::" IDENTF ("::" IDENTF)* "(" args ")" ";"	-> scoped_call
-	 | IDENTF "." IDENTF "(" args ")"						-> method_call
+	 | factor "." IDENTF "(" args ")"						-> method_call
 
 variable: "var" IDENTF ":" TYPE "=" expr ";"
 		| "var" IDENTF ":" TYPE ";"
@@ -111,7 +111,7 @@ cast: "(" TYPE ")" expr
 	   | SQRBRCK expr (", " expr)* "]"					-> array
 	   | "new" IDENTF "(" args ")"						-> object_new
 	   | factor "." IDENTF								-> object_index
-	   | IDENTF "." IDENTF "(" args ")"					-> method_call
+	   | factor "." IDENTF "(" args ")"					-> method_call
 
 // Macros
 macro: "macro" IDENTF expr ";"
@@ -122,7 +122,7 @@ object_method: function | function2 | (CTOR "(" typed_args ")" stat* "end")
 object_: "class" IDENTF "{" (object_field | object_method)* "}"
 
 // Terminals
-TYPE: /(?:const\s+)?(int|float|double|char|string|void|bool|long)\*?(\s*\[\s*\d*\s*\])?/
+TYPE: /(?:const\s+)?(\w+)\**(\s*\[\s*\d+\s*\])?/
 STORAGE_TYPE: "public" | "private"
 
 INT: /-?0[xX][0-9a-fA-F]+/ | /-?[0-9]+/

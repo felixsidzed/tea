@@ -10,7 +10,7 @@ def emit(self, node: ExpressionNode, const: bool = False):
 	if type(node) == LarkToken:
 		# *
 		if node.type not in ("IDENTF", "STRING", "REF", "DEREF"):
-			T = Type.get(node.type)[0]
+			T = Type.get(node.type.lower())[0]
 			return (T, ir.Constant(T, node.value))
 		
 		elif node.type == "IDENTF":

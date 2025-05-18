@@ -36,7 +36,7 @@ def main() -> None:
 			src = f.read()
 			f.close()
 	except Exception as e:
-		print(f"1 error(s):\n(1) error: '{args.source}': {e}")
+		print(f"1 error(s):\n(1) '{args.source}': {e}")
 		exit(1)
 
 	try:

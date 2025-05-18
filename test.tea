@@ -14,10 +14,13 @@ class Test {
 	end
 }
 
+public func doStuff(Test* object)
+	io::printf("Test.compute = %d\n", object.compute());
+end
+
 public func main()
 	var object = new Test(3);
-	var result = object.compute();
-	io::printf("Test.compute = %d\n", result);
+	doStuff(object);
 
 	return 0;
 end

@@ -4,14 +4,14 @@ from llvmlite import ir
 
 
 class Type:
-	INT = 0
-	FLOAT = 1
-	DOUBLE = 2
-	CHAR = 3
-	STRING = 4
-	VOID = 5
-	BOOL = 6
-	LONG = 7
+	int_ = 0
+	float_ = 1
+	double_ = 2
+	char_ = 3
+	string_ = 4
+	void_ = 5
+	bool_ = 6
+	long_ = 7
 
 	@staticmethod
 	def get(name: str) -> tuple[ir.Type, bool]:
@@ -23,12 +23,12 @@ class Type:
 
 		base = re.match(r"([a-zA-Z_]+)(\s*(\[[^\]]*\])*)?", name)
 
-		basename = base.group(1).upper()
+		basename = base.group(1)
 		array = base.group(2)
 
-		enum = getattr(Type, basename)
-		if enum == Type.VOID and nptr > 0:
-			enum = Type.CHAR
+		enum = getattr(Type, basename + "_")
+		if enum == Type.void_ and nptr > 0:
+			enum = Type.char_
 
 		llvm = TYPE2LLVM[enum]
 
@@ -44,9 +44,13 @@ class Type:
 
 		return (llvm, const)
 
+	@staticmethod
+	def register(name: str, value: ir.Type):
+		TYPE2LLVM.append(value)
+		setattr(Type, name + "_", len(TYPE2LLVM) - 1)
 
-TYPE2LLVM = [ir.IntType(32), ir.FloatType(), ir.DoubleType(), ir.IntType(
-	8), ir.IntType(8).as_pointer(), ir.VoidType(), ir.IntType(1), ir.IntType(64)]
+
+TYPE2LLVM = [ir.IntType(32), ir.FloatType(), ir.DoubleType(), ir.IntType(8), ir.IntType(8).as_pointer(), ir.VoidType(), ir.IntType(1), ir.IntType(64)]
 STORAGE2I = {
 	"public": 1,
 	"private": 0

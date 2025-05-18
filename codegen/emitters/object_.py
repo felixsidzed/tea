@@ -1,5 +1,5 @@
-from parser.ast import ObjectNode, FunctionNode, ir
 from codegen.util import I32, I32_0, VOID, PI8, mangle
+from parser.ast import ObjectNode, FunctionNode, ir, Type
 
 # TODO: clean
 def emit(self, node: ObjectNode):
@@ -14,12 +14,9 @@ def emit(self, node: ObjectNode):
 	pvtable = _vtable.as_pointer()
 
 	fields = {}
-	body_ = [ pvtable ]
 	for field in node.fields:
 		fields[field.name] = (field.storage, field.dataType)
-		body_.append(field.dataType[0])
-	struct.set_body(*body_)
-	del body_
+	struct.elements = (pvtable, *[field.dataType[0] for field in node.fields])
 
 	sizeof = struct.get_abi_size(self._machine.target_data)
 	sizeofVtable = _vtable.get_abi_size(self._machine.target_data)
