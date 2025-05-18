@@ -7,16 +7,17 @@ def emit(self, node: ObjectNode):
 	pstruct = struct.as_pointer()
 
 	_vtable = ir.global_context.get_identified_type(mangle("vtable", node.name))
-	_vtable.set_body(I32, *[
+	_vtable.set_body(*[
 		ir.FunctionType(method.returnType[0], [pstruct] + [T for T, _ in method.args.values()], method.vararg).as_pointer()
 		for method in node.methods if method.name[0] != "."
 	])
 	pvtable = _vtable.as_pointer()
 
-	fields = {}
-	for field in node.fields:
-		fields[field.name] = (field.storage, field.dataType)
-	struct.elements = (pvtable, *[field.dataType[0] for field in node.fields])
+	vtable = ir.GlobalVariable(self._module, _vtable, _vtable.name)
+	vtable.linkage = "internal"
+
+	fields = {field.name: (field.storage, field.dataType) for field in node.fields}
+	struct.set_body(pvtable, I32, *[field.dataType[0] for field in node.fields])
 
 	sizeof = struct.get_abi_size(self._machine.target_data)
 	sizeofVtable = _vtable.get_abi_size(self._machine.target_data)
@@ -53,12 +54,8 @@ def emit(self, node: ObjectNode):
 	sig = ir.FunctionType(pstruct, [])
 	ctor = ir.Function(self._module, sig, mangle("ctor", node.name, sig))
 	self._block = ir.IRBuilder(ctor.append_basic_block("entry"))
-	allocated_obj = self._block.call(self._allocator, [I32(sizeof)])
-	this = self._block.bitcast(allocated_obj, pstruct)
-	vtable = self._block.call(self._allocator, [I32(sizeofVtable)])
-	vtable = self._block.bitcast(vtable, pvtable)
-	refcount = self._block.gep(vtable, [I32_0, I32_0])
-	self._block.store(I32(1), refcount)
+	this = self._block.bitcast(self._block.call(self._allocator, [I32(sizeof)]), pstruct)
+	self._block.store(I32(1), self._block.gep(this, [I32_0, I32(1)]))
 	self._block.store(vtable, self._block.gep(this, [I32_0, I32_0]))
 	self._ctors[node.name] = ctor
 	del self._block
@@ -67,19 +64,16 @@ def emit(self, node: ObjectNode):
 	dtor = ir.Function(self._module, sig, mangle("dtor", node.name, sig))
 	dtor.args[0].name = "this"
 	self._block = ir.IRBuilder(dtor.append_basic_block("entry"))
-	vtable = self._block.load(self._block.gep(dtor.args[0], [I32_0, I32_0], True))
-	prefcount = self._block.gep(vtable, [I32_0, I32_0], True)
+	prefcount = self._block.gep(dtor.args[0], [I32_0, I32(1)])
 	refcount = self._block.sub(self._block.load(prefcount), I32(1))
-	self._block.store(refcount, prefcount)
 	with self._block.if_then(self._block.icmp_signed("<=", refcount, I32_0)) as then:
-		self._block.call(self._deallocator, [self._block.bitcast(vtable, PI8)])
 		self._block.call(self._deallocator, [self._block.bitcast(dtor.args[0], PI8)])
 	self._block.ret_void()
 	self._dtors[node.name] = dtor
 	del self._block
 
 	methods = {}
-	vtableIdx = 1
+	vtableIdx = 0
 	for method in node.methods:
 		if method.name == ".ctor":
 			ctor.ftype.args = tuple(T for T, _ in method.args.values())
@@ -109,11 +103,7 @@ def emit(self, node: ObjectNode):
 			delMethodContext()
 
 		else:
-			sig = ir.FunctionType(
-				method.returnType[0],
-				[pstruct] + [T for T, _ in method.args.values()],
-				method.vararg
-			)
+			sig = _vtable.elements[vtableIdx].pointee
 			f = ir.Function(self._module, sig, mangle("method", node.name, sig, method.name))
 			f.args[0].name = "this"
 			createMethodContext(f, method, f.args[0])

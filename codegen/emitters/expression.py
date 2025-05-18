@@ -155,7 +155,7 @@ def emit(self, node: ExpressionNode, const: bool = False):
 				oldBlock = copy.copy(self._block)
 				type_, arr = self._emitExpression(node.arr)
 
-				if str(itype)[0] != "i":
+				if type(itype) != ir.IntType:
 					self.panic("'%s' is not a valid index", itype)
 
 				if type(type_) == ir.ArrayType:
