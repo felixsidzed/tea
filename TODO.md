@@ -5,3 +5,4 @@ current todo list (in order):
 4. ~~exception handling~~
 5. **objects**
 6. linux support
+7. cli jit compiler

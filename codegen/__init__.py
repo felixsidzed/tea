@@ -135,14 +135,17 @@ class CodeGen:
 			
 			elif type(node) == GlobalVariableNode:
 				expected, const = node.dataType
-				type_, value = self._emitExpression(node.value)
-				value, success = cast(self._block, expected, value)
-				if not success:
-					self.panic("constant (%s) is incompatible with function return value type (%s). line %d, column %d", str(type_), str(expected), node.line, node.column)
+				type_, value = self._emitExpression(node.value, True)
+				if expected == PI8 and type(type_) == ir.ArrayType:
+					self.panic("not now,,,")
+					continue
+
+				if type_ != expected:
+					self.panic("value type '%s' is incompatible with variable type '%s'. line %d, column %d", str(type_), str(expected), node.line, node.column)
 					continue
 				var = ir.GlobalVariable(self._module, type_, node.name)
 				var.initializer = value
-				var.linkage = "public" if node.storage == STORAGE_PUBLIC else "private"
+				if node.storage == STORAGE_PRIVATE: var.linkage = "private"
 				var.global_constant = const
 
 			elif type(node) == ObjectNode:

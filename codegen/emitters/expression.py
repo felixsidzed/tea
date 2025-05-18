@@ -1,6 +1,9 @@
+import copy
+
+from lark import Token as LarkToken
+
 from parser.nodes import *
 from codegen.util import *
-from lark import Token as LarkToken
 
 def emit(self, node: ExpressionNode, const: bool = False):
 	# * = we use some tricks here to minimize the amount of duplicate code
@@ -24,7 +27,7 @@ def emit(self, node: ExpressionNode, const: bool = False):
 				try:
 					var = self._module.get_global(node.value)
 					if type(var) == ir.GlobalVariable:
-						return (var.type, self._block.load(var))
+						return (var.value_type, self._block.load(var))
 					elif isinstance(var, ir.Function):
 						return (var.function_type, var)
 					else:
@@ -37,7 +40,7 @@ def emit(self, node: ExpressionNode, const: bool = False):
 			g = self._module.globals.get(name)
 			if g is None:
 				value = bytearray(node.value.encode("utf8")) + b"\00"
-				type_ = ir.ArrayType(ir.IntType(8), len(value))
+				type_ = ir.ArrayType(I8, len(value))
 				
 				g = ir.GlobalVariable(self._module, type_, name)
 				g.linkage = "internal"
@@ -131,6 +134,7 @@ def emit(self, node: ExpressionNode, const: bool = False):
 		elif type(node) == IndexNode:
 			if node.kind == 0: # array index
 				itype, index = self._emitExpression(node.value)
+				oldBlock = copy.copy(self._block)
 				type_, arr = self._emitExpression(node.arr)
 
 				if str(itype)[0] != "i":
@@ -138,9 +142,8 @@ def emit(self, node: ExpressionNode, const: bool = False):
 
 				if type(type_) == ir.ArrayType:
 					element = type_.element
-					type_, arr = self._emitExpression(LarkToken("REF", arr, node.line, node.column))
-					if node.value.value >= type_.pointee.count:
-						self.panic("index out of bounds. line %d, column %d", node.line, node.column)
+					self._block = oldBlock
+					type_, arr = self._emitExpression(LarkToken("REF", node.arr, line=node.line, column=node.column))
 					return (element, self._block.load(self._block.gep(arr, [I32_0, index])))
 				else:
 					element = getElementType(type_)
@@ -164,23 +167,27 @@ def emit(self, node: ExpressionNode, const: bool = False):
 				return self.panic("'%s' is not a valid member of object '%s'. line %d, column %d", node.value, this.pointee, node.line, node.column)
 		
 		elif type(node) == ArrayNode:
-			if const:
-				self.panic("array creation can't be a constant expression. line %d, column %d", node.line, node.column)
+			elems = [self._emitExpression(elem, const)[1] for elem in node.value]
 
-			elems = [self._emitExpression(elem, const=False)[1] for elem in node.value]
-
-			# ts should never happen
 			if not elems:
 				self.panic("can't create an empty array")
 
 			elementType = elems[0].type
 			for elem in elems:
 				if elem.type != elementType:
-					self.panic("invalid element type: expected '%s', got '%s'. line %d, column %d", elementType, elem.type, node.line, node. column)
+					self.panic(
+						"invalid element type: expected '%s', got '%s'. line %d, column %d",
+						elementType, elem.type, node.line, node.column
+					)
 
-			allocated = self._block.alloca(ir.ArrayType(elementType, len(elems)))
-			for i, val in enumerate(elems):
-				self._block.store(val, self._block.gep(allocated, [I32_0, ir.Constant(I32, i)]))
+			arrType = ir.ArrayType(elementType, len(elems))
+			constArray = ir.Constant(arrType, elems)
+
+			if const:
+				return (arrType, constArray)
+			
+			allocated = self._block.alloca(arrType)
+			self._block.store(constArray, allocated)
 
 			return (allocated.allocated_type, allocated)
 
