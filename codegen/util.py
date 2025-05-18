@@ -1,5 +1,6 @@
 import re
 
+from codegen.mangle import mangle
 from parser.nodes import TYPE2LLVM, ir, STORAGE2I
 
 I32  = TYPE2LLVM[0]

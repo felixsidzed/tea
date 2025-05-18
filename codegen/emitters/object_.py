@@ -1,12 +1,12 @@
-from codegen.util import I32, I32_0, VOID, PI8
 from parser.ast import ObjectNode, FunctionNode, ir
+from codegen.util import I32, I32_0, VOID, PI8, mangle
 
 # TODO: clean
 def emit(self, node: ObjectNode):
 	struct = ir.global_context.get_identified_type(node.name)
 	pstruct = struct.as_pointer()
 
-	_vtable = ir.global_context.get_identified_type(f"__{node.name}_vtable")
+	_vtable = ir.global_context.get_identified_type(mangle("vtable", node.name))
 	_vtable.set_body(I32, *[
 		ir.FunctionType(method.returnType[0], [pstruct] + [T for T, _ in method.args.values()], method.vararg).as_pointer()
 		for method in node.methods if method.name[0] != "."
@@ -53,7 +53,8 @@ def emit(self, node: ObjectNode):
 	def delMethodContext():
 		del self._func, self._funcNode, self._block, self._args, self._argsTi, self._locals, self._this
 
-	ctor = ir.Function(self._module, ir.FunctionType(pstruct, []), f"_{node.name}_new")
+	sig = ir.FunctionType(pstruct, [])
+	ctor = ir.Function(self._module, sig, mangle("ctor", node.name, sig))
 	self._block = ir.IRBuilder(ctor.append_basic_block("entry"))
 	allocated_obj = self._block.call(self._allocator, [I32(sizeof)])
 	this = self._block.bitcast(allocated_obj, pstruct)
@@ -65,10 +66,8 @@ def emit(self, node: ObjectNode):
 	self._ctors[node.name] = ctor
 	del self._block
 
-	dtor = ir.Function(self._module, ir.FunctionType(
-		VOID,
-		[pstruct]
-	), f"_{node.name}_deconstruct")
+	sig = ir.FunctionType(VOID, [pstruct])
+	dtor = ir.Function(self._module, sig, mangle("dtor", node.name, sig))
 	dtor.args[0].name = "this"
 	self._block = ir.IRBuilder(dtor.append_basic_block("entry"))
 	vtable = self._block.load(self._block.gep(dtor.args[0], [I32_0, I32_0], True))
@@ -113,11 +112,12 @@ def emit(self, node: ObjectNode):
 			delMethodContext()
 
 		else:
-			f = ir.Function(self._module, ir.FunctionType(
+			sig = ir.FunctionType(
 				method.returnType[0],
 				[pstruct] + [T for T, _ in method.args.values()],
 				method.vararg
-			), f"_{node.name}_{method.name}")
+			)
+			f = ir.Function(self._module, sig, mangle("method", node.name, sig, method.name))
 			f.args[0].name = "this"
 			createMethodContext(f, method, f.args[0])
 			self._emitBlock(method, method.name)
