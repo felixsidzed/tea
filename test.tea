@@ -20,7 +20,14 @@ end
 
 public func main()
 	var object = new Test(3);
+	io::printf("object.value = %d\n", object.value);
 	doStuff(object);
+
+	var object2 = object;
+	object2.value = 11;
+	io::printf("object.value = %d\n", object.value);
+	io::printf("object2.value = %d\n", object2.value);
+	doStuff(object2);
 
 	return 0;
 end

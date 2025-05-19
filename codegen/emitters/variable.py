@@ -46,6 +46,11 @@ def emit(self, node: VariableNode):
 				self.panic("variable value type (%s) is incompatible with variable type (%s). line %d, column %d", str(expected), str(type_), node.line, node.column)
 				return
 
+		T = alloca.allocated_type
+		if (T.is_pointer and isinstance(T.pointee, ir.BaseStructType)):
+			prefcount = self._block.gep(value, [I32_0, I32(1)])
+			refcount = self._block.add(self._block.load(prefcount), I32(1))
+			self._block.store(refcount, prefcount)
 		self._block.store(value, alloca)
 	self._locals[node.name] = (alloca, node.dataType)
 

@@ -6,7 +6,7 @@ def virtualCall(self, node: MethodCallNode):
 	for objName, obj in self._objects.items():
 		if obj[1].type == type_: break
 	else:
-		return self.panic("reference to undefined object '%s' in expression. line %d, column %d", node.value, node.line, node.column)
+		return self.panic("'%s' is not an object. line %d, column %d", node.value, node.line, node.column)
 	
 	vtable = self._block.load(self._block.gep(this, [I32_0, I32_0]))
 

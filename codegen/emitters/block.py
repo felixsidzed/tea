@@ -1,23 +1,45 @@
 from parser.nodes import *
-from codegen.util import CCONV, STORAGE_PRIVATE, cast, I1, I32_0, VOID
+from codegen.util import CCONV, STORAGE_PRIVATE, cast, I1, I32_0, VOID, I32
 
 def emit(self, root: Node, name: str) -> None:
 	self._locals = getattr(self, "_locals", {})
 	oldLocals = self._locals.copy()
 
-	def deconstruct():
-		# TODO: call the deconstructor for the object instead of the deallocator
-		if not hasattr(self, "_this"):
-			i = 0
-			for name, (alloca, (T, _)) in self._locals.items():
-				if T.is_pointer and isinstance(T.pointee, ir.IdentifiedStructType):
-					this = self._block.load(alloca)
-					vtable = self._block.load(self._block.gep(this, [I32_0, I32_0]))
-					method = self._block.load(self._block.gep(vtable, [I32_0, I32_0]))
-					self._block.call(self._block.bitcast(method, ir.FunctionType(VOID, [this.type]).as_pointer()), [this])
+	i = 0
+	for arg, _ in enumerate(self._args):
+		arg = self._func.args[arg]
+		T = arg.type
+		if (T.is_pointer and isinstance(T.pointee, ir.BaseStructType) and (not hasattr(self, "_this") or arg != self._this)):
+			prefcount = self._block.gep(arg, [I32_0, I32(1)])
+			refcount = self._block.add(self._block.load(prefcount), I32(1))
+			self._block.store(refcount, prefcount)
+			i += 1
+	self._log("%d object(s) retained", i)
+	del i
 
-					i += 1
-			self._log("%d object(s) deconstructed", i)
+	__released = set()
+	def releaseAll():
+		i = 0
+		def release(this):
+			nonlocal i
+			vtable = self._block.load(self._block.gep(this, [I32_0, I32_0]))
+			method = self._block.load(self._block.gep(vtable, [I32_0, I32_0]))
+			self._block.call(self._block.bitcast(method, ir.FunctionType(VOID, [this.type]).as_pointer()), [this])
+			i += 1
+
+		for _, (alloca, (T, _)) in self._locals.items():
+			if alloca in __released: continue
+			if (T.is_pointer and isinstance(T.pointee, ir.BaseStructType) and (not hasattr(self, "_this") or T != self._this.type)):
+				release(self._block.load(alloca))
+				__released.add(alloca)
+		for arg, _ in enumerate(self._args):
+			arg = self._func.args[arg]
+			if arg in __released: continue
+			T = arg.type
+			if (T.is_pointer and isinstance(T.pointee, ir.BaseStructType) and (not hasattr(self, "_this") or T != self._this.type)):
+				release(arg)
+				__released.add(arg)
+		self._log("%d object(s) released", i)
 
 	for node in root.body:
 		if type(node) == ReturnNode:
@@ -47,10 +69,10 @@ def emit(self, root: Node, name: str) -> None:
 					self._block = ir.IRBuilder(current)
 					self._block.position_at_end(current)
 					
-					deconstruct()
+					releaseAll()
 					self._block.ret(value)
 				else:
-					deconstruct()
+					releaseAll()
 					self._block.ret_void()
 			else:
 				expected: ir.Type = self._block.block.function.return_value.type
@@ -181,7 +203,7 @@ def emit(self, root: Node, name: str) -> None:
 			self.panic("invalid statement '%s' in block", type(node).__name__[:-4])
 
 	self._log("Leaving block '%s:%s' (%d local(s))", getattr(root, "name", "<unnamed>"), name, len(self._locals) - len(oldLocals))
-	if not self._block.block.is_terminated: deconstruct()
+	if not self._block.block.is_terminated: releaseAll()
 	self._locals = oldLocals
 
 __all__ = ["emit"]

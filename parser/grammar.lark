@@ -54,7 +54,8 @@ continue_: CONTINUE ";"
 // Assignments
 ?alhs: 			IDENTF
 	 |			"*" IDENTF			 -> dereference
-	 
+	 |			factor "." IDENTF	 -> object_index
+
 assign:			alhs "=" expr ";"
 	  |			alhs "+=" expr ";" -> assign_add
 	  |			alhs "-=" expr ";" -> assign_sub

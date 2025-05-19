@@ -1,5 +1,5 @@
-from codegen.util import I32, I32_0, VOID, PI8, mangle
-from parser.ast import ObjectNode, FunctionNode, ir, Type
+from codegen.util import I32, I32_0, VOID, PI8, I8, mangle
+from parser.ast import ObjectNode, FunctionNode, ir
 
 # TODO: clean
 def emit(self, node: ObjectNode):
@@ -43,7 +43,7 @@ def emit(self, node: ObjectNode):
 		if this:
 			i = 1
 			for name, (_, T) in fields.items():
-				classLocals[name] = (self._block.gep(this, [I32_0, ir.Constant(I32, i)]), T)
+				classLocals[name] = (self._block.gep(this, [I32_0, ir.Constant(I32, i + 1)]), T)
 				i += 1
 
 		self._locals = classLocals
@@ -68,6 +68,7 @@ def emit(self, node: ObjectNode):
 	self._block = ir.IRBuilder(dtor.append_basic_block("entry"))
 	prefcount = self._block.gep(dtor.args[0], [I32_0, I32(1)], True)
 	refcount = self._block.sub(self._block.load(prefcount), I32(1))
+	self._block.store(refcount, prefcount)
 	with self._block.if_then(self._block.icmp_signed("<=", refcount, I32_0)) as then:
 		self._block.call(self._deallocator, [self._block.bitcast(dtor.args[0], PI8)])
 	self._block.ret_void()

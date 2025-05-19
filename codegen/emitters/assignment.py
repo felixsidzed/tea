@@ -1,5 +1,6 @@
 from lark import Token as LarkToken
-from parser.ast import AssignNode, ir
+from parser.ast import AssignNode, ir, IndexNode
+from codegen.util import I32, I32_0, STORAGE_PRIVATE
 
 def emit(self, node: AssignNode):
 	def _emitLhs(val):
@@ -29,6 +30,22 @@ def emit(self, node: AssignNode):
 			arg = self._func.args[idx]
 			ti = self._argsTi[idx]
 			return (arg, ti)
+		
+		elif type(val) == IndexNode and val.kind == 1:
+			type_, this = self._emitExpression(val.arr)
+			for objName, obj in self._objects.items():
+				if obj[1].type == this.type: break
+			else:
+				return self.panic("'%s' is not an object. line %d, column %d", val.value, val.line, val.column)
+			
+			field = obj[2].get(val.value.value)
+			if field:
+				if field[0] == STORAGE_PRIVATE:
+					self.panic("storage type violation. line %d, column %d", val.line, val.column)
+				else:
+					idx = tuple(obj[2].keys()).index(val.value.value)
+					return (self._block.gep(this, [I32_0, I32(idx + 2)]), field[1])
+			self.panic("'%s' is not a valid member of object '%s'. line %d, column %d", val.value, this.pointee, val.line, val.column)
 		
 		else:
 			self.panic("invalid lhs operator '%s' in assignment. line %d, column %d", node.lhs, node.line, node.column)

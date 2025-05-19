@@ -174,14 +174,14 @@ def emit(self, node: ExpressionNode, const: bool = False):
 				for objName, obj in self._objects.items():
 					if obj[1].type == this.type: break
 				else:
-					return self.panic("reference to undefined object '%s' in expression. line %d, column %d", node.value, node.line, node.column)
+					return self.panic("'%s' is not an object. line %d, column %d", node.value, node.line, node.column)
 				
 				field = obj[2].get(node.value.value)
 				if field:
 					if field[0] == STORAGE_PRIVATE:
 						return self.panic("storage type violation. line %d, column %d", node.line, node.column)
 					idx = tuple(obj[2].keys()).index(node.value.value)
-					return (field[1][0], self._block.load(self._block.gep(this, [I32_0, ir.Constant(I32, idx + 1)])))
+					return (field[1][0], self._block.load(self._block.gep(this, [I32_0, I32(idx + 2)])))
 				return self.panic("'%s' is not a valid member of object '%s'. line %d, column %d", node.value, this.pointee, node.line, node.column)
 		
 		elif type(node) == ArrayNode:
@@ -212,7 +212,7 @@ def emit(self, node: ExpressionNode, const: bool = False):
 		elif type(node) == NewNode:
 			obj = self._objects.get(node.value)
 			if obj is None:
-				return self.panic("reference to undefined object '%s' in expression. line %d, column %d", node.value, node.line, node.column)
+				return self.panic("'%s' is not an object. line %d, column %d", node.value, node.line, node.column)
 
 			# TODO: type check args
 			args = [self._emitExpression(arg)[1] for arg in node.args]
