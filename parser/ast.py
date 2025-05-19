@@ -443,3 +443,15 @@ class AST(lark.Transformer):
 			items[0].line,
 			items[1].column
 		)
+	
+	def arrow_index(self, items: list[lark.Token | lark.Tree | Node]):
+		return IndexNode(1, lark.Token("DEREF", items[0]), items[1], items[0].line, items[0].column)
+	
+	def arrow_call(self, items: list[lark.Token | lark.Tree | Node]):
+		return MethodCallNode(
+			lark.Token("DEREF", items[0]),
+			items[1],
+			[arg.children[0] for arg in items[2].children],
+			items[0].line,
+			items[1].column
+		)

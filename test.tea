@@ -1,23 +1,22 @@
 using "io";
 
 class Test {
-	public value: int*;
+	public value: int;
 
-	constructor(int* v)
+	constructor(int v)
 		value = v;
 	end
 }
 
-public func doStuff(Test object)
-	*(object.value) = 5;
+public func doStuff(Test* object)
+	object->value = 5;
 end
 
 public func main()
-	var v = 3;
-	var object = new Test(&v);
-	io::printf("*object.value = %d\n", *(object.value));
-	doStuff(object);
-	io::printf("*object.value = %d\n", *(object.value));
+	var object = new Test(3);
+	io::printf("object.value = %d\n", object.value);
+	doStuff(&object);
+	io::printf("object.value = %d\n", object.value);
 
 	return 0;
 end

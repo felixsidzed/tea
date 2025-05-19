@@ -56,6 +56,7 @@ continue_: CONTINUE ";"
 	 |			"(" alhs ")"
 	 |			"*" alhs			 -> dereference
 	 |			alhs "." IDENTF	 	 -> object_index
+	 |			alhs "->" IDENTF	 -> arrow_index
 
 assign:			alhs "=" expr
 	  |			alhs "+=" expr -> assign_add
@@ -108,6 +109,8 @@ cast: "(" TYPE ")" expr
 	   | "new" IDENTF "(" args ")"						-> object_new
 	   | factor "." IDENTF								-> object_index
 	   | factor "." IDENTF "(" args ")"					-> method_call
+	   | factor "->" IDENTF								-> arrow_index
+	   | factor "->" IDENTF "(" args ")"				-> arrow_call
 
 // Macros
 macro: "macro" IDENTF expr ";"
