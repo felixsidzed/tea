@@ -7,7 +7,12 @@ def emit(self, node: AssignNode):
 		if type(val) == LarkToken and val.type == "DEREF":
 			old = val
 			val = _emitLhs(val.value)
-			if old in self._locals:
+			if type(old.value) == IndexNode:
+				return (
+					self._block.load(val[0]),
+					(val[0].type.pointee, val[1][1])
+				)
+			elif old in self._locals:
 				return (
 					self._block.load(val[0]),
 					(val[0].allocated_type.pointee, val[1][1])
@@ -34,7 +39,7 @@ def emit(self, node: AssignNode):
 		elif type(val) == IndexNode and val.kind == 1:
 			type_, this = self._emitExpression(val.arr)
 			for objName, obj in self._objects.items():
-				if obj[1].type == this.type: break
+				if obj[1].type == type_: break
 			else:
 				return self.panic("'%s' is not an object. line %d, column %d", val.value, val.line, val.column)
 			
@@ -45,7 +50,7 @@ def emit(self, node: AssignNode):
 				else:
 					idx = tuple(obj[2].keys()).index(val.value.value)
 					return (self._block.gep(this, [I32_0, I32(idx + 2)]), field[1])
-			self.panic("'%s' is not a valid member of object '%s'. line %d, column %d", val.value, this.pointee, val.line, val.column)
+			self.panic("'%s' is not a valid member of object '%s'. line %d, column %d", val.value, objName, val.line, val.column)
 		
 		else:
 			self.panic("invalid lhs operator '%s' in assignment. line %d, column %d", node.lhs, node.line, node.column)

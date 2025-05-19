@@ -1,33 +1,23 @@
 using "io";
 
 class Test {
-	public value: int;
-	private factor: int;
+	public value: int*;
 
-	constructor(int v)
+	constructor(int* v)
 		value = v;
-		factor = 5;
-	end
-
-	public func compute() -> int
-		return value * factor;
 	end
 }
 
 public func doStuff(Test object)
-	io::printf("Test.compute() = %d\n", object.compute());
+	**(object.value) = 5;
 end
 
 public func main()
-	var object = new Test(3);
-	io::printf("object.value = %d\n", object.value);
+	var v = 3;
+	var object = new Test(&v);
+	io::printf("*object.value = %d\n", *(object.value));
 	doStuff(object);
-
-	var object2 = object;
-	object2.value = 11;
-	io::printf("object.value = %d\n", object.value);
-	io::printf("object2.value = %d\n", object2.value);
-	doStuff(object2);
+	io::printf("*object.value = %d\n", *(object.value));
 
 	return 0;
 end

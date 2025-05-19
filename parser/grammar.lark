@@ -18,7 +18,7 @@ args: arg ("," arg)*
 arg: expr
 
 // Statements
-?stat: (rreturn | call | variable | variable2 | if_block | ifelse_block | assign | while_loop | for_loop | break_ | continue_ | ";")
+?stat: (rreturn | call | variable | variable2 | if_block | ifelse_block | (assign ";") | while_loop | for_loop | break_ | continue_ | ";")
 
 using: "using" STRING ";"
 
@@ -46,27 +46,22 @@ else_block:      ELSE stat*
 // Loops
 while_loop:		"while" "(" expr ")" "do" stat* "end"
 
-for_loop:		"for" "(" variable expr ";" sc__assign ")" "do" stat* "end"
+for_loop:		"for" "(" variable expr ";" assign ")" "do" stat* "end"
 
 break_: BREAK ";"
 continue_: CONTINUE ";"
 
 // Assignments
 ?alhs: 			IDENTF
-	 |			"*" IDENTF			 -> dereference
-	 |			factor "." IDENTF	 -> object_index
+	 |			"(" alhs ")"
+	 |			"*" alhs			 -> dereference
+	 |			alhs "." IDENTF	 	 -> object_index
 
-assign:			alhs "=" expr ";"
-	  |			alhs "+=" expr ";" -> assign_add
-	  |			alhs "-=" expr ";" -> assign_sub
-	  |			alhs "*=" expr ";" -> assign_mul
-	  |			alhs "/=" expr ";" -> assign_div
-
-sc__assign:		alhs "=" expr 	 -> assign
-		  |		alhs "+=" expr	 -> assign_add
-	  	  |		alhs "-=" expr	 -> assign_sub
-	  	  |		alhs "*=" expr	 -> assign_mul
-		  |		alhs "/=" expr	 -> assign_div
+assign:			alhs "=" expr
+	  |			alhs "+=" expr -> assign_add
+	  |			alhs "-=" expr -> assign_sub
+	  |			alhs "*=" expr -> assign_mul
+	  |			alhs "/=" expr -> assign_div
 
 // Expressions
 ?expr: logic_or
@@ -107,7 +102,7 @@ cast: "(" TYPE ")" expr
 	   | cast
 	   | "(" expr ")"
 	   | "&" IDENTF										-> reference
-	   | "*" IDENTF										-> dereference
+	   | "*" factor										-> dereference
 	   | factor "[" atom "]"							-> index
 	   | SQRBRCK expr (", " expr)* "]"					-> array
 	   | "new" IDENTF "(" args ")"						-> object_new
