@@ -117,7 +117,8 @@ macro: "macro" IDENTF expr ";"
 
 // Objects
 object_field: STORAGE_TYPE IDENTF ":" TYPE ";"
-object_method: function | function2 | (CTOR "(" typed_args ")" stat* "end")
+dummy:
+object_method: function | function2 | (CTOR "(" typed_args ")" stat* "end") | (DTOR "(" dummy ")" stat* "end")
 object_: "class" IDENTF "{" (object_field | object_method)* "}"
 
 // Terminals
@@ -140,6 +141,7 @@ CONTINUE: "continue"
 VARARG: "..."
 SQRBRCK: "["
 CTOR: "constructor"
+DTOR: "deconstructor"
 
 // Imports
 %import common.ESCAPED_STRING -> STRING

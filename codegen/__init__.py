@@ -93,7 +93,7 @@ class CodeGen:
 			if self.verbose:
 				_, _, tb = sys.exc_info()
 				fr = traceback.extract_tb(tb)[-1]
-				self.panic("code generation failed due to a fatal error (%s : %d): %s", fr.filename, fr.lineno, e)
+				self.panic("code generation failed due to a fatal error (%s : %d): %s: %s", fr.filename, fr.lineno, type(e).__name__, e)
 			else:
 				self.panic("code generation failed due to a fatal error")
 			del self._module, self._machine

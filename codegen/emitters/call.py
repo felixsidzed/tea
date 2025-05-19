@@ -33,7 +33,7 @@ def virtualCall(self, node: MethodCallNode):
 					i, expected, got, node.line, node.column
 				)
 				continue
-	return (sig.return_type, self._block.call(self._block.bitcast(method, sig.as_pointer()), [this] + args))
+	return (sig.return_type, self._block.call(self._block.bitcast(method, sig.as_pointer()), [this] + list(value for _, value in args)))
 
 def emit(self, node: CallNode | MethodCallNode):
 	if type(node) == MethodCallNode:

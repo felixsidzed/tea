@@ -1,22 +1,26 @@
 using "io";
+using "str";
+using "mem";
 
-class Test {
-	public value: int;
+class String {
+	public raw: string;
 
-	constructor(int v)
-		value = v;
+	constructor(string _raw)
+		raw = _raw;
+	end
+
+	deconstructor()
+		mem::free(raw);
+	end
+
+	public func at(int idx) -> char
+		return raw[idx];
 	end
 }
 
-public func doStuff(Test* object)
-	object->value = 5;
-end
-
 public func main()
-	var object = new Test(3);
-	io::printf("object.value = %d\n", object.value);
-	doStuff(&object);
-	io::printf("object.value = %d\n", object.value);
+	var str = new String("Hello, World!");
+	io::printf("%c\n", str.at(1));
 
 	return 0;
 end

@@ -404,7 +404,7 @@ class AST(lark.Transformer):
 			return FunctionNode(
 				STORAGE2I["public"],
 				"__cdecl",
-				".ctor",
+				".ctor" if items[0].type == "CTOR" else ".dtor",
 				(TYPE2LLVM[Type.void_], False),
 				fixedArgs,
 				vararg,

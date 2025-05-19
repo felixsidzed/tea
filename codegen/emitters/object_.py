@@ -24,7 +24,7 @@ def emit(self, node: ObjectNode):
 
 	self._log("Creating object '%s' (%d bytes. VTable: %d bytes). %d method(s), %d field(s))", node.name, sizeof - I32.get_abi_size(self._machine.target_data), sizeofVtable, len(node.methods), len(node.fields))
 
-	def createMethodContext(f: ir.Function, method: FunctionNode, this):
+	def createMethodContext(f: ir.Function, method: FunctionNode, this, ctor = False):
 		block = None
 		if hasattr(self, "_block"):
 			block = self._block.block
@@ -36,6 +36,9 @@ def emit(self, node: ObjectNode):
 		self._funcNode = method
 		self._args = tuple(method.args.keys())
 		self._argsTi = tuple(method.args.values())
+		if not ctor:
+			self._args = ("@",) + self._args
+			self._argsTi = ((),) + self._argsTi
 		self._this = this
 
 		classLocals = {}
@@ -70,9 +73,11 @@ def emit(self, node: ObjectNode):
 	refcount = self._block.sub(self._block.load(prefcount), I32(1))
 	self._block.store(refcount, prefcount)
 	with self._block.if_then(self._block.icmp_signed("<=", refcount, I32_0)) as then:
+		dtor.blocks.insert(1, ir.Block(parent=dtor, name="usercode"))
 		self._block.call(self._deallocator, [self._block.bitcast(dtor.args[0], PI8)])
 	self._block.ret_void()
 	del self._block
+	dtor.blocks[0].terminator.operands[1] = dtor.blocks[1]
 
 	methods = {}
 	vtableIdx = 1
@@ -83,25 +88,22 @@ def emit(self, node: ObjectNode):
 			ctor.args = [ir.Argument(ctor, T, name) for name, (T, _) in method.args.items()]
 			self._block = ir.IRBuilder(ctor.blocks[-1])
 
-			createMethodContext(ctor, method, this)
-			self._emitBlock(method, method.name)
+			createMethodContext(ctor, method, this, True)
+			self._emitBlock(method, "entry")
 			if self._block.block.is_terminated:
 				self.panic("constructor can not return")
 				continue
 			delMethodContext()
 
 		elif method.name == ".dtor":
-			dtor.ftype.args = [pstruct] + list(T for T, _ in method.args.values())
-			dtor.ftype.vararg = method.vararg
-			dtor.args = [ir.Argument(dtor, T, name) for name, (T, _) in method.args.items()]
-			self._block = ir.IRBuilder(dtor.blocks[-1])
+			self._block = ir.IRBuilder(dtor.blocks[1])
 
-			createMethodContext(dtor, method, this)
-			self._emitBlock(method, method.name)
+			createMethodContext(dtor, method, dtor.args[0])
+			self._emitBlock(method, "entry")
 			if self._block.block.is_terminated:
 				self.panic("deconstructor can not return")
 				continue
-			self._block.ret(this)
+			self._block.branch(dtor.blocks[2])
 			delMethodContext()
 
 		else:
@@ -109,7 +111,7 @@ def emit(self, node: ObjectNode):
 			f = ir.Function(self._module, sig, mangle("method", node.name, sig, method.name))
 			f.args[0].name = "this"
 			createMethodContext(f, method, f.args[0])
-			self._emitBlock(method, method.name)
+			self._emitBlock(method, "entry")
 			delMethodContext()
 			methods[method.name] = (method.storage, f.ftype, vtableIdx, f)
 			vtableIdx += 1
