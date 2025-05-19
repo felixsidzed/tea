@@ -10,7 +10,7 @@ def emit(self, node: AssignNode):
 			if type(old.value) == IndexNode:
 				return (
 					self._block.load(val[0]),
-					(val[0].type.pointee, val[1][1])
+					(val[0].type.pointee.pointee, val[1][1])
 				)
 			elif old in self._locals:
 				return (
