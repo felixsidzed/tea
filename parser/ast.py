@@ -421,7 +421,7 @@ class AST(lark.Transformer):
 			items[0].column,
 		)
 		struct = ir.global_context.get_identified_type(node.name)
-		Type.register(node.name, struct)
+		Type.register(node.name, struct.as_pointer())
 		return node
 	
 	def object_new(self, items: list[lark.Token | lark.Tree | Node]):

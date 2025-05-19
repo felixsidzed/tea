@@ -70,15 +70,15 @@ class CodeGen:
 				self._log("Failed to import deallocator: %s", e)
 
 			self._ctors = {}
-			self._dtors = {}
 			self._objects = {}
 
 			self._emitCode(root)
-			del self._ctors, self._dtors, self._objects, self._allocator, self._deallocator
+			del self._ctors, self._objects, self._allocator, self._deallocator
 
-			if self.verbose: print(module)
+			ir_ = str(module)
+			if self.verbose: print(ir_)
 
-			split = str(module).split("\n", 1)
+			split = ir_.split("\n", 1)
 			ref = llvm.parse_assembly(f"{split[0]}\nsource_filename = \"{module.name}\"\n{split[1]}")
 			ref.name = module.name
 			ref.verify()
@@ -94,7 +94,6 @@ class CodeGen:
 				_, _, tb = sys.exc_info()
 				fr = traceback.extract_tb(tb)[-1]
 				self.panic("code generation failed due to a fatal error (%s : %d): %s", fr.filename, fr.lineno, e)
-				raise
 			else:
 				self.panic("code generation failed due to a fatal error")
 			del self._module, self._machine

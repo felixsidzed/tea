@@ -1,5 +1,5 @@
 from parser.ast import CallNode, MethodCallNode, ir
-from codegen.util import cast, I32_0, I32, STORAGE_PRIVATE
+from codegen.util import cast, I32_0, I32, STORAGE_PRIVATE, STORAGE_PUBLIC, VOID
 
 def virtualCall(self, node: MethodCallNode):
 	type_, this = self._emitExpression(node.value)

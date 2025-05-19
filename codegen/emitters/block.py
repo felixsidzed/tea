@@ -1,5 +1,5 @@
 from parser.nodes import *
-from codegen.util import CCONV, STORAGE_PRIVATE, cast, I1, PI8
+from codegen.util import CCONV, STORAGE_PRIVATE, cast, I1, I32_0, VOID
 
 def emit(self, root: Node, name: str) -> None:
 	self._locals = getattr(self, "_locals", {})
@@ -10,13 +10,13 @@ def emit(self, root: Node, name: str) -> None:
 		if not hasattr(self, "_this"):
 			i = 0
 			for name, (alloca, (T, _)) in self._locals.items():
-				if T.is_pointer and isinstance(T.pointee, ir.BaseStructType):
-					dtor = self._dtors.get(T.pointee.name)
-					if dtor:
-						self._block.call(dtor, [self._block.load(alloca)])
-						i += 1
-					else:
-						self._log("Object '%s' is missing deconstructor", T.pointee.name)
+				if T.is_pointer and isinstance(T.pointee, ir.IdentifiedStructType):
+					this = self._block.load(alloca)
+					vtable = self._block.load(self._block.gep(this, [I32_0, I32_0]))
+					method = self._block.load(self._block.gep(vtable, [I32_0, I32_0]))
+					self._block.call(self._block.bitcast(method, ir.FunctionType(VOID, [this.type]).as_pointer()), [this])
+
+					i += 1
 			self._log("%d object(s) deconstructed", i)
 
 	for node in root.body:
