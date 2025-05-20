@@ -51,6 +51,10 @@ def emit(self, node: AssignNode):
 					idx = tuple(obj[2].keys()).index(val.value.value)
 					return (self._block.gep(this, [I32_0, I32(idx + 2)]), field[1])
 			self.panic("'%s' is not a valid member of object '%s'. line %d, column %d", val.value, objName, val.line, val.column)
+
+		elif hasattr(self, "_this") and val.value == "this":
+			print("B", self._this)
+			raise
 		
 		else:
 			self.panic("invalid lhs operator '%s' in assignment. line %d, column %d", node.lhs, node.line, node.column)

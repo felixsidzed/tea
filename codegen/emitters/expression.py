@@ -23,6 +23,8 @@ def emit(self, node: ExpressionNode, const: bool = False):
 			elif node.value in self._locals:
 				local = self._locals[node.value]
 				return (local[1][0], self._block.load(local[0]))
+			elif hasattr(self, "_this") and node.value == "this":
+				return (self._this.type, self._this)
 			else:
 				try:
 					var = self._module.get_global(node.value)

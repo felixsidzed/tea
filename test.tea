@@ -5,16 +5,16 @@ using "mem";
 class String {
 	public raw: string;
 
-	constructor(string _raw)
-		raw = _raw;
+	constructor(string raw)
+		this.raw = raw;
 	end
 
 	deconstructor()
-		mem::free(raw);
+		mem::free(this.raw);
 	end
 
 	public func at(int idx) -> char
-		return raw[idx];
+		return this.raw[idx];
 	end
 }
 

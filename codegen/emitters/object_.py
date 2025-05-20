@@ -40,16 +40,6 @@ def emit(self, node: ObjectNode):
 			self._args = ("@",) + self._args
 			self._argsTi = ((),) + self._argsTi
 		self._this = this
-
-		classLocals = {}
-
-		if this:
-			i = 1
-			for name, (_, T) in fields.items():
-				classLocals[name] = (self._block.gep(this, [I32_0, ir.Constant(I32, i + 1)]), T)
-				i += 1
-
-		self._locals = classLocals
 		
 	def delMethodContext():
 		del self._func, self._funcNode, self._block, self._args, self._argsTi, self._locals, self._this
@@ -81,6 +71,9 @@ def emit(self, node: ObjectNode):
 
 	methods = {}
 	vtableIdx = 1
+	
+	self._objects[node.name] = (pstruct, this, fields, methods)
+	
 	for method in node.methods:
 		if method.name == ".ctor":
 			ctor.ftype.args = tuple(T for T, _ in method.args.values())
@@ -121,7 +114,5 @@ def emit(self, node: ObjectNode):
 		self._block.store(f, self._block.gep(vtable, [I32_0, I32(idx)], True))
 	self._block.ret(this)
 	del self._block
-
-	self._objects[node.name] = (pstruct, this, fields, methods)
 
 __all__ = ["emit"]
