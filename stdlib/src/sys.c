@@ -3,16 +3,11 @@
 
 #define EPOCH_DIFFERENCE 116444736000000000ULL
 
-// "argv": {
-// 	"return": "STRING*",
-// 	"args": ["INT*"],
-// 	"vararg": false
-// }
 void _sys__exit(int code) {
 	ExitProcess(code);
 }
 
-long long _sys__time() {
+long _sys__time() {
 	FILETIME ft;
 	GetSystemTimeAsFileTime(&ft);
 

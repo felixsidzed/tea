@@ -50,7 +50,8 @@ class Type:
 		setattr(Type, name + "_", len(TYPE2LLVM) - 1)
 
 
-TYPE2LLVM = [ir.IntType(32), ir.FloatType(), ir.DoubleType(), ir.IntType(8), ir.IntType(8).as_pointer(), ir.VoidType(), ir.IntType(1), ir.IntType(64)]
+TYPE2LLVM = [ir.IntType(32), ir.FloatType(), ir.DoubleType(), ir.IntType(
+	8), ir.IntType(8).as_pointer(), ir.VoidType(), ir.IntType(1), ir.IntType(64)]
 STORAGE2I = {
 	"public": 1,
 	"private": 0
@@ -149,6 +150,17 @@ class VariableNode(Node):
 
 class FunctionImportNode(Node):
 	def __init__(self, conv: str, name: str, returnType: list[int, bool, bool, bool], args: dict[str: int], vararg: bool, line: int, column: int):
+		self.conv = conv
+		self.name = name
+		self.returnType = returnType
+		self.args = args
+		self.vararg = vararg
+		super().__init__(line, column)
+
+
+class MethodImportNode(Node):
+	def __init__(self, storage: int, conv: str, name: str, returnType: list[int, bool, bool, bool], args: dict[str: int], vararg: bool, line: int, column: int):
+		self.storage = storage
 		self.conv = conv
 		self.name = name
 		self.returnType = returnType
@@ -314,6 +326,14 @@ class ObjectNode(Node):
 		self.name = name
 		self.fields = tuple(filter(lambda x: type(x) == FieldNode, body))
 		self.methods = tuple(filter(lambda x: type(x) == FunctionNode, body))
+		super().__init__(line, column)
+
+
+class ObjectImportNode(Node):
+	def __init__(self, name: str, body: list[MethodImportNode | FieldNode], line: int, column: int):
+		self.name = name
+		self.fields = tuple(filter(lambda x: type(x) == FieldNode, body))
+		self.methods = tuple(filter(lambda x: type(x) == MethodImportNode, body))
 		super().__init__(line, column)
 
 

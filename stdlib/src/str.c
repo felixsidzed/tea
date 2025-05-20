@@ -1,5 +1,29 @@
+typedef struct String String;
+
+typedef struct {
+	void(*dtor)(String*);
+	char(*at)(String*, int);
+	String*(*sub)(String*, int, int);
+	String*(*cat)(String*, int, ...);
+} __String_vtable_t;
+
+typedef struct String {
+	__String_vtable_t* __vptr__;
+	int refcount;
+
+	char* raw;
+	long length;
+} String;
+
 #ifdef _WIN32
 #include <windows.h>
+
+extern BOOL _mem__free(void* buf);
+extern void* _mem__alloc(int size);
+extern void* _mem__copy(void* dest, const void* src, int n);
+
+extern void _core__throw(const char* message);
+extern BOOL _io__printf(const char* fmt, ...);
 
 int _str__len(char* str) {
 	if (!str) return 0;
@@ -132,6 +156,86 @@ int _str__atoi(const char* str) {
 
 	return sign * result;
 }
+
+void __String_dtor(String* this) {
+	if (--this->refcount <= 0) {
+		this->length = 0;
+		_mem__free(this->raw);
+		_mem__free(this);
+	}
+}
+
+char __String_at(String* this, int idx) {
+	if (idx > this->length) return 0;
+	return this->raw[idx];
+}
+
+String* __String_sub(String* this, int i, int j) {
+	char* result = _str__sub(this->raw, i, j);
+	_mem__free(this->raw);
+	this->raw = result;
+	this->length = j - i;
+	return this;
+}
+
+String* __String_cat(String* this, int count, ...) {
+	va_list va;
+	int totalLength = 0;
+
+	va_start(va, count);
+	for (int i = 0; i < count; i++) {
+		String* s = va_arg(va, String*);
+		totalLength += s->length;
+	}
+	va_end(va);
+
+	char* buffer = (char*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, totalLength + 1);
+	if (buffer == NULL)
+		return this;
+
+	va_start(va, count);
+	int i = 0;
+	for (int j = 0; j < count; j++) {
+		char* s = va_arg(va, char*);
+		while (*s) {
+			buffer[i++] = *s++;
+		}
+	}
+	va_end(va);
+
+	buffer[totalLength] = '\0';
+
+	_mem__free(this->raw);
+	this->raw = buffer;
+	return this;
+}
+
+static __String_vtable_t __String__vtable = {
+	.dtor = __String_dtor,
+	.at = __String_at,
+	.sub = __String_sub,
+	.cat = __String_cat
+};
+
+String* __String__constructor(char* raw) {
+	String* this = _mem__alloc(sizeof(String));
+	if (!this) return NULL;
+
+	this->__vptr__ = &__String__vtable;
+	if (raw) {
+		const int len = lstrlenA(raw);
+		char* allocated = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, len);
+		if (allocated) _mem__copy(allocated, raw, len);
+		else allocated = raw;
+		this->raw = allocated;
+		this->length = len;
+	} else {
+		this->raw = "";
+		this->length = 0;
+	}
+
+	return this;
+};
 
 #else
 #error "'str' is not yet available on non-windows machines"

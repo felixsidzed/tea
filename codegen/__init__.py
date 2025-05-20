@@ -6,8 +6,8 @@ from llvmlite import ir, binding as llvm
 
 from parser import Parser
 from codegen.util import *
+from parser.nodes import *
 from codegen.emitters import block, call, import_, assignment, expression, object_, variable, function
-from parser.nodes import ModuleNode, FunctionNode, FunctionImportNode, UsingNode, GlobalVariableNode, ObjectNode
 
 
 class CodeGen:
@@ -106,7 +106,7 @@ class CodeGen:
 			if type(node) == FunctionNode:
 				self._emitFunction(node)
 
-			elif type(node) == FunctionImportNode:
+			elif type(node) == FunctionImportNode or type(node) == ObjectImportNode:
 				self._emitImport(node)
 
 			elif type(node) == UsingNode:
@@ -127,8 +127,10 @@ class CodeGen:
 						_node.name = f"_{node.name}__{_node.name}"
 						included[origName] = self._emitImport(_node)
 						del origName
+					elif type(_node) == ObjectImportNode:
+						self._emitImport(_node)
 					else:
-						self.panic("module '%s' is not a valid module: '%s' is not a valid top-level entity in this context", node.name, type(_node).__name__)
+						self.panic("module '%s' is not a valid module: '%s' is not a valid top-level entity in this context", node.name, type(_node).__name__[:-4])
 						continue
 
 				self._modules[node.name] = included

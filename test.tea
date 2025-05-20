@@ -1,26 +1,9 @@
 using "io";
 using "str";
-using "mem";
-
-class String {
-	public raw: string;
-
-	constructor(string raw)
-		this.raw = raw;
-	end
-
-	deconstructor()
-		mem::free(this.raw);
-	end
-
-	public func at(int idx) -> char
-		return this.raw[idx];
-	end
-}
 
 public func main()
 	var str = new String("Hello, World!");
-	io::printf("%c\n", str.at(1));
+	io::printf("%s\n", str.sub(1, 7).raw);
 
 	return 0;
 end

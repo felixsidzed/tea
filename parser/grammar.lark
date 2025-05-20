@@ -1,5 +1,5 @@
 // Top-level Entities
-module: (using | function | function2 | function_import | function3 | function4 | global_var | macro | object_)*
+module: (using | function | function2 | function_import | function3 | function4 | global_var | macro | object_ | object_import | object_define)*
 
 function: STORAGE_TYPE "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
 function2: STORAGE_TYPE CALLING_CONV "func" IDENTF "(" typed_args ")" "->" TYPE stat* "end"
@@ -8,6 +8,8 @@ function3: STORAGE_TYPE "func" IDENTF "(" typed_args ")" stat* "end"
 function4: STORAGE_TYPE CALLING_CONV "func" IDENTF "(" typed_args ")" stat* "end"
 
 // Arguments
+dummy_args:
+
 typed_args: typed_arg ("," typed_arg)*
 		  |
 typed_arg: TYPE IDENTF
@@ -117,9 +119,13 @@ macro: "macro" IDENTF expr ";"
 
 // Objects
 object_field: STORAGE_TYPE IDENTF ":" TYPE ";"
-dummy:
-object_method: function | function2 | (CTOR "(" typed_args ")" stat* "end") | (DTOR "(" dummy ")" stat* "end")
+object_method: function | function2 | (CTOR "(" typed_args ")" stat* "end") | (DTOR "(" dummy_args ")" stat* "end")
 object_: "class" IDENTF "{" (object_field | object_method)* "}"
+
+object_import: "import" "class" IDENTF "{" (object_field | object_method_import)* "}"
+object_method_import: (STORAGE_TYPE "func" IDENTF "(" typed_args ")" "->" TYPE ";") | (CTOR "(" typed_args ")" ";")
+
+object_define: DEFINE "class" IDENTF ";"
 
 // Terminals
 TYPE: /(?:const\s+)?(\w+)\**(\s*\[\s*\d+\s*\])?/
@@ -142,6 +148,7 @@ VARARG: "..."
 SQRBRCK: "["
 CTOR: "constructor"
 DTOR: "deconstructor"
+DEFINE: "define"
 
 // Imports
 %import common.ESCAPED_STRING -> STRING

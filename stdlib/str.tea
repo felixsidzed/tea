@@ -1,3 +1,16 @@
+define class String;
+
+import class String {
+	public raw: string;
+	public length: int;
+
+	constructor(string raw);
+
+	public func at(int idx) -> char;
+	public func sub(int i, int j) -> String;
+	public func cat(int count, ...) -> String;
+}
+
 import __cdecl func len(string str) -> int;
 import __cdecl func itoa(int n) -> string;
 import __cdecl func sub(string str, int i, int j) -> string;

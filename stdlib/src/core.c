@@ -8,17 +8,15 @@ typedef struct {
 	CONTEXT ctx;
 } exception_t;
 
+extern BOOL _io__printf(const char* fmt, ...);
+
 // TODO: make this thread local
 static exception_t* curExc = NULL;
 
 void _core__throw(const char* message) {
 	if (!message) message = "[exception]";
 	if (!curExc) {
-		DWORD written;
-		HANDLE stderr = GetStdHandle(-12);
-		WriteConsoleA(stderr, "unhandled exception: ", 21, &written, NULL);
-		WriteConsoleA(stderr, message, lstrlenA(message), &written, NULL);
-		WriteConsoleA(stderr, "\n", 1, &written, NULL);
+		_io__printf("thread %d -> unhandled exception: %s\n", GetCurrentThreadId(), message);
 		ExitThread(1);
 		return;
 	}

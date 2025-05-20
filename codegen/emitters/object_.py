@@ -22,7 +22,7 @@ def emit(self, node: ObjectNode):
 	sizeof = struct.get_abi_size(self._machine.target_data)
 	sizeofVtable = vtable_t.get_abi_size(self._machine.target_data)
 
-	self._log("Creating object '%s' (%d bytes. VTable: %d bytes). %d method(s), %d field(s))", node.name, sizeof - I32.get_abi_size(self._machine.target_data), sizeofVtable, len(node.methods), len(node.fields))
+	self._log("Creating object '%s' (%d bytes. VTable: %d bytes). %d method(s), %d field(s)", node.name, sizeof - I32.get_abi_size(self._machine.target_data), sizeofVtable, len(node.methods), len(node.fields))
 
 	def createMethodContext(f: ir.Function, method: FunctionNode, this, ctor = False):
 		block = None
@@ -72,7 +72,7 @@ def emit(self, node: ObjectNode):
 	methods = {}
 	vtableIdx = 1
 	
-	self._objects[node.name] = (pstruct, this, fields, methods)
+	self._objects[node.name] = (pstruct, fields, methods)
 	
 	for method in node.methods:
 		if method.name == ".ctor":
@@ -106,7 +106,7 @@ def emit(self, node: ObjectNode):
 			createMethodContext(f, method, f.args[0])
 			self._emitBlock(method, "entry")
 			delMethodContext()
-			methods[method.name] = (method.storage, f.ftype, vtableIdx, f)
+			methods[method.name] = (method.storage, f.ftype, vtableIdx)
 			vtableIdx += 1
 
 	self._block = ir.IRBuilder(ctor.blocks[-1])

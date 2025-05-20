@@ -455,3 +455,62 @@ class AST(lark.Transformer):
 			items[0].line,
 			items[1].column
 		)
+	
+	def object_method_import(self, items: list[lark.Token | lark.Tree | Node]):
+		if items[0].type == "STORAGE_TYPE":
+			args = items[2].children
+
+			vararg = False
+			fixedArgs = {}
+			for arg in args:
+				if arg.children[0].type == "VARARG":
+					vararg = True
+				else:
+					fixedArgs[arg.children[1].value] = Type.get(arg.children[0].value)
+			return MethodImportNode(
+				STORAGE2I[items[0].value],
+				"__cdecl",
+				items[1],
+				Type.get(items[3].value),
+				fixedArgs,
+				vararg,
+				items[0].line,
+				items[0].column,
+			)
+		else:
+			args = items[1].children
+
+			vararg = False
+			fixedArgs = {}
+			for arg in args:
+				if arg.children[1].type == "VARARG":
+					vararg = True
+				else:
+					fixedArgs[arg.children[1].value] = Type.get(arg.children[0].value)
+			return MethodImportNode(
+				STORAGE2I["public"],
+				"__cdecl",
+				".ctor",
+				(TYPE2LLVM[Type.void_], False),
+				fixedArgs,
+				vararg,
+				items[0].line,
+				items[0].column
+			)
+	
+	def object_import(self, items: list[lark.Token | lark.Tree | Node]):
+		node = ObjectImportNode(
+			items[0].value,
+			items[1:],
+			items[0].line,
+			items[0].column,
+		)
+		struct = ir.global_context.get_identified_type(node.name)
+		Type.register(node.name, struct.as_pointer())
+		return node
+	
+	def object_define(self, items: list[lark.Token | lark.Tree | Node]):
+		if not hasattr(Type, f"{items[1].value}_"):
+			struct = ir.global_context.get_identified_type(items[1].value)
+			Type.register(items[1].value, struct.as_pointer())
+		return lark.Discard

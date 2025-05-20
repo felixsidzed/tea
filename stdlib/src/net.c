@@ -4,8 +4,6 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
-extern BOOL _io__printf(const char* message, ...);
-
 static BOOL initialized = FALSE;
 
 void* _net__connect(const char* address, int port) {

@@ -174,15 +174,15 @@ def emit(self, node: ExpressionNode, const: bool = False):
 			elif node.kind == 1: # object index
 				type_, this = self._emitExpression(node.arr)
 				for objName, obj in self._objects.items():
-					if obj[1].type == this.type: break
+					if obj[0] == this.type: break
 				else:
 					return self.panic("'%s' is not an object. line %d, column %d", node.value, node.line, node.column)
 				
-				field = obj[2].get(node.value.value)
+				field = obj[1].get(node.value.value)
 				if field:
 					if field[0] == STORAGE_PRIVATE:
 						return self.panic("storage type violation. line %d, column %d", node.line, node.column)
-					idx = tuple(obj[2].keys()).index(node.value.value)
+					idx = tuple(obj[1].keys()).index(node.value.value)
 					return (field[1][0], self._block.load(self._block.gep(this, [I32_0, I32(idx + 2)])))
 				return self.panic("'%s' is not a valid member of object '%s'. line %d, column %d", node.value, this.pointee, node.line, node.column)
 		
