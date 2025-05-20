@@ -68,11 +68,15 @@ def emit(self, node: CallNode | MethodCallNode):
 			func: ir.Function = self._module.get_global(fqn)
 			vararg = func.function_type.var_arg
 		else:
-			func: ir.Function = module.get(callee)
+			func: ir.Function | ir.FunctionType = module.get(callee)
 			if func is None:
 				self.panic("reference to undefined function '%s'. line %d, column %d", fqn, node.line, node.column)
 				return
-			vararg = func.function_type.var_arg
+			if type(func) == ir.FunctionType:
+				vararg = func.var_arg
+				func = ir.Function(self._module, func, fqn)
+			else:
+				vararg = func.function_type.var_arg
 
 	expectedArgs = func.function_type.args
 	if not vararg and len(args) != len(expectedArgs):
