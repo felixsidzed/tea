@@ -13,7 +13,7 @@ def virtualCall(self, node: MethodCallNode):
 	method = obj[2].get(node.name)
 	if not method:
 		return self.panic("'%s' is not a valid member of '%s'. line %d, column %d", node.name, objName, node.line, node.column)
-	storage, sig, idx = method
+	storage, sig, idx, _ = method
 	if storage == STORAGE_PRIVATE:
 		return self.panic("storage type violation. line %d, column %d", node.line, node.column)
 

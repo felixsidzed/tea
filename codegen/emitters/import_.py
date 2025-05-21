@@ -33,7 +33,7 @@ def emit(self, node: FunctionImportNode | ObjectImportNode):
 				self._ctors[node.name] = ir.Function(self._module, ir.FunctionType(pstruct, [T for T, _ in method.args.values()], method.vararg), f"__{node.name}__constructor")
 			else:
 				sig = ir.FunctionType(method.returnType[0], [pstruct] + [T for T, _ in method.args.values()], method.vararg)
-				methods[method.name] = (method.storage, sig, vtableIdx)
+				methods[method.name] = (method.storage, sig, vtableIdx, None)
 				vtableIdx += 1
 	else:
 		return self.panic("'%s' is not a valid import", type(node).__name__[:-4])

@@ -106,7 +106,7 @@ def emit(self, node: ObjectNode):
 			createMethodContext(f, method, f.args[0])
 			self._emitBlock(method, "entry")
 			delMethodContext()
-			methods[method.name] = (method.storage, f.ftype, vtableIdx)
+			methods[method.name] = (method.storage, f.ftype, vtableIdx, f)
 			vtableIdx += 1
 
 	self._block = ir.IRBuilder(ctor.blocks[-1])
