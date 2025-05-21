@@ -164,7 +164,7 @@ BOOL _io__printf(const char* fmt, ...) {
 	return success;
 }
 
-BOOL _io__writef(const char* path, const char* data) {
+BOOL _io__writef(const char* path, const char* data, int len) {
 	DWORD bytesWritten;
 
 	HANDLE hFile = CreateFileA(
@@ -181,7 +181,7 @@ BOOL _io__writef(const char* path, const char* data) {
 		WriteFile(
 			hFile,
 			data,
-			lstrlenA(data),
+			len,
 			&bytesWritten,
 			NULL
 		);
