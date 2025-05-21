@@ -51,7 +51,7 @@ def emit(self, node: ObjectNode):
 	ctor = ir.Function(self._module, sig, mangle("ctor", node.name, sig))
 	self._block = ir.IRBuilder(ctor.append_basic_block("entry"))
 	this = self._block.bitcast(self._block.call(self._allocator, [I32(sizeof)]), pstruct)
-	self._block.store(I32(1), self._block.gep(this, [I32_0, I32(1)], True))
+	self._block.store(I32_0, self._block.gep(this, [I32_0, I32(1)], True))
 	self._block.store(dtor, self._block.gep(vtable, [I32_0, I32_0], True))
 	self._block.store(vtable, self._block.gep(this, [I32_0, I32_0], True))
 	self._ctors[node.name] = ctor
