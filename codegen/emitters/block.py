@@ -17,8 +17,8 @@ def emit(self, root: Node, name: str) -> None:
 	self._log("%d object(s) retained", i)
 	del i
 
-	__released = set()
 	def releaseAll():
+		print("releasing")
 		i = 0
 		def release(this):
 			nonlocal i
@@ -28,17 +28,13 @@ def emit(self, root: Node, name: str) -> None:
 			i += 1
 
 		for _, (alloca, (T, _)) in self._locals.items():
-			if alloca in __released: continue
 			if (T.is_pointer and isinstance(T.pointee, ir.BaseStructType) and (not hasattr(self, "_this") or T != self._this.type)):
 				release(self._block.load(alloca))
-				__released.add(alloca)
 		for arg, _ in enumerate(self._args):
 			arg = self._func.args[arg]
-			if arg in __released: continue
 			T = arg.type
 			if (T.is_pointer and isinstance(T.pointee, ir.BaseStructType) and (not hasattr(self, "_this") or T != self._this.type)):
 				release(arg)
-				__released.add(arg)
 		self._log("%d object(s) released", i)
 
 	for node in root.body:
@@ -83,8 +79,10 @@ def emit(self, root: Node, name: str) -> None:
 					if not success:
 						self.panic("return value (%s) is incompatible with function return type (%s). line %d, column %d", str(type_), str(expected), node.line, node.column)
 						continue
+					releaseAll()
 					self._block.ret(value)
 				else:
+					releaseAll()
 					self._block.ret_void()
 
 		elif type(node) == CallNode or type(node) == MethodCallNode:
