@@ -9,10 +9,12 @@ MODULE_LOOKUP = [
 ]
 
 def resolveImport(path: pathlib.Path):
+	if path.suffix != ".tea":
+		path = path.with_suffix(".tea")
 	for directory in MODULE_LOOKUP:
-		path = pathlib.Path(directory) / (path.name + ".tea")
-		if path.exists():
-			return path
+		fullPath = pathlib.Path(directory) / path
+		if fullPath.exists():
+			return fullPath
 	return None
 
 

@@ -5,11 +5,6 @@ import lark
 
 from parser.ast import AST
 
-MODULE_LOOKUP = [
-	"stdlib",
-	"."
-]
-
 
 def resource(rel):
 	return os.path.join(getattr(sys, "_MEIPASS", os.path.abspath(".")), rel)

@@ -107,7 +107,9 @@ class CodeGen:
 				self._emitFunction(node)
 
 			elif type(node) == FunctionImportNode or type(node) == ObjectImportNode:
-				self._emitImport(node)
+				imported = self._emitImport(node)
+				if type(imported) == ir.FunctionType:
+					ir.Function(self._module, imported, node.name)
 
 			elif type(node) == UsingNode:
 				try:
