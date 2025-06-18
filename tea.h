@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdexcept>
+
 struct Configuration {
 	void(*panic)(const char* message, ...);
 };
@@ -19,3 +21,6 @@ namespace tea {
 #else
 #define TEA_FALLTHROUGH [[fallthrough]]
 #endif
+
+#define TEA_PANIC tea::configuration.panic
+#define TEA_TOKENVAL std::string // ! must support a (const char*, unsigned int) constructor

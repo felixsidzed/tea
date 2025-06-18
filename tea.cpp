@@ -17,6 +17,7 @@
 #define getRetAddr() __builtin_return_address(0)
 #endif
 
+#ifdef _DEBUG
 noret void panic(const char* message, ...) {
 	printf("thread %d panicked at 0x%llx -> ", getCurrentTid(), (uintptr_t)getRetAddr());
 	va_list va;
@@ -26,6 +27,17 @@ noret void panic(const char* message, ...) {
 	putchar('\n');
 	exit(1);
 }
+#else
+noret void panic(const char* message, ...) {
+	printf("error -> ");
+	va_list va;
+	va_start(va, message);
+	vprintf(message, va);
+	va_end(va);
+	putchar('\n');
+	exit(1);
+}
+#endif
 
 namespace tea {
 	Configuration configuration = {

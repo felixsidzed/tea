@@ -1,6 +1,6 @@
 #pragma once
 
-#include <string>
+#include "tea.h"
 
 namespace tea {
 	enum TokenType : uint8_t {
@@ -30,9 +30,21 @@ namespace tea {
 		TOKEN_EOF
 	};
 
+	enum KeywordType : uint8_t {
+		/* ORDER KWORD */
+
+		KWORD_USING, KWORD_FUNC, //KWORD_IMPORT, KWORD_MACRO,
+		KWORD_PUBLIC, KWORD_PRIVATE,
+		/*KWORD_IF, KWORD_ELSEIF, KWORD_ELSE, KWORD_WHILE, KWORD_FOR, KWORD_BREAK, KWORD_CONTINUE,*/ KWORD_RETURN,
+		//KWORD_VAR,
+		//KWORD_STDCC, KWORD_FASTCC, KWORD_CCC,
+		//KWORD_CLASS, KWORD_NEW, KWORD_CTOR, KWORD_DTOR
+	};
+
 	struct Token {
 		enum TokenType type;
-		const std::string value;
+		const TEA_TOKENVAL value;
+		int extra;
 
 		unsigned int length;
 		unsigned int pos;
