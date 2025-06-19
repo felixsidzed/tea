@@ -34,14 +34,43 @@
 //		printf("Token<%s>('%s')\n", tokenTypeToString(token.type), token.value.c_str());
 //}
 
+void printNode(const tea::Node* node, int indent = 0) {
+    using namespace tea;
+    if (!node) return;
+
+    // Indentation
+    for (int i = 0; i < indent; ++i)
+        printf("  ");
+
+    switch (node->type) {
+    case NODE_UsingNode: {
+        auto* usingNode = static_cast<const UsingNode*>(node);
+        printf("UsingNode: name = %s\n", usingNode->name.c_str());
+        break;
+    }
+    case NODE_FunctionNode: {
+        auto* funcNode = static_cast<const FunctionNode*>(node);
+        printf("FunctionNode: storage = %u\n", funcNode->storage);
+        for (const auto& child : funcNode->body)
+            printNode(child.get(), indent + 1);
+        break;
+    }
+    default:
+        printf("Unknown node type\n");
+    }
+}
+
+void printTree(const tea::Tree& tree) {
+    for (const auto& node : tree)
+        printNode(node.get(), 0);
+}
+
 int main() {
 	auto src = R"(
 using "io";
 
 public func main() -> int
-	io::print("Hello, World!");
-
-	return 0;
+	
 end
 )";
 
@@ -51,7 +80,7 @@ end
 
 	tea::Parser parser;
 	const auto& root = parser.parse(tokens);
-	//printTree(tokens);
+	printTree(root);
 
 	return 0;
 }

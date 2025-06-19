@@ -2,16 +2,19 @@
 
 #include "tea.h"
 
-#define pushtokex(t,v,l,e) container.push_back(Token{(t),{(v),unsigned int(l)},e,unsigned int(l),unsigned int((v)-src.data()),line})
+#define pushtokex(t,v,l,e) container.push_back(Token{(t),{(v),unsigned int(l)},e,unsigned int(l),col,line})
 #define pushtokv(t,v) pushtokex(t,v,pos-(v),0)
 #define pushtok(t) pushtokex(t,pos,1,0)
 
 static const char* keywords[] = {
 	/* ORDER KWORD */
 
-	"using", "func", //"import", "macro",
+	"using", //"import",
+	"macro",
 	"public", "private",
-	/*"if", "elseif", "else", "while", "for", "break", "continue",*/ "return",
+	/*"if", "elseif", "else", "while", "for", "break", "continue",*/
+	"func", "return",
+	"end",
 	//"var",
 	//"__stdcall", "__fastcall", "__cdecl",
 	//"class", "new", "constructor", "deconstructor",
@@ -28,8 +31,9 @@ static bool isKeyword(const char* word, unsigned int len, int* idx) {
 
 namespace tea {
 	Lexer::Lexer() {
-		pos = 0;
+		pos = nullptr;
 		line = 0;
+		col = 0;
 	}
 
 	std::vector<Token> Lexer::lex(const std::string& src) {
@@ -39,11 +43,12 @@ namespace tea {
 
 		pos = src.data();
 		line = 0;
+		col = 0;
 
 		while (*pos) {
 			char c = *pos;
 			if (isspace(c)) {
-				if (c == '\n') line++;
+				if (c == '\n') line++, col = 0;
 
 			} else if (isalpha(c) || c == '_') {
 				unsigned int len = 0;
@@ -134,8 +139,10 @@ namespace tea {
 			}
 
 			pos++;
+			col++;
 		}
 
+		container.push_back(Token{ TOKEN_EOF, "", 0, 1, 0, line });
 		return container;
 	}
 
