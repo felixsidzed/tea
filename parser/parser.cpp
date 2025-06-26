@@ -8,12 +8,20 @@
 	node->type = NODE_##t; \
 	tree->push_back(std::move(node)); \
 }
+
 #define pushtree(t,...) { \
 	auto node = std::make_unique<t>(__VA_ARGS__); \
 	node->type = NODE_##t; \
 	auto body = &node->body; \
+	treeHistory.push_back(tree); \
 	tree->push_back(std::move(node)); \
 	tree = body; \
+}
+#define poptree() { \
+	if (TEA_UNLIKELY(treeHistory.empty())) \
+		__debugbreak(); \
+	tree = treeHistory.back(); \
+	treeHistory.pop_back(); \
 }
 
 #define advance() { \
@@ -40,6 +48,7 @@ namespace tea {
 
 		Tree root;
 		tree = &root;
+		treeHistory = { &root };
 
 		state.imported.clear();
 		state.funcs.clear();
@@ -50,7 +59,31 @@ namespace tea {
 		return std::move(root);
 	}
 
-	void Parser::parseBlock(const std::vector<Token>& tokens, bool stopOnEnd) {
+	std::unique_ptr<ExpressionNode> Parser::parseExpression(const std::vector<Token>& tokens) {
+		switch (t->type) {
+		case TOKEN_INT: {
+			auto node = std::make_unique<ExpressionNode>(EXPR_INT, t->value);
+			advance();
+			return node;
+		} case TOKEN_FLOAT: {
+			auto node = std::make_unique<ExpressionNode>(EXPR_FLOAT, t->value);
+			advance();
+			return node;
+		} case TOKEN_STRING: {
+			auto node = std::make_unique<ExpressionNode>(EXPR_STRING, t->value);
+			advance();
+			return node;
+		} case TOKEN_IDENTF: {
+			auto node = std::make_unique<ExpressionNode>(EXPR_IDENTF, t->value);
+			advance();
+			return node;
+		} default:
+			unexpected();
+		}
+		return nullptr;
+	}
+
+	void Parser::parseBlock(const std::vector<Token>& tokens) {
 		while (t->type != TOKEN_EOF) {
 			switch (t->type) {
 			case TOKEN_KWORD:
@@ -86,6 +119,14 @@ namespace tea {
 
 				case KWORD_END: {
 					advance();
+					poptree();
+					break;
+				}
+
+				case KWORD_RETURN: {
+					advance();
+					pushnode(ReturnNode, parseExpression(tokens));
+					expect(TOKEN_SEMI);
 					return;
 				}
 
@@ -95,7 +136,7 @@ namespace tea {
 				break;
 			default:
 			unexpected:
-				TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value.c_str(), t->line, t->pos);
+				unexpected();
 			}
 		}
 	}
@@ -112,6 +153,10 @@ namespace tea {
 		expect(TOKEN_ARROW);
 		const std::string& returnType = expect(TOKEN_IDENTF);
 		pushtree(FunctionNode, storage);
-		parseBlock(tokens, true);
+		parseBlock(tokens);
+	}
+
+	void Parser::unexpected() {
+		TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value.c_str(), t->line, t->pos);
 	}
 }
