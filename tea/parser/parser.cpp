@@ -74,9 +74,33 @@ namespace tea {
 			advance();
 			return node;
 		} case TOKEN_IDENTF: {
-			auto node = std::make_unique<ExpressionNode>(EXPR_IDENTF, t->value);
-			advance();
-			return node;
+			if ((t + 1)->type == TOKEN_RPAR) {
+				std::vector<std::string> scope;
+				std::string callee = t->value;
+				advance();
+				advance();
+
+				std::vector<std::unique_ptr<ExpressionNode>> args;
+				if (t->type != TOKEN_LPAR) {
+					while (true) {
+						args.push_back(parseExpression(tokens));
+						if (t->type == TOKEN_COMMA) {
+							advance();
+							continue;
+						}
+						break;
+					}
+				}
+
+				expect(TOKEN_LPAR);
+				auto node = std::make_unique<CallNode>(scope, callee, std::move(args));
+				return node;
+			} else {
+				auto node = std::make_unique<ExpressionNode>(EXPR_IDENTF, t->value);
+				advance();
+				return node;
+			}
+
 		} default:
 			unexpected();
 		}
@@ -134,6 +158,11 @@ namespace tea {
 					goto unexpected;
 				}
 				break;
+
+			case TOKEN_IDENTF: {
+				tree->push_back(parseExpression(tokens));
+			} break;
+
 			default:
 			unexpected:
 				unexpected();

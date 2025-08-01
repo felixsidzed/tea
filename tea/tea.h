@@ -39,6 +39,14 @@ namespace tea {
 #endif
 
 #ifdef _MSC_VER
+#include <intrin.h>
+
+#define TEA_RETURNADDR() _ReturnAddress()
+#else
+#define TEA_RETURNADDR() __builtin_return_address(0)
+#endif
+
+#ifdef _MSC_VER
 #define TEA_LIKELY(pred) pred
 #define TEA_UNLIKELY(pred) pred
 #else

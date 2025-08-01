@@ -106,21 +106,21 @@ namespace tea {
 						pos++;
 						break;
 					}
-					TEA_FALLTHROUGH;
+					goto unexpected;
 				case '|':
 					if (*(pos + 1) == '|') {
 						pushtokex(TOKEN_OR, pos, 2, 0);
 						pos++;
 						break;
 					}
-					TEA_FALLTHROUGH;
+					goto unexpected;
 				case ':':
 					if (*(pos + 1) == ':') {
 						pushtokex(TOKEN_SCOPE, pos, 2, 0);
 						pos++;
 						break;
 					}
-					TEA_FALLTHROUGH;
+					goto unexpected;
 				case '"': {
 					const char* start = ++pos;
 					while (*pos != '"' && *pos != '\n') {
@@ -128,6 +128,9 @@ namespace tea {
 					}
 
 					pushtokv(TOKEN_STRING, start);
+				} break;
+				case ',': {
+					pushtok(TOKEN_COMMA);
 				} break;
 				default:
 					goto unexpected;

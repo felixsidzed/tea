@@ -1,31 +1,25 @@
 #include "tea.h"
 
-#if !defined(TEA_NODEFAULTCONFIG)
+#ifndef TEA_NODEFAULTCONFIG
 
 #include <cstdio>
 #include <cstdlib>
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
-#include <intrin.h>
 
-#define noret [[noreturn]]
-#define getCurrentTid GetCurrentThreadId
-#define getRetAddr() _ReturnAddress()
-#else
-#define noret __declspec((noreturn))
-#define getRetAddr() __builtin_return_address(0)
+#define TEA_GETCURRENTTID GetCurrentThreadId
 #endif
 
 #ifdef _DEBUG
-noret void panic(const char* message, ...) {
-	printf("thread %d panicked at 0x%llx -> ", getCurrentTid(), (uintptr_t)getRetAddr());
+TEA_NORETURN panic(const char* message, ...) {
+	printf("thread %d panicked at 0x%llx -> ", TEA_GETCURRENTTID(), (uintptr_t)TEA_RETURNADDR());
 	va_list va;
 	va_start(va, message);
 	vprintf(message, va);
 	va_end(va);
 	putchar('\n');
-	exit(1);
+	__debugbreak();
 }
 #else
 noret void panic(const char* message, ...) {
