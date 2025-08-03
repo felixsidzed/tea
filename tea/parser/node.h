@@ -5,6 +5,18 @@
 #include <memory>
 
 namespace tea {
+	enum Type : uint8_t {
+		TYPE_INT,
+		TYPE_FLOAT,
+		TYPE_DOUBLE,
+		TYPE_CHAR,
+		TYPE_STRING,
+		TYPE_VOID,
+		TYPE_BOOL,
+
+		TYPE__COUNT
+	};
+
 	enum NodeType : uint8_t {
 		NODE_UsingNode,
 		NODE_FunctionNode,
@@ -16,10 +28,13 @@ namespace tea {
 	struct Node {
 		enum NodeType type = static_cast<enum NodeType>(0);
 
+		uint32_t line = 0;
+		uint32_t column = 0;
+
 		Node() = default;
 		virtual ~Node() = default;
 
-		Node(enum NodeType type) : type(type) {};
+		Node(enum NodeType type, uint32_t line = 0, uint32_t column = 0) : type(type), line(line), column(column) {};
 	};
 
 	typedef std::vector<std::unique_ptr<Node>> Tree;
@@ -30,19 +45,30 @@ namespace tea {
 		UsingNode(const std::string& name) : name(name) {}
 	};
 
+	enum StorageType : uint8_t {
+		STORAGE_PUBLIC,
+		STORAGE_PRIVATE
+	};
+
 	struct FunctionNode : Node {
 		Tree body;
+		
+		enum StorageType storage;
+		std::string name;
+		enum Type returnType;
 
-		uint8_t storage;
-
-		FunctionNode(uint8_t storage) : storage(storage) {};
+		FunctionNode(enum StorageType storage, const std::string& name, enum Type returnType) : storage(storage), name(name), returnType(returnType) {};
 	};
 
 	enum ExpressionType : uint8_t {
+		EXPR_STRING,
+
 		EXPR_INT,
 		EXPR_FLOAT,
-		EXPR_STRING,
+		EXPR_DOUBLE,
+
 		EXPR_IDENTF,
+
 		EXPR_CALL
 	};
 

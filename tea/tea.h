@@ -49,9 +49,11 @@ namespace tea {
 #ifdef _MSC_VER
 #define TEA_LIKELY(pred) pred
 #define TEA_UNLIKELY(pred) pred
+#define TEA_UNREACHABLE() __assume(false)
 #else
 #define TEA_LIKELY(pred) __builtin_expect(pred, 1)
 #define TEA_UNLIKELY(pred) __builtin_expect(pred, 0)
+#define TEA_UNREACHABLE() __builtin_unreachable()
 #endif
 
 #define TEA_PANIC tea::configuration.panic
