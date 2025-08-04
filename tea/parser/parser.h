@@ -19,19 +19,14 @@ namespace tea {
 
 		const Token* t;
 
-		typedef struct {
-			int nargs;
-		} FunctionPrototype;
-
-		struct {
-			std::vector<std::string> imported;
-			std::unordered_map<std::string, FunctionPrototype> funcs;
-			FunctionPrototype* curFunc = nullptr;
-		} state;
+		std::vector<std::string> funcs;
+		std::vector<std::string> imported;
 
 		void parseBlock();
 		void parseFunc(enum StorageType storage);
 		std::unique_ptr<ExpressionNode> parseExpression();
+		std::unique_ptr<ExpressionNode> parsePrimary();
+		std::unique_ptr<ExpressionNode> parseRhs(int exprPrec, std::unique_ptr<ExpressionNode> lhs);
 
 		TEA_NORETURN unexpected();
 	};

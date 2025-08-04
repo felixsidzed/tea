@@ -55,9 +55,11 @@ namespace tea {
 		
 		enum StorageType storage;
 		std::string name;
+		std::vector<std::pair<enum Type, std::string>> args;
 		enum Type returnType;
 
-		FunctionNode(enum StorageType storage, const std::string& name, enum Type returnType) : storage(storage), name(name), returnType(returnType) {};
+		FunctionNode(enum StorageType storage, const std::string& name, const std::vector<std::pair<enum Type, std::string>>& args, enum Type returnType)
+			: storage(storage), name(name), args(args), returnType(returnType) {};
 	};
 
 	enum ExpressionType : uint8_t {
@@ -68,8 +70,12 @@ namespace tea {
 		EXPR_DOUBLE,
 
 		EXPR_IDENTF,
+		EXPR_CALL,
 
-		EXPR_CALL
+		EXPR_ADD,
+		EXPR_SUB,
+		EXPR_MUL,
+		EXPR_DIV
 	};
 
 	struct ExpressionNode : Node {
@@ -77,11 +83,11 @@ namespace tea {
 
 		std::string value;
 
-		ExpressionNode* left;
-		ExpressionNode* right;
+		std::unique_ptr<ExpressionNode> left;
+		std::unique_ptr<ExpressionNode> right;
 
-		ExpressionNode(enum ExpressionType etype, const std::string& value, ExpressionNode* left = nullptr, ExpressionNode* right = nullptr) :
-			Node(NODE_ExpressionNode), etype(etype), value(value), left(left), right(right) { };
+		ExpressionNode(enum ExpressionType etype, const std::string& value, std::unique_ptr<ExpressionNode> left = nullptr, std::unique_ptr<ExpressionNode> right = nullptr) :
+			Node(NODE_ExpressionNode), etype(etype), value(value), left(std::move(left)), right(std::move(right)) { };
 	};
 
 	struct ReturnNode : Node {
