@@ -7,12 +7,12 @@
 
 int main() {
 	auto src = R"(
-private func compute(int a, int b) -> int
-	return a + b;
+private __cdecl func compute(int a, int b) -> int
+	return a + b * 2;
 end
 
 public func main() -> int
-	return compute(3, 5);
+	return compute(2, 2);
 end
 )";
 

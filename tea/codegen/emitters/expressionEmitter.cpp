@@ -3,6 +3,67 @@
 
 namespace tea {
 	std::pair<LLVMTypeRef, LLVMValueRef> CodeGen::emitExpression(const std::unique_ptr<ExpressionNode>& node) {
+		if (node->etype >= EXPR_ADD && node->etype <= EXPR_DIV) {
+			auto [ltype, lhs] = emitExpression(node->left);
+			auto [rtype, rhs] = emitExpression(node->right);
+
+			if (ltype != rtype)
+				TEA_PANIC("type mismatch in expression. line %d, column %d", node->line, node->column);
+
+			LLVMValueRef result;
+
+			switch (node->etype) {
+			case EXPR_ADD: {
+				if (ltype == type2llvm[TYPE_INT])
+					result = LLVMBuildAdd(block, lhs, rhs, "");
+				else if (ltype == type2llvm[TYPE_FLOAT] || rtype == type2llvm[TYPE_DOUBLE])
+					result = LLVMBuildFAdd(block, lhs, rhs, "");
+				else {
+					TEA_PANIC("unsupported types for addition. line %d, column %d", node->line, node->column);
+					TEA_UNREACHABLE();
+				}
+			} break;
+
+			case EXPR_SUB: {
+				if (ltype == type2llvm[TYPE_INT])
+					result = LLVMBuildSub(block, lhs, rhs, "");
+				else if (ltype == type2llvm[TYPE_FLOAT] || rtype == type2llvm[TYPE_DOUBLE])
+					result = LLVMBuildFSub(block, lhs, rhs, "");
+				else {
+					TEA_PANIC("unsupported types for subtraction. line %d, column %d", node->line, node->column);
+					TEA_UNREACHABLE();
+				}
+			} break;
+
+			case EXPR_MUL: {
+				if (ltype == type2llvm[TYPE_INT])
+					result = LLVMBuildMul(block, lhs, rhs, "");
+				else if (ltype == type2llvm[TYPE_FLOAT] || rtype == type2llvm[TYPE_DOUBLE])
+					result = LLVMBuildFMul(block, lhs, rhs, "");
+				else {
+					TEA_PANIC("unsupported types for multiplication. line %d, column %d", node->line, node->column);
+					TEA_UNREACHABLE();
+				}
+			} break;
+
+			case EXPR_DIV: {
+				if (ltype == type2llvm[TYPE_INT])
+					result = LLVMBuildSDiv(block, lhs, rhs, "");
+				else if (ltype == type2llvm[TYPE_FLOAT] || rtype == type2llvm[TYPE_DOUBLE])
+					result = LLVMBuildFDiv(block, lhs, rhs, "");
+				else {
+					TEA_PANIC("unsupported types for divison. line %d, column %d", node->line, node->column);
+					TEA_UNREACHABLE();
+				}
+			} break;
+
+			default:
+				goto invalid;
+			}
+
+			return { ltype, result };
+		}
+
 		switch (node->etype) {
 		case EXPR_INT: {
 			return {
@@ -56,28 +117,6 @@ namespace tea {
 			};
 		}
 
-		case EXPR_ADD: {
-			auto [ltype, lhs] = emitExpression(node->left);
-			auto [rtype, rhs] = emitExpression(node->right);
-
-			if (ltype != rtype)
-				TEA_PANIC("type mismatch in expression. line %d, column %d", node->line, node->column);
-
-			LLVMValueRef result;
-			if (ltype == type2llvm[TYPE_INT])
-				result = LLVMBuildAdd(block, lhs, rhs, "");
-			else if (ltype == type2llvm[TYPE_FLOAT])
-				result = LLVMBuildFAdd(block, lhs, rhs, "");
-			else if (ltype == type2llvm[TYPE_DOUBLE])
-				result = LLVMBuildFAdd(block, lhs, rhs, "");
-			else {
-				TEA_PANIC("unsupported type for addition. line %d, column %d", node->line, node->column);
-				TEA_UNREACHABLE();
-			}
-
-			return { ltype, result };
-		} break;
-
 		case EXPR_IDENTF: {
 			int i = 0;
 			for (const auto& arg : *curArgs) {
@@ -91,10 +130,13 @@ namespace tea {
 				}
 				i++;
 			}
-			TEA_FALLTHROUGH;
+			
+			TEA_PANIC("'%s' is not defined. line %d, column %d", node->value.c_str(), node->line, node->column);
+			TEA_UNREACHABLE();
 		}
 
 		default:
+		invalid:
 			TEA_PANIC("invalid expression. line %d, column %d", node->line, node->column);
 			TEA_UNREACHABLE();
 		}

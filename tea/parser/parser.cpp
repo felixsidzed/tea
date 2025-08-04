@@ -49,6 +49,10 @@ namespace tea {
 		return (t - 1)->value;
 	}
 
+	static inline bool isCC(enum KeywordType tt) {
+		return tt == KWORD_FASTCC || tt == KWORD_STDCC || tt == KWORD_CCC;
+	}
+
 	Parser::Parser() {
 		t = 0;
 		tree = nullptr;
@@ -81,20 +85,16 @@ namespace tea {
 
 				case KWORD_PUBLIC: {
 					advance();
-					if (t->extra == KWORD_FUNC) {
-						advance();
+					if (t->extra == KWORD_FUNC || isCC((enum KeywordType)t->extra))
 						parseFunc(STORAGE_PUBLIC);
-					}
 					else
 						goto unexpected;
 				} break;
 
 				case KWORD_PRIVATE: {
 					advance();
-					if (t->extra == KWORD_FUNC) {
-						advance();
+					if (t->extra == KWORD_FUNC || isCC((enum KeywordType)t->extra))
 						parseFunc(STORAGE_PRIVATE);
-					}
 					else
 						goto unexpected;
 				} break;
@@ -172,10 +172,10 @@ namespace tea {
 		switch (type) {
 		case TOKEN_ADD:
 		case TOKEN_SUB:
-			return 10;
+			return 1;
 		case TOKEN_MUL:
 		case TOKEN_DIV:
-			return 20;
+			return 2;
 		default:
 			return -1;
 		}
@@ -251,6 +251,18 @@ namespace tea {
 	}
 
 	void Parser::parseFunc(enum StorageType storage) {
+		enum CallingConvention cc = CC_FAST;
+
+		if (isCC((enum KeywordType)t->extra)) {
+			switch (t->extra) {
+			case KWORD_STDCC:	cc = CC_STD;	break;
+			case KWORD_FASTCC:	cc = CC_FAST;	break;
+			case KWORD_CCC:		cc = CC_C;		break;
+			}
+			advance();
+		}
+		advance();
+
 		const std::string& name = expect(TOKEN_IDENTF);
 		auto it = std::find(funcs.begin(), funcs.end(), name);
 		if (it != funcs.end())
@@ -276,7 +288,7 @@ namespace tea {
 		auto it2 = name2type.find(returnType);
 		if (it2 == name2type.end())
 			TEA_PANIC("unknown type '%s'. line %d, column %d", returnType.c_str(), (t - 1)->line, (t - 1)->column);
-		pushtree(FunctionNode, storage, name, args, it2->second);
+		pushtree(FunctionNode, storage, cc, name, args, it2->second);
 		parseBlock();
 	}
 

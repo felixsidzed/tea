@@ -3,10 +3,22 @@
 #include "tea.h"
 
 namespace tea {
+	static const char* ccname[CC__COUNT] = {
+		"__cdecl",
+		"__fastcall",
+		"__stdcall"
+	};
+
+	static LLVMCallConv cc2llvm[CC__COUNT] = {
+		LLVMCCallConv,
+		LLVMFastCallConv,
+		LLVMX86StdcallCallConv
+	};
+
 	void CodeGen::emitFunction(FunctionNode* node) {
-		log("Entering function '{} func {}(...) ({} arguments)",
+		log("Entering function '{} {} func {}(...) ({} arguments)",
 			node->storage == STORAGE_PUBLIC ? "public" : "private",
-			// TODO: calling convention
+			ccname[node->cc],
 			node->name,
 			node->args.size()
 		);
@@ -19,6 +31,9 @@ namespace tea {
 
 		LLVMTypeRef funcType = LLVMFunctionType(type2llvm[node->returnType], argTypes.data(), (uint32_t)node->args.size(), 0);
 		func = LLVMAddFunction(module, node->name.c_str(), funcType);
+
+		LLVMSetFunctionCallConv(func, cc2llvm[node->cc]);
+
 		if (node->storage == STORAGE_PRIVATE)
 			LLVMSetLinkage(func, LLVMPrivateLinkage);
 

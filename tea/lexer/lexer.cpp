@@ -16,7 +16,7 @@ static const char* keywords[] = {
 	"func", "return",
 	"end",
 	//"var",
-	//"__stdcall", "__fastcall", "__cdecl",
+	"__stdcall", "__fastcall", "__cdecl",
 	//"class", "new", "constructor", "deconstructor",
 };
 
