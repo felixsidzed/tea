@@ -57,4 +57,4 @@ namespace tea {
 #endif
 
 #define TEA_PANIC tea::configuration.panic
-#define TEA_TOKENVAL std::string // ! must support a (const char*, unsigned int) constructor
+#define TEA_TOKENVAL std::string // std::string or something similar

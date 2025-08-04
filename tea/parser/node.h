@@ -23,6 +23,7 @@ namespace tea {
 		NODE_ExpressionNode,
 		NODE_ReturnNode,
 		NODE_CallNode,
+		NODE_VariableNode
 	};
 
 	enum StorageType : uint8_t {
@@ -112,5 +113,14 @@ namespace tea {
 
 		CallNode(const std::vector<std::string>& scope, const std::string& callee, std::vector<std::unique_ptr<ExpressionNode>>&& args) :
 			scope(scope), args(std::move(args)), ExpressionNode(EXPR_CALL, callee) {}
+	};
+
+	struct VariableNode : Node {
+		std::string name;
+		enum Type dataType;
+		std::unique_ptr<ExpressionNode> value;
+
+		VariableNode(const std::string& name, enum Type dataType, std::unique_ptr<ExpressionNode> value)
+			: name(name), dataType(dataType), value(std::move(value)) {}
 	};
 }
