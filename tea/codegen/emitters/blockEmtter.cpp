@@ -16,28 +16,20 @@ namespace tea {
 				LLVMTypeRef expected = LLVMGetReturnType(LLVMGlobalGetValueType(func));
 				auto [type, value] = emitExpression(((ReturnNode*)node.get())->value);
 				if (type != expected) {
-					std::string typeStr; {
-						char* _ = LLVMPrintTypeToString(type);
-						typeStr.assign(_);
-						LLVMDisposeMessage(_);
-					}
-
-					std::string expectedStr; {
-						char* _ = LLVMPrintTypeToString(expected);
-						expectedStr.assign(_);
-						LLVMDisposeMessage(_);
-					}
-
-					TEA_PANIC("return value (%s) is incompatible with function return value type (%s). line %d, column %d", typeStr.c_str(), expectedStr.c_str(), node->line, node->column);
+					TEA_PANIC("return value (%s) is incompatible with function return type (%s). line %d, column %d",
+						llvm2readable(type, value), llvm2readable(expected), node->line, node->column);
 				}
 				LLVMBuildRet(block, value);
 				break;
 			}
 
-			case tnode(VariableNode): {
+			case tnode(VariableNode):
 				emitVariable((VariableNode*)node.get());
 				break;
-			}
+
+			case tnode(ExpressionNode):
+				emitExpression((const std::unique_ptr<ExpressionNode>&)node);
+				break;
 
 			default:
 				TEA_PANIC("invalid statement. line %d, column %d", node->line, node->column);

@@ -4,6 +4,12 @@
 #include <string>
 #include <memory>
 
+#ifdef _WIN32
+#define DEFAULT_CC CC_FAST
+#else
+#define DEFAULT_CC CC_C
+#endif
+
 namespace tea {
 	enum Type : uint8_t {
 		TYPE_INT,
@@ -23,7 +29,8 @@ namespace tea {
 		NODE_ExpressionNode,
 		NODE_ReturnNode,
 		NODE_CallNode,
-		NODE_VariableNode
+		NODE_VariableNode,
+		NODE_FunctionImportNode
 	};
 
 	enum StorageType : uint8_t {
@@ -122,5 +129,16 @@ namespace tea {
 
 		VariableNode(const std::string& name, enum Type dataType, std::unique_ptr<ExpressionNode> value)
 			: name(name), dataType(dataType), value(std::move(value)) {}
+	};
+
+	struct FunctionImportNode : Node {
+		enum CallingConvention cc;
+		std::string name;
+		std::vector<std::pair<enum Type, std::string>> args;
+		enum Type returnType;
+
+		FunctionImportNode(enum CallingConvention cc, const std::string& name, const std::vector<std::pair<enum Type, std::string>>& args, enum Type returnType)
+			: cc(cc), name(name), args(args), returnType(returnType) {
+		};
 	};
 }

@@ -12,17 +12,8 @@ namespace tea {
 		if (node->value != nullptr) {
 			auto [got, value] = emitExpression(node->value);
 			if (got != expected) {
-				std::string expectedStr; {
-					char* _ = LLVMPrintTypeToString(expected);
-					expectedStr.assign(_);
-					LLVMDisposeMessage(_);
-				}
-				std::string gotStr; {
-					char* _ = LLVMPrintTypeToString(got);
-					gotStr.assign(_);
-					LLVMDisposeMessage(_);
-				}
-				TEA_PANIC("variable value type (%s) is incompatible with variable type (%s). line %d, column %d", expectedStr.c_str(), gotStr.c_str(), node->line, node->column);
+				TEA_PANIC("variable value type (%s) is incompatible with variable type (%s). line %d, column %d",
+					llvm2readable(expected), llvm2readable(got, value), node->line, node->column);
 			}
 			LLVMBuildStore(block, value, insn);
 		}

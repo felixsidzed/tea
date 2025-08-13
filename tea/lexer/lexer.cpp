@@ -9,7 +9,7 @@
 static const char* keywords[] = {
 	/* ORDER KWORD */
 
-	"using", //"import",
+	"using", "import",
 	"macro",
 	"public", "private",
 	/*"if", "elseif", "else", "while", "for", "break", "continue",*/
@@ -30,20 +30,14 @@ static bool isKeyword(const char* word, unsigned int len, int* idx) {
 }
 
 namespace tea {
-	Lexer::Lexer() {
-		pos = nullptr;
-		line = 0;
-		col = 0;
-	}
-
-	std::vector<Token> Lexer::lex(const std::string& src) {
+	std::vector<Token> Lexer::tokenize(const std::string& src) {
 		std::vector<Token> container;
 		if (src.empty())
 			return container;
 
-		pos = src.data();
-		line = 0;
-		col = 0;
+		const char* pos = src.data();
+		uint32_t line = 0;
+		uint32_t col = 0;
 
 		while (*pos) {
 			char c = *pos;
