@@ -14,6 +14,7 @@ namespace tea {
 	namespace fs = std::filesystem;
 
 	extern LLVMTypeRef type2llvm[TYPE__COUNT];
+	extern LLVMAttributeKind attr2llvm[ATTR__COUNT];
 
 	class CodeGen {
 	public:
@@ -44,6 +45,9 @@ namespace tea {
 		std::unordered_map<std::string, ImportedModule> modules;
 		std::vector<std::pair<enum Type, std::string>>* curArgs = nullptr;
 
+		std::unordered_map<std::string, FunctionNode*> inlineables;
+		std::vector<LLVMValueRef>* argsMap;
+
 		inline void logUnformatted(const std::string& message) {
 			if (!verbose)
 				return;
@@ -62,7 +66,7 @@ namespace tea {
 		void emitFunction(FunctionNode* tree);
 		void emitVariable(VariableNode* node);
 		void emitFunctionImport(FunctionImportNode* node);
-		void emitBlock(const Tree& block, const char* name, LLVMValueRef parent);
+		void emitBlock(const Tree& block, const char* name, LLVMValueRef parent, std::pair<LLVMTypeRef, LLVMValueRef>* returnInto = nullptr);
 		std::pair<LLVMTypeRef, LLVMValueRef> emitExpression(const std::unique_ptr<ExpressionNode>& node);
 
 		static const char* llvm2readable(LLVMTypeRef type, LLVMValueRef value = nullptr);

@@ -5,13 +5,13 @@
 namespace tea {
 	enum TokenType : uint8_t {
 		TOKEN_STRING,
-
 		TOKEN_INT,
 		TOKEN_FLOAT,
 		TOKEN_DOUBLE,
 
 		TOKEN_IDENTF,
 		TOKEN_KWORD,
+		TOKEN_ATTR,
 
 		TOKEN_LPAR,
 		TOKEN_RPAR,
@@ -34,7 +34,7 @@ namespace tea {
 		TOKEN_LT,
 		TOKEN_GT,
 		TOKEN_LE,
-		TOKEN_GE,
+		TOKEN_GE, 
 
 		TOKEN_NOT,
 		TOKEN_AND,

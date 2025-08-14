@@ -16,6 +16,12 @@ namespace tea {
 	};
 
 	void CodeGen::emitFunction(FunctionNode* node) {
+		auto it = std::find(node->attrs.begin(), node->attrs.end(), ATTR_INLINE);
+		if (it != node->attrs.end()) {
+			inlineables[node->name] = node;
+			return;
+		}
+
 		log("Entering function '{} {} func {}(...) ({} arguments)",
 			node->storage == STORAGE_PUBLIC ? "public" : "private",
 			ccname[node->cc],
@@ -40,6 +46,9 @@ namespace tea {
 		int i = 0;
 		for (const auto& arg : node->args)
 			LLVMSetValueName(LLVMGetParam(func, i++), arg.second.c_str());
+
+		for (const auto& attr : node->attrs)
+			LLVMAddAttributeAtIndex(func, LLVMAttributeFunctionIndex, LLVMCreateEnumAttribute(LLVMGetGlobalContext(), attr2llvm[attr], 0));
 
 		emitBlock(node->body, "entry", func);
 	}

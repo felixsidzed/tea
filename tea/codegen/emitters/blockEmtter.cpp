@@ -3,7 +3,7 @@
 #include "tea.h"
 
 namespace tea {
-	void CodeGen::emitBlock(const Tree& root, const char* name, LLVMValueRef parent) {
+	void CodeGen::emitBlock(const Tree& root, const char* name, LLVMValueRef parent, std::pair<LLVMTypeRef, LLVMValueRef>* returnInto) {
 		std::vector<Local> oldLocals = locals;
 
 		if (name) {
@@ -16,12 +16,22 @@ namespace tea {
 			switch (node->type) {
 			case tnode(ReturnNode): {
 				LLVMTypeRef expected = LLVMGetReturnType(LLVMGlobalGetValueType(func));
+
 				auto [type, value] = emitExpression(((ReturnNode*)node.get())->value);
-				if (type != expected) {
-					TEA_PANIC("return value (%s) is incompatible with function return type (%s). line %d, column %d",
-						llvm2readable(type, value), llvm2readable(expected), node->line, node->column);
+				if (!returnInto) {
+					if (type != expected)
+						TEA_PANIC("return value (%s) is incompatible with function return type (%s). line %d, column %d",
+							llvm2readable(type, value), llvm2readable(expected), node->line, node->column);
+				} else {
+					if (type != returnInto->first)
+						TEA_PANIC("return value (%s) is incompatible with function return type (%s). line %d, column %d",
+							llvm2readable(type, value), llvm2readable(returnInto->first), node->line, node->column);
 				}
-				LLVMBuildRet(block, value);
+
+				if (returnInto)
+					LLVMBuildStore(block, value, returnInto->second);
+				else
+					LLVMBuildRet(block, value);
 				break;
 			}
 

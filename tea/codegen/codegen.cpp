@@ -4,6 +4,7 @@
 
 #include <llvm-c/Target.h>
 #include <llvm-c/BitWriter.h>
+#include <llvm-c/BitReader.h>
 #include <llvm-c/TargetMachine.h>
 #include <llvm-c/Transforms/PassBuilder.h>
 
@@ -16,6 +17,10 @@ namespace tea {
 		nullptr,
 		nullptr,
 		nullptr,
+	};
+
+	LLVMAttributeKind attr2llvm[ATTR__COUNT] = {
+		LLVMAttrAlwaysInline
 	};
 
 	std::unordered_map<LLVMTypeKind, const char*> typeKindName = {
@@ -136,7 +141,7 @@ namespace tea {
 		}
 
 		char* err = nullptr;
-		if (LLVMTargetMachineEmitToFile(machine, module, output, LLVMObjectFile, &err) != 0) {
+		if (LLVMTargetMachineEmitToFile(machine, module, output, LLVMObjectFile, &err)) {
 			std::string _(err);
 			LLVMDisposeMessage(err);
 			TEA_PANIC("Failed to emit to file: %s", _.c_str());
