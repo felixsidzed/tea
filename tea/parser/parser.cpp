@@ -43,6 +43,10 @@ namespace tea {
 		{"bool", TYPE_BOOL}
 	};
 
+	std::unordered_map<TEA_TOKENVAL, enum Attribute> name2attr = {
+		{"inline", ATTR_INLINE},
+	};
+
 	static inline const TEA_TOKENVAL& _expect(const Token*& t, enum TokenType expected) {
 		if (t->type != expected)
 			TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value.c_str(), t->line, t->column);
@@ -71,7 +75,7 @@ namespace tea {
 
 		while (t->type != TOKEN_EOF) {
 			switch (t->type) {
-			case TOKEN_KWORD:
+			case TOKEN_KWORD: {
 				switch (t->extra) {
 				case KWORD_USING: {
 					advance();
@@ -84,21 +88,10 @@ namespace tea {
 					pushnode(UsingNode, name);
 				} break;
 
-				case KWORD_PUBLIC: {
-					advance();
-					if (t->extra == KWORD_FUNC || isCC((enum KeywordType)t->extra))
-						parseFunc(STORAGE_PUBLIC);
-					else
-						unexpected();
-				} break;
-
-				case KWORD_PRIVATE: {
-					advance();
-					if (t->extra == KWORD_FUNC || isCC((enum KeywordType)t->extra))
-						parseFunc(STORAGE_PRIVATE);
-					else
-						unexpected();
-				} break;
+				case KWORD_PRIVATE:
+				case KWORD_PUBLIC:
+					parseFuncFull();
+					break;
 
 				case KWORD_IMPORT: {
 					advance();
@@ -152,6 +145,30 @@ namespace tea {
 				default:
 					unexpected();
 				} break;
+			} break;
+
+			case TOKEN_ATTR: {
+				advance();
+				std::vector<enum Attribute> attrs;
+				while (true) {
+					const TEA_TOKENVAL& attrName = expect(TOKEN_IDENTF);
+					auto it = name2attr.find(attrName);
+					if (it == name2attr.end())
+						TEA_PANIC("'%s' is not a valid attribute. line %d, column %d", attrName.c_str(), t->line, t->column);
+
+					attrs.push_back(it->second);
+
+					if ((t + 1)->type == TOKEN_COMMA) {
+						expect(TOKEN_ATTR);
+						continue;
+					} else
+						break;
+				}
+
+				parseFuncFull();
+				((FunctionNode*)tree->back().get())->attrs = attrs;
+			} break;
+
 			default:
 				unexpected();
 			}
@@ -404,6 +421,26 @@ namespace tea {
 				unexpected();
 			}
 		}
+	}
+
+	void Parser::parseFuncFull() {
+		if (t->type != TOKEN_KWORD)
+			unexpected();
+
+		enum StorageType storage;
+		if (t->extra == KWORD_PUBLIC)
+			storage = STORAGE_PUBLIC;
+		else if (t->extra == KWORD_PRIVATE)
+			storage = STORAGE_PRIVATE;
+		else {
+			unexpected();
+			__assume(0);
+		}
+		advance();
+		if (t->extra == KWORD_FUNC || isCC((enum KeywordType)t->extra))
+			parseFunc(storage);
+		else
+			unexpected();
 	}
 
 	void Parser::parseFunc(enum StorageType storage) {

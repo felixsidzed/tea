@@ -152,9 +152,8 @@ namespace tea {
 			}
 
 			delete[] calleeArgTypes;
-
 			return {
-				LLVMGetReturnType(LLVMGlobalGetValueType(callee)),
+				LLVMGetReturnType(ftype),
 				LLVMBuildCall2(block, LLVMGlobalGetValueType(callee), callee, args.data(), (uint32_t)args.size(), "")
 			};
 		}

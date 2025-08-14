@@ -41,6 +41,17 @@ namespace tea {
 		for (const auto& arg : node->args)
 			LLVMSetValueName(LLVMGetParam(func, i++), arg.second.c_str());
 
+		for (const auto& attr : node->attrs) {
+			if (attr == ATTR_INLINE)
+				// fucking hate llvm c api broooo
+				// i cant even use alwaysinline because for it to actually be triggered it needs to be ran thru an optimizer
+				// and i cant use an optimizer because llvm c api is dogshit and doesnt have proper support for it
+				// llvm please reply to my issue on github https://github.com/llvm/llvm-project/issues/153617
+				LLVMSetLinkage(func, LLVMLinkOnceAnyLinkage);
+			else
+				LLVMAddAttributeAtIndex(func, LLVMAttributeFunctionIndex, LLVMCreateEnumAttribute(LLVMGetGlobalContext(), attr2llvm[attr], 0));
+		}
+
 		emitBlock(node->body, "entry", func);
 	}
 }

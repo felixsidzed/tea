@@ -14,6 +14,7 @@ namespace tea {
 	namespace fs = std::filesystem;
 
 	extern LLVMTypeRef type2llvm[TYPE__COUNT];
+	extern LLVMAttributeKind attr2llvm[ATTR__COUNT];
 
 	class CodeGen {
 	public:
@@ -43,6 +44,8 @@ namespace tea {
 		std::vector<struct Local> locals;
 		std::unordered_map<std::string, ImportedModule> modules;
 		std::vector<std::pair<enum Type, std::string>>* curArgs = nullptr;
+
+		std::unordered_map<LLVMValueRef, FunctionNode*> llvmFunc2Node;
 
 		inline void logUnformatted(const std::string& message) {
 			if (!verbose)

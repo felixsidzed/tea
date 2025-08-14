@@ -120,6 +120,10 @@ namespace tea {
 					pushtok(TOKEN_DIV);
 					break;
 
+				case '@':
+					pushtok(TOKEN_ATTR);
+					break;
+
 				case '=':
 					if (*(pos + 1) == '=') {
 						pushtokex(TOKEN_EQ, pos, 2, 0);
