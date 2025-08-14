@@ -10,8 +10,6 @@
 
 #include <llvm-c/Core.h>
 
-#define tnode(node) NODE_##node
-
 namespace tea {
 	namespace fs = std::filesystem;
 

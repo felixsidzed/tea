@@ -5,14 +5,14 @@
 
 #define pushnode(T,...) { \
 	auto node = std::make_unique<T>(__VA_ARGS__); \
-	node->type = NODE_##T; \
+	node->type = tnode(T); \
 	node->line, node->column = t->line, t->column; \
 	tree->push_back(std::move(node)); \
 }
 
 #define pushtree(T,...) { \
 	auto node = std::make_unique<T>(__VA_ARGS__); \
-	node->type = NODE_##T; \
+	node->type = tnode(T); \
 	node->line, node->column = t->line, t->column; \
 	auto body = &node->body; \
 	treeHistory.push_back(tree); \
@@ -304,10 +304,20 @@ namespace tea {
 		return parseRhs(0, std::move(lhs));
 	}
 
-	void Parser::parseBlock() {
+	void Parser::parseBlock(const std::vector<enum KeywordType>& extraTerminators) {
 		while (t->type != TOKEN_EOF) {
 			switch (t->type) {
-			case TOKEN_KWORD:
+			case TOKEN_KWORD: {
+				for (const auto& term : extraTerminators) {
+					if (t->extra == term) {
+						if (treeHistory.empty())
+							unexpected();
+						advance();
+						poptree();
+						return;
+					}
+				}
+
 				switch (t->extra) {
 				case KWORD_END: {
 					if (treeHistory.empty())
@@ -341,6 +351,10 @@ namespace tea {
 				}
 
 				case KWORD_IF: {
+					uint32_t line, column;
+					line = t->line;
+					column = t->column;
+
 					advance();
 					expect(TOKEN_LPAR);
 					auto pred = parseExpression();
@@ -350,16 +364,35 @@ namespace tea {
 						unexpected();
 					advance();
 
-					// TODO: else, elseif
+					auto ifNode = std::make_unique<IfNode>(std::move(pred));
+					ifNode->type = tnode(IfNode);
+					ifNode->line, ifNode->column = line, column;
+					treeHistory.push_back(tree);
+					tree = &ifNode->body;
 
-					pushtree(IfNode, std::move(pred));
-					parseBlock();
+					parseBlock({ KWORD_ELSE });
+
+					std::unique_ptr<ElseNode> elseNode = nullptr;
+					if ((t - 1)->type == TOKEN_KWORD && (t - 1)->extra == KWORD_ELSE) {
+						auto elseNode = std::make_unique<ElseNode>();
+						elseNode->type = tnode(ElseNode);
+						elseNode->line, elseNode->column = t->line, t->column;
+						treeHistory.push_back(tree);
+						tree = &elseNode->body;
+
+						parseBlock();
+
+						ifNode->else_ = std::move(elseNode);
+					}
+
+					tree->push_back(std::move(ifNode)); \
 				} break;
+
 
 				default:
 					goto unexpected;
 				}
-				break;
+			} break;
 
 			case TOKEN_IDENTF: {
 				tree->push_back(parseExpression());

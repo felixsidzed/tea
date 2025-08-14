@@ -41,27 +41,40 @@ namespace tea {
 					LLVMTypeKind kind = LLVMGetTypeKind(type);
 					switch (kind) {
 					case LLVMIntegerTypeKind:
-						pred = LLVMBuildICmp(block, LLVMIntNE, pred, LLVMConstInt(type, 0, 0), "cond");
+						pred = LLVMBuildICmp(block, LLVMIntNE, pred, LLVMConstInt(type, 0, 0), "");
 						break;
 					case LLVMFloatTypeKind:
 					case LLVMDoubleTypeKind:
-						pred = LLVMBuildFCmp(block, LLVMRealONE, pred, LLVMConstReal(type, 0.0), "cond");
+						pred = LLVMBuildFCmp(block, LLVMRealONE, pred, LLVMConstReal(type, 0.0), "");
 						break;
 					default:
-						pred = LLVMBuildICmp(block, LLVMIntNE, pred, LLVMConstNull(type), "cond");
+						pred = LLVMBuildICmp(block, LLVMIntNE, pred, LLVMConstNull(type), "");
 						break;
 					}
 				}
 
 				LLVMBasicBlockRef thenBlock = LLVMAppendBasicBlock(func, "then");
+				LLVMBasicBlockRef elseBlock = nullptr;
+				if (ifNode->else_)
+					elseBlock = LLVMAppendBasicBlock(func, "else");
 				LLVMBasicBlockRef mergeBlock = LLVMAppendBasicBlock(func, "merge");
 				
-				LLVMBuildCondBr(block, pred, thenBlock, mergeBlock);
+				if (ifNode->else_) {
+					LLVMBuildCondBr(block, pred, thenBlock, elseBlock);
+				} else
+					LLVMBuildCondBr(block, pred, thenBlock, mergeBlock);
 
 				LLVMPositionBuilderAtEnd(block, thenBlock);
 				emitBlock(ifNode->body, nullptr, func);
 				if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
 					LLVMBuildBr(block, mergeBlock);
+
+				if (ifNode->else_) {
+					LLVMPositionBuilderAtEnd(block, elseBlock);
+					emitBlock(ifNode->else_->body, nullptr, func);
+					if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
+						LLVMBuildBr(block, mergeBlock);
+				}
 
 				LLVMPositionBuilderAtEnd(block, mergeBlock);
 				break;
@@ -73,7 +86,6 @@ namespace tea {
 		}
 
 		LLVMDisposeBuilder(block);
-
 		locals = oldLocals;
 	}
 }
