@@ -1,6 +1,10 @@
-import __cdecl func puts(string message) -> void;
+private func isNegative(int a) -> bool
+	return a < 0;
+end
 
 public func main() -> int
-	puts("Hello, World!\n");
+	if (isNegative(-1)) do
+		return 1;
+	end
 	return 0;
 end

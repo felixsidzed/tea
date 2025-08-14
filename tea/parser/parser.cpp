@@ -6,13 +6,14 @@
 #define pushnode(T,...) { \
 	auto node = std::make_unique<T>(__VA_ARGS__); \
 	node->type = NODE_##T; \
-	node->line, node->column = t->line, t->column;\
+	node->line, node->column = t->line, t->column; \
 	tree->push_back(std::move(node)); \
 }
 
-#define pushtree(t,...) { \
-	auto node = std::make_unique<t>(__VA_ARGS__); \
-	node->type = NODE_##t; \
+#define pushtree(T,...) { \
+	auto node = std::make_unique<T>(__VA_ARGS__); \
+	node->type = NODE_##T; \
+	node->line, node->column = t->line, t->column; \
 	auto body = &node->body; \
 	treeHistory.push_back(tree); \
 	tree->push_back(std::move(node)); \
@@ -163,21 +164,25 @@ namespace tea {
 		switch (t->type) {
 		case TOKEN_INT: {
 			auto node = std::make_unique<ExpressionNode>(EXPR_INT, t->value);
+			node->line, node->column = t->line, t->column;
 			advance();
 			return node;
 		}
 		case TOKEN_FLOAT: {
 			auto node = std::make_unique<ExpressionNode>(EXPR_FLOAT, t->value);
+			node->line, node->column = t->line, t->column;
 			advance();
 			return node;
 		}
 		case TOKEN_DOUBLE: {
 			auto node = std::make_unique<ExpressionNode>(EXPR_DOUBLE, t->value);
+			node->line, node->column = t->line, t->column;
 			advance();
 			return node;
 		}
 		case TOKEN_STRING: {
 			auto node = std::make_unique<ExpressionNode>(EXPR_STRING, t->value);
+			node->line, node->column = t->line, t->column;
 			advance();
 			return node;
 		}
@@ -185,7 +190,6 @@ namespace tea {
 			std::vector<std::string> scope;
 			TEA_TOKENVAL value = t->value;
 			advance();
-
 			while (t->type == TOKEN_SCOPE) {
 				advance();
 				if (t->type != TOKEN_IDENTF) unexpected();
@@ -193,7 +197,6 @@ namespace tea {
 				value = t->value;
 				advance();
 			}
-
 			if (t->type == TOKEN_LPAR) {
 				advance();
 				std::vector<std::unique_ptr<ExpressionNode>> args;
@@ -208,15 +211,27 @@ namespace tea {
 					}
 				}
 				expect(TOKEN_RPAR);
-				return std::make_unique<CallNode>(scope, value, std::move(args));
-			} else
-				return std::make_unique<ExpressionNode>(EXPR_IDENTF, value);
+				auto node = std::make_unique<CallNode>(scope, value, std::move(args));
+				node->line, node->column = t->line, t->column;
+				return node;
+			} else {
+				auto node = std::make_unique<ExpressionNode>(EXPR_IDENTF, value);
+				node->line, node->column = t->line, t->column;
+				return node;
+			}
 		}
 		case TOKEN_LPAR: {
 			advance();
 			auto expr = parseExpression();
 			expect(TOKEN_RPAR);
 			return expr;
+		}
+		case TOKEN_NOT: {
+			advance();
+			auto operand = parsePrimary();
+			auto node = std::make_unique<ExpressionNode>(EXPR_NOT, "", std::move(operand));
+			node->line, node->column = t->line, t->column;
+			return node;
 		}
 		default:
 			unexpected();
@@ -226,12 +241,23 @@ namespace tea {
 
 	static inline int getPrecedence(enum TokenType type) {
 		switch (type) {
+		case TOKEN_OR:
+			return 1;
+		case TOKEN_AND:
+			return 2;
+		case TOKEN_EQ:
+		case TOKEN_NEQ:
+		case TOKEN_LT:
+		case TOKEN_GT:
+		case TOKEN_LE:
+		case TOKEN_GE:
+			return 3;
 		case TOKEN_ADD:
 		case TOKEN_SUB:
-			return 1;
+			return 4;
 		case TOKEN_MUL:
 		case TOKEN_DIV:
-			return 2;
+			return 5;
 		default:
 			return -1;
 		}
@@ -242,26 +268,34 @@ namespace tea {
 		{TOKEN_SUB, EXPR_SUB},
 		{TOKEN_DIV, EXPR_DIV},
 		{TOKEN_MUL, EXPR_MUL},
+
+		{TOKEN_EQ, EXPR_EQ},
+		{TOKEN_NEQ, EXPR_NEQ},
+		{TOKEN_LT,  EXPR_LT},
+		{TOKEN_GT,  EXPR_GT},
+		{TOKEN_LE,  EXPR_LE},
+		{TOKEN_GE,  EXPR_GE},
+
+		{TOKEN_NOT, EXPR_NOT},
+		{TOKEN_AND, EXPR_AND},
+		{TOKEN_OR, EXPR_OR},
+
 		{TOKEN_IDENTF, EXPR_IDENTF},
 	};
 
 	std::unique_ptr<ExpressionNode> Parser::parseRhs(int exprPrec, std::unique_ptr<ExpressionNode> lhs) {
 		while (true) {
 			int tokPrec = getPrecedence(t->type);
-
 			if (tokPrec < exprPrec)
 				return lhs;
-
 			enum TokenType tt = t->type;
 			advance();
-
 			auto rhs = parsePrimary();
-
 			int nextPrec = getPrecedence(t->type);
 			if (tokPrec < nextPrec)
 				rhs = parseRhs(tokPrec + 1, std::move(rhs));
-
 			lhs = std::make_unique<ExpressionNode>(tt2et.at(tt), "", std::move(lhs), std::move(rhs));
+			lhs->line = (t - 1)->line; lhs->column = (t - 1)->column;
 		}
 	}
 
@@ -297,7 +331,7 @@ namespace tea {
 
 					std::unique_ptr<ExpressionNode> value = nullptr;
 					if (t->type != TOKEN_SEMI) {
-						expect(TOKEN_EQ);
+						expect(TOKEN_ASSIGN);
 						value = parseExpression();
 					}
 					expect(TOKEN_SEMI);
@@ -305,6 +339,22 @@ namespace tea {
 					pushnode(VariableNode, name, dataType, std::move(value));
 					break;
 				}
+
+				case KWORD_IF: {
+					advance();
+					expect(TOKEN_LPAR);
+					auto pred = parseExpression();
+					expect(TOKEN_RPAR);
+
+					if (t->type != TOKEN_KWORD || t->extra != KWORD_DO)
+						unexpected();
+					advance();
+
+					// TODO: else, elseif
+
+					pushtree(IfNode, std::move(pred));
+					parseBlock();
+				} break;
 
 				default:
 					goto unexpected;

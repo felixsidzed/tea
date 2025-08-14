@@ -8,6 +8,8 @@
 #include "parser/parser.h"
 
 namespace tea {
+	extern LLVMCallConv cc2llvm[CC__COUNT];
+
 	void CodeGen::emitInclude(UsingNode* node) {
 		std::ifstream file(importLookup / (node->name + ".tea"));
 		if (!file.is_open()) {
@@ -46,10 +48,11 @@ namespace tea {
 		for (const auto& arg : node->args)
 			argTypes.push_back(type2llvm[arg.first]);
 
-		LLVMAddFunction(
+		LLVMValueRef imported = LLVMAddFunction(
 			module,
 			node->name.c_str(),
 			LLVMFunctionType(type2llvm[node->returnType], argTypes.data(), (uint32_t)node->args.size(), 0)
 		);
+		LLVMSetFunctionCallConv(imported, cc2llvm[node->cc]);
 	}
 }

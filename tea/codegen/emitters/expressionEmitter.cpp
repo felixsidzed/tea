@@ -191,6 +191,104 @@ namespace tea {
 			break;
 		}
 
+		case EXPR_NOT: {
+			auto [exprType, expr] = emitExpression(node->left);
+
+			if (LLVMGetTypeKind(exprType) != LLVMIntegerTypeKind)
+				TEA_PANIC("type mismatch in '!' operation. line %d, column %d", node->line, node->column);
+
+			LLVMValueRef notVal = LLVMBuildNot(block, expr, "");
+			return { type2llvm[TYPE_BOOL], notVal };
+		} break;
+
+		case EXPR_AND: {
+			auto [lhsType, lhs] = emitExpression(node->left);
+			auto [rhsType, rhs] = emitExpression(node->right);
+
+			return { type2llvm[TYPE_BOOL], LLVMBuildAnd(block, lhs, rhs, "") };
+		} break;
+
+		case EXPR_OR: {
+			auto [lhsType, lhs] = emitExpression(node->left);
+			auto [rhsType, rhs] = emitExpression(node->right);
+
+			return { type2llvm[TYPE_BOOL], LLVMBuildOr(block, lhs, rhs, "") };
+		} break;
+
+		case EXPR_EQ: {
+			auto [lhsType, lhs] = emitExpression(node->left);
+			auto [rhsType, rhs] = emitExpression(node->right);
+
+			LLVMValueRef cmp = NULL;
+
+			if (LLVMGetTypeKind(lhsType) == LLVMIntegerTypeKind && LLVMGetTypeKind(rhsType) == LLVMIntegerTypeKind)
+				cmp = LLVMBuildICmp(block, LLVMIntEQ, lhs, rhs, "");
+			else if (
+				(LLVMGetTypeKind(lhsType) == LLVMFloatTypeKind || LLVMGetTypeKind(lhsType) == LLVMDoubleTypeKind) &&
+				(LLVMGetTypeKind(rhsType) == LLVMFloatTypeKind || LLVMGetTypeKind(rhsType) == LLVMDoubleTypeKind)
+			)
+				cmp = LLVMBuildFCmp(block, LLVMRealUEQ, lhs, rhs, "");
+			else
+				TEA_PANIC("type mismatch in '==' operation. line %d, column %d", node->line, node->column);
+
+			return { type2llvm[TYPE_BOOL], cmp};
+		} break;
+
+		case EXPR_NEQ: {
+			auto [lhsType, lhs] = emitExpression(node->left);
+			auto [rhsType, rhs] = emitExpression(node->right);
+
+			if (LLVMGetTypeKind(lhsType) != LLVMGetTypeKind(rhsType))
+				TEA_PANIC("type mismatch in '!=' operation. line %d, column %d", node->line, node->column);
+
+			LLVMValueRef cmp = LLVMBuildICmp(block, LLVMIntNE, lhs, rhs, "");
+			return { type2llvm[TYPE_BOOL], cmp };
+		} break;
+
+		case EXPR_LT: {
+			auto [lhsType, lhs] = emitExpression(node->left);
+			auto [rhsType, rhs] = emitExpression(node->right);
+
+			if (LLVMGetTypeKind(lhsType) != LLVMGetTypeKind(rhsType))
+				TEA_PANIC("type mismatch in '<' operation. line %d, column %d", node->line, node->column);
+
+			LLVMValueRef cmp = LLVMBuildICmp(block, LLVMIntSLT, lhs, rhs, "");
+			return { type2llvm[TYPE_BOOL], cmp };
+		} break;
+
+		case EXPR_GT: {
+			auto [lhsType, lhs] = emitExpression(node->left);
+			auto [rhsType, rhs] = emitExpression(node->right);
+
+			if (LLVMGetTypeKind(lhsType) != LLVMGetTypeKind(rhsType))
+				TEA_PANIC("type mismatch in '>' operation. line %d, column %d", node->line, node->column);
+
+			LLVMValueRef cmp = LLVMBuildICmp(block, LLVMIntSGT, lhs, rhs, "");
+			return { type2llvm[TYPE_BOOL], cmp };
+		} break;
+
+		case EXPR_LE: {
+			auto [lhsType, lhs] = emitExpression(node->left);
+			auto [rhsType, rhs] = emitExpression(node->right);
+
+			if (LLVMGetTypeKind(lhsType) != LLVMGetTypeKind(rhsType))
+				TEA_PANIC("type mismatch in '<=' operation. line %d, column %d", node->line, node->column);
+
+			LLVMValueRef cmp = LLVMBuildICmp(block, LLVMIntSLE, lhs, rhs, "");
+			return { type2llvm[TYPE_BOOL], cmp };
+		} break;
+
+		case EXPR_GE: {
+			auto [lhsType, lhs] = emitExpression(node->left);
+			auto [rhsType, rhs] = emitExpression(node->right);
+
+			if (LLVMGetTypeKind(lhsType) != LLVMGetTypeKind(rhsType))
+				TEA_PANIC("type mismatch in '>=' operation. line %d, column %d", node->line, node->column);
+
+			LLVMValueRef cmp = LLVMBuildICmp(block, LLVMIntSGE, lhs, rhs, "");
+			return { type2llvm[TYPE_BOOL], cmp };
+		} break;
+
 		default:
 		invalid:
 			TEA_PANIC("invalid expression. line %d, column %d", node->line, node->column);
