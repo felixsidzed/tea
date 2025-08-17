@@ -13,7 +13,7 @@
 #define pushtree(T,...) { \
 	auto node = std::make_unique<T>(__VA_ARGS__); \
 	node->type = tnode(T); \
-	node->line, node->column = t->line, t->column; \
+	node->line = t->line; node->column = t->column; \
 	auto body = &node->body; \
 	treeHistory.push_back(tree); \
 	tree->push_back(std::move(node)); \

@@ -75,13 +75,13 @@ namespace tea {
 					LLVMBuildCondBr(block, pred, thenBlock, mergeBlock);
 
 				LLVMPositionBuilderAtEnd(block, thenBlock);
-				emitBlock(ifNode->body, nullptr, func);
+				emitBlock(ifNode->body, nullptr, func, returnInto);
 				if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
 					LLVMBuildBr(block, mergeBlock);
 
 				if (ifNode->else_) {
 					LLVMPositionBuilderAtEnd(block, elseBlock);
-					emitBlock(ifNode->else_->body, nullptr, func);
+					emitBlock(ifNode->else_->body, nullptr, func, returnInto);
 					if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
 						LLVMBuildBr(block, mergeBlock);
 				}
