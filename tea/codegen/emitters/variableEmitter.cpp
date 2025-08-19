@@ -13,7 +13,7 @@ namespace tea {
 			auto [got, value] = emitExpression(node->value);
 			if (got != expected) {
 				TEA_PANIC("variable value type (%s) is incompatible with variable type (%s). line %d, column %d",
-					llvm2readable(expected), llvm2readable(got, value), node->line, node->column);
+					llvm2readable(expected), llvm2readable(got), node->line, node->column);
 			}
 			LLVMBuildStore(block, value, insn);
 		}

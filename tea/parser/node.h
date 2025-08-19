@@ -35,7 +35,8 @@ namespace tea {
 		tnode(FunctionImportNode),
 		tnode(IfNode),
 		tnode(ElseNode),
-		tnode(ElseIfNode)
+		tnode(ElseIfNode),
+		tnode(GlobalVariableNode)
 	};
 
 	enum StorageType : uint8_t {
@@ -186,5 +187,15 @@ namespace tea {
 		std::unique_ptr<ElseIfNode> elseIf;
 
 		IfNode(std::unique_ptr<ExpressionNode> pred) : pred(std::move(pred)) {};
+	};
+
+	struct GlobalVariableNode : Node {
+		enum StorageType storage;
+		std::string name;
+		enum Type dataType;
+		std::unique_ptr<ExpressionNode> value;
+
+		GlobalVariableNode(enum StorageType storage, const std::string& name, enum Type dataType, std::unique_ptr<ExpressionNode> value) :
+			storage(storage), name(name), dataType(dataType), value(std::move(value)) {};
 	};
 }
