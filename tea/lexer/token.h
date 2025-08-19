@@ -47,7 +47,7 @@ namespace tea {
 		/* ORDER KWORD */
 
 		KWORD_USING, KWORD_IMPORT,
-		KWORD_MACRO,
+		//KWORD_MACRO,
 		KWORD_PUBLIC, KWORD_PRIVATE,
 		KWORD_IF, /*KWORD_ELSEIF,*/ KWORD_ELSE, KWORD_DO, /*KWORD_WHILE, KWORD_FOR, KWORD_BREAK, KWORD_CONTINUE,*/
 		KWORD_FUNC, KWORD_RETURN,
@@ -59,7 +59,7 @@ namespace tea {
 
 	struct Token {
 		enum TokenType type;
-		const TEA_TOKENVAL value;
+		const std::string value;
 		int extra;
 
 		uint32_t length;
