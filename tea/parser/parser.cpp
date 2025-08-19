@@ -6,7 +6,7 @@
 #define pushnode(T,...) { \
 	auto node = std::make_unique<T>(__VA_ARGS__); \
 	node->type = tnode(T); \
-	node->line, node->column = t->line, t->column; \
+	node->line = t->line; node->column = t->column; \
 	tree->push_back(std::move(node)); \
 }
 
@@ -181,25 +181,25 @@ namespace tea {
 		switch (t->type) {
 		case TOKEN_INT: {
 			auto node = std::make_unique<ExpressionNode>(EXPR_INT, t->value);
-			node->line, node->column = t->line, t->column;
+			node->line = t->line; node->column = t->column;
 			advance();
 			return node;
 		}
 		case TOKEN_FLOAT: {
 			auto node = std::make_unique<ExpressionNode>(EXPR_FLOAT, t->value);
-			node->line, node->column = t->line, t->column;
+			node->line = t->line; node->column = t->column;
 			advance();
 			return node;
 		}
 		case TOKEN_DOUBLE: {
 			auto node = std::make_unique<ExpressionNode>(EXPR_DOUBLE, t->value);
-			node->line, node->column = t->line, t->column;
+			node->line = t->line; node->column = t->column;
 			advance();
 			return node;
 		}
 		case TOKEN_STRING: {
 			auto node = std::make_unique<ExpressionNode>(EXPR_STRING, t->value);
-			node->line, node->column = t->line, t->column;
+			node->line = t->line; node->column = t->column;
 			advance();
 			return node;
 		}
@@ -229,11 +229,11 @@ namespace tea {
 				}
 				expect(TOKEN_RPAR);
 				auto node = std::make_unique<CallNode>(scope, value, std::move(args));
-				node->line, node->column = t->line, t->column;
+				node->line = t->line; node->column = t->column;
 				return node;
 			} else {
 				auto node = std::make_unique<ExpressionNode>(EXPR_IDENTF, value);
-				node->line, node->column = t->line, t->column;
+				node->line = t->line; node->column = t->column;
 				return node;
 			}
 		}
@@ -247,7 +247,7 @@ namespace tea {
 			advance();
 			auto operand = parsePrimary();
 			auto node = std::make_unique<ExpressionNode>(EXPR_NOT, "", std::move(operand));
-			node->line, node->column = t->line, t->column;
+			node->line = t->line; node->column = t->column;
 			return node;
 		}
 		default:
@@ -368,9 +368,8 @@ namespace tea {
 				}
 
 				case KWORD_IF: {
-					uint32_t line, column;
-					line = t->line;
-					column = t->column;
+					uint32_t line = t->line;
+					uint32_t column = t->column;
 
 					advance();
 					expect(TOKEN_LPAR);
@@ -383,17 +382,49 @@ namespace tea {
 
 					auto ifNode = std::make_unique<IfNode>(std::move(pred));
 					ifNode->type = tnode(IfNode);
-					ifNode->line, ifNode->column = line, column;
+					ifNode->line = line;
+					ifNode->column = column;
+
 					treeHistory.push_back(tree);
 					tree = &ifNode->body;
 
-					parseBlock({ KWORD_ELSE });
+					parseBlock({ KWORD_ELSE, KWORD_ELSEIF });
 
-					std::unique_ptr<ElseNode> elseNode = nullptr;
+					ElseIfNode* lastElseIf = nullptr;
+					while ((t - 1)->type == TOKEN_KWORD && (t - 1)->extra == KWORD_ELSEIF) {
+						expect(TOKEN_LPAR);
+						auto elseIfPred = parseExpression();
+						expect(TOKEN_RPAR);
+
+						if (t->type != TOKEN_KWORD || t->extra != KWORD_DO)
+							unexpected();
+						advance();
+
+						auto elseIfNode = std::make_unique<ElseIfNode>(std::move(elseIfPred));
+						elseIfNode->type = tnode(ElseIfNode);
+						elseIfNode->line = t->line;
+						elseIfNode->column = t->column;
+
+						treeHistory.push_back(tree);
+						tree = &elseIfNode->body;
+
+						parseBlock({ KWORD_ELSE, KWORD_ELSEIF });
+
+						if (!lastElseIf) {
+							ifNode->elseIf = std::move(elseIfNode);
+							lastElseIf = ifNode->elseIf.get();
+						} else {
+							lastElseIf->next = std::move(elseIfNode);
+							lastElseIf = lastElseIf->next.get();
+						}
+					}
+
 					if ((t - 1)->type == TOKEN_KWORD && (t - 1)->extra == KWORD_ELSE) {
 						auto elseNode = std::make_unique<ElseNode>();
 						elseNode->type = tnode(ElseNode);
-						elseNode->line, elseNode->column = t->line, t->column;
+						elseNode->line = t->line;
+						elseNode->column = t->column;
+
 						treeHistory.push_back(tree);
 						tree = &elseNode->body;
 
@@ -402,9 +433,8 @@ namespace tea {
 						ifNode->else_ = std::move(elseNode);
 					}
 
-					tree->push_back(std::move(ifNode)); \
+					tree->push_back(std::move(ifNode));
 				} break;
-
 
 				default:
 					goto unexpected;

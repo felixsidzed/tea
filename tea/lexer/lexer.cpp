@@ -12,7 +12,7 @@ static const char* keywords[] = {
 	"using", "import",
 	//"macro",
 	"public", "private",
-	"if", /*"elseif",*/ "else", "do", /*"while", "for", "break", "continue", */
+	"if", "else", "elseif", "do", /*"while", "for", "break", "continue", */
 	"func", "return",
 	"end",
 	"var",

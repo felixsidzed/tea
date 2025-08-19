@@ -1,19 +1,13 @@
 import __cdecl func puts(string s) -> int;
 
-@inline
-private func compute(int a, int b) -> bool
-	if ((a + b) * a / b > 0) then
-		return true;
-	else
-		return false;
-	end
-end
-
 public func main() -> int
-	if (compute(4, 2)) do
-		puts("true\n");
+	var x: int = -1;
+	if (x > 0) do
+		puts("positive\n");
+	elseif (x < 0) do
+		puts("negative\n");
 	else
-		puts("false\n");
+		puts("zero\n");
 	end
 	return 0;
 end

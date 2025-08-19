@@ -26,15 +26,16 @@ namespace tea {
 	};
 
 	enum NodeType : uint8_t {
-		NODE_UsingNode,
-		NODE_FunctionNode,
-		NODE_ExpressionNode,
-		NODE_ReturnNode,
-		NODE_CallNode,
-		NODE_VariableNode,
-		NODE_FunctionImportNode,
-		NODE_IfNode,
-		NODE_ElseNode
+		tnode(UsingNode),
+		tnode(FunctionNode),
+		tnode(ExpressionNode),
+		tnode(ReturnNode),
+		tnode(CallNode),
+		tnode(VariableNode),
+		tnode(FunctionImportNode),
+		tnode(IfNode),
+		tnode(ElseNode),
+		tnode(ElseIfNode)
 	};
 
 	enum StorageType : uint8_t {
@@ -90,8 +91,6 @@ namespace tea {
 		uint32_t column = 0;
 
 		Node() = default;
-		virtual ~Node() = default;
-
 		Node(enum NodeType type, uint32_t line = 0, uint32_t column = 0) : type(type), line(line), column(column) {};
 	};
 
@@ -164,6 +163,15 @@ namespace tea {
 		};
 	};
 
+	struct ElseIfNode : Node {
+		Tree body;
+
+		std::unique_ptr<struct ElseIfNode> next;
+		std::unique_ptr<ExpressionNode> pred;
+
+		ElseIfNode(std::unique_ptr<ExpressionNode> pred) : pred(std::move(pred)) {};
+	};
+
 	struct ElseNode : Node {
 		Tree body;
 
@@ -175,7 +183,7 @@ namespace tea {
 
 		std::unique_ptr<ExpressionNode> pred;
 		std::unique_ptr<ElseNode> else_;
-		// TODO: elseif
+		std::unique_ptr<ElseIfNode> elseIf;
 
 		IfNode(std::unique_ptr<ExpressionNode> pred) : pred(std::move(pred)) {};
 	};

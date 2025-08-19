@@ -43,52 +43,105 @@ namespace tea {
 				emitExpression((const std::unique_ptr<ExpressionNode>&)node);
 				break;
 
-			case tnode(IfNode): {
-				IfNode* ifNode = (IfNode*)node.get();
-				auto [type, pred] = emitExpression(ifNode->pred);
+            case tnode(IfNode): {
+                IfNode* ifNode = (IfNode*)node.get();
+                auto [type, pred] = emitExpression(ifNode->pred);
 
-				if (type != LLVMInt1Type()) {
-					LLVMTypeKind kind = LLVMGetTypeKind(type);
-					switch (kind) {
-					case LLVMIntegerTypeKind:
-						pred = LLVMBuildICmp(block, LLVMIntNE, pred, LLVMConstInt(type, 0, 0), "");
-						break;
-					case LLVMFloatTypeKind:
-					case LLVMDoubleTypeKind:
-						pred = LLVMBuildFCmp(block, LLVMRealONE, pred, LLVMConstReal(type, 0.0), "");
-						break;
-					default:
-						pred = LLVMBuildICmp(block, LLVMIntNE, pred, LLVMConstNull(type), "");
-						break;
-					}
-				}
+                if (type != LLVMInt1Type()) {
+                    LLVMTypeKind kind = LLVMGetTypeKind(type);
+                    switch (kind) {
+                    case LLVMIntegerTypeKind:
+                        pred = LLVMBuildICmp(block, LLVMIntNE, pred, LLVMConstInt(type, 0, 0), "");
+                        break;
+                    case LLVMFloatTypeKind:
+                    case LLVMDoubleTypeKind:
+                        pred = LLVMBuildFCmp(block, LLVMRealONE, pred, LLVMConstReal(type, 0.0), "");
+                        break;
+                    default:
+                        pred = LLVMBuildICmp(block, LLVMIntNE, pred, LLVMConstNull(type), "");
+                        break;
+                    }
+                }
 
-				LLVMBasicBlockRef thenBlock = LLVMAppendBasicBlock(func, "then");
-				LLVMBasicBlockRef elseBlock = nullptr;
-				if (ifNode->else_)
-					elseBlock = LLVMAppendBasicBlock(func, "else");
-				LLVMBasicBlockRef mergeBlock = LLVMAppendBasicBlock(func, "merge");
-				
-				if (ifNode->else_) {
-					LLVMBuildCondBr(block, pred, thenBlock, elseBlock);
-				} else
-					LLVMBuildCondBr(block, pred, thenBlock, mergeBlock);
+                LLVMBasicBlockRef thenBlock = LLVMAppendBasicBlock(func, "then");
+                LLVMBasicBlockRef elseIfBlock = nullptr;
+                if (ifNode->elseIf)
+                    elseIfBlock = LLVMAppendBasicBlock(func, "elseif");
 
-				LLVMPositionBuilderAtEnd(block, thenBlock);
-				emitBlock(ifNode->body, nullptr, func, returnInto);
-				if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
-					LLVMBuildBr(block, mergeBlock);
+                // keep block order
+                int elseIfCount = 0;
+                LLVMBasicBlockRef* elseIfThenBlocks = nullptr;
+                if (ifNode->elseIf) {
+                    elseIfCount = 1;
+                    ElseIfNode* elseIf = ifNode->elseIf.get();
+                    while ((elseIf = elseIf->next.get()))
+                        elseIfCount++;
+                    elseIfThenBlocks = new LLVMBasicBlockRef[elseIfCount];
+                    for (int i = 0; i < elseIfCount; i++) {
+                        elseIfThenBlocks[i] = LLVMAppendBasicBlock(func, "then");
+                    }
+                }
 
-				if (ifNode->else_) {
-					LLVMPositionBuilderAtEnd(block, elseBlock);
-					emitBlock(ifNode->else_->body, nullptr, func, returnInto);
-					if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
-						LLVMBuildBr(block, mergeBlock);
-				}
+                LLVMBasicBlockRef elseBlock = ifNode->else_ ? LLVMAppendBasicBlock(func, "else") : nullptr;
+                LLVMBasicBlockRef mergeBlock = LLVMAppendBasicBlock(func, "merge");
 
-				LLVMPositionBuilderAtEnd(block, mergeBlock);
-				break;
-			}
+                LLVMBuildCondBr(block, pred, thenBlock, ifNode->elseIf ? elseIfBlock : elseBlock);
+
+                LLVMPositionBuilderAtEnd(block, thenBlock);
+                emitBlock(ifNode->body, nullptr, func, returnInto);
+                if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
+                    LLVMBuildBr(block, mergeBlock);
+
+                ElseIfNode* elseIf = ifNode->elseIf.get();
+                LLVMBasicBlockRef curElseIfBlock = elseIfBlock;
+                for (int i = 0; i < elseIfCount; i++) {
+                    LLVMBasicBlockRef nextBlock = elseIf->next
+                        ? LLVMAppendBasicBlock(func, "elseif")
+                        : (ifNode->else_ ? elseBlock : mergeBlock);
+
+                    LLVMPositionBuilderAtEnd(block, curElseIfBlock);
+
+                    auto [elseIfType, elseIfPred] = emitExpression(elseIf->pred);
+                    if (elseIfType != LLVMInt1Type()) {
+                        LLVMTypeKind kind = LLVMGetTypeKind(elseIfType);
+                        switch (kind) {
+                        case LLVMIntegerTypeKind:
+                            elseIfPred = LLVMBuildICmp(block, LLVMIntNE, elseIfPred, LLVMConstInt(elseIfType, 0, 0), "");
+                            break;
+                        case LLVMFloatTypeKind:
+                        case LLVMDoubleTypeKind:
+                            elseIfPred = LLVMBuildFCmp(block, LLVMRealONE, elseIfPred, LLVMConstReal(elseIfType, 0.0), "");
+                            break;
+                        default:
+                            elseIfPred = LLVMBuildICmp(block, LLVMIntNE, elseIfPred, LLVMConstNull(elseIfType), "");
+                            break;
+                        }
+                    }
+
+                    LLVMBasicBlockRef elseIfThen = elseIfThenBlocks[i];
+                    LLVMBuildCondBr(block, elseIfPred, elseIfThen, nextBlock);
+
+                    LLVMPositionBuilderAtEnd(block, elseIfThen);
+                    emitBlock(elseIf->body, nullptr, func, returnInto);
+                    if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
+                        LLVMBuildBr(block, mergeBlock);
+
+                    curElseIfBlock = nextBlock;
+                    elseIf = elseIf->next.get();
+                }
+
+                if (ifNode->else_) {
+                    LLVMPositionBuilderAtEnd(block, elseBlock);
+                    emitBlock(ifNode->else_->body, nullptr, func, returnInto);
+                    if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
+                        LLVMBuildBr(block, mergeBlock);
+                }
+
+                delete[] elseIfThenBlocks;
+
+                LLVMPositionBuilderAtEnd(block, mergeBlock);
+                break;
+            }
 
 			default:
 				TEA_PANIC("invalid statement. line %d, column %d", node->line, node->column);
