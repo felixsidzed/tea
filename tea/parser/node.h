@@ -21,6 +21,7 @@ namespace tea {
 		TYPE_STRING,
 		TYPE_VOID,
 		TYPE_BOOL,
+		TYPE_LONG,
 
 		TYPE__COUNT
 	};
@@ -81,6 +82,7 @@ namespace tea {
 
 	enum Attribute : uint8_t {
 		ATTR_INLINE,
+		ATTR_NORETURN,
 
 		ATTR__COUNT
 	};

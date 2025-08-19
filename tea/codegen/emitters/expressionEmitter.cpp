@@ -146,11 +146,13 @@ namespace tea {
 
 				if (!callee) {
 					auto it = inlineables.find(call->value);
-					if (it != inlineables.end()) { // TODO: improve/move to parser
+					if (it != inlineables.end()) { // TODO: improve
 						FunctionNode* funcNode = it->second;
 
 						LLVMTypeRef returnType = type2llvm[funcNode->returnType];
-						LLVMValueRef returnValue = LLVMBuildAlloca(block, returnType, "");
+						LLVMValueRef returnValue = nullptr;
+						if (LLVMGetTypeKind(returnType) != LLVMVoidTypeKind)
+							returnValue = LLVMBuildAlloca(block, returnType, "");
 
 						std::vector<std::pair<enum Type, std::string>>* oldCurArgs = curArgs;
 
@@ -163,10 +165,18 @@ namespace tea {
 						argsMap = nullptr;
 						curArgs = oldCurArgs;
 
-						return {
-							returnType,
-							LLVMBuildLoad2(block, returnType, returnValue, "")
-						};
+						if (!returnValue) {
+							auto pvoid = LLVMPointerType(type2llvm[TYPE_VOID], 0);
+							return {
+								returnType,
+								LLVMConstNull(pvoid)
+							};
+						} else
+							return {
+								returnType,
+								LLVMBuildLoad2(block, returnType, returnValue, "")
+							};
+						
 					}
 				}
 

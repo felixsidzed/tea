@@ -1,5 +1,11 @@
-private var a: int = 5 * 2;
+import __cdecl func puts(string s) -> int;
+
+@noreturn
+private func test() -> void
+	puts("in test()\n");
+end
 
 public func main() -> int
-	return a;
+	test();
+	return 1;
 end

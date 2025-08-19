@@ -24,7 +24,8 @@ namespace tea {
 	};
 
 	LLVMAttributeKind attr2llvm[ATTR__COUNT] = {
-		LLVMAttrAlwaysInline
+		LLVMAttrAlwaysInline,
+		LLVMAttrNoReturn,
 	};
 
 	std::unordered_map<LLVMTypeKind, const char*> typeKindName = {
@@ -32,6 +33,7 @@ namespace tea {
 		{LLVMFloatTypeKind, "float"},
 		{LLVMDoubleTypeKind, "double"},
 		{LLVMVoidTypeKind, "void"},
+		{LLVMIntegerTypeKind, "long"},
 	};
 
 	void CodeGen::emit(const Tree& tree, const char* output) {
@@ -67,6 +69,10 @@ namespace tea {
 		type2llvm[TYPE_STRING] = LLVMPointerType(type2llvm[TYPE_CHAR], 0);
 		type2llvm[TYPE_VOID] = LLVMVoidType();
 		type2llvm[TYPE_BOOL] = LLVMInt1Type();
+		if (is64Bit)
+			type2llvm[TYPE_LONG] = LLVMInt64Type();
+		else
+			type2llvm[TYPE_LONG] = LLVMInt32Type();
 
 		module = LLVMModuleCreateWithName("[module]");
 		LLVMSetTarget(module, LLVMGetTargetMachineTriple(machine));
