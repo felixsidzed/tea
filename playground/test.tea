@@ -1,11 +1,8 @@
-import __cdecl func puts(string s) -> int;
-
-@noreturn
-private func test() -> void
-	puts("in test()\n");
-end
+import __stdcall func GetStdHandle(int a1) -> int;
+import __stdcall func WriteConsoleA(int a1, string a2, int a3, int* a4, void* a5) -> bool;
 
 public func main() -> int
-	test();
-	return 1;
+	var charsWritten: int = -1;
+    WriteConsoleA(GetStdHandle(-11), "Hello, World!\n", 14, &charsWritten, null);
+    return charsWritten;
 end

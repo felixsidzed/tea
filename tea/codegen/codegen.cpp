@@ -13,16 +13,6 @@
 #include <llvm-c/Transforms/PassBuilder.h>
 
 namespace tea {
-	LLVMTypeRef type2llvm[TYPE__COUNT] = {
-		nullptr,
-		nullptr,
-		nullptr,
-		nullptr,
-		nullptr,
-		nullptr,
-		nullptr,
-	};
-
 	LLVMAttributeKind attr2llvm[ATTR__COUNT] = {
 		LLVMAttrAlwaysInline,
 		LLVMAttrNoReturn,
@@ -44,11 +34,12 @@ namespace tea {
 		const char* triple = is64Bit ? "x86_64-pc-windows-msvc" : "i386-pc-windows-msvc";
 
 		LLVMTargetRef target;
-		char* errMsg = nullptr;
-		if (LLVMGetTargetFromTriple(triple, &target, &errMsg) != 0) {
-			lastError.reset(errMsg);
-			TEA_PANIC("Failed to get target from triple", lastError.get());
-			return;
+
+		char* err = nullptr;
+		if (LLVMGetTargetFromTriple(triple, &target, &err)) {
+			std::string _(err);
+			LLVMDisposeMessage(err);
+			TEA_PANIC("Failed to create target machine: %s", _.c_str());
 		}
 
 		LLVMTargetMachineRef machine = LLVMCreateTargetMachine(
@@ -61,18 +52,6 @@ namespace tea {
 			TEA_PANIC("Failed to create target machine");
 			return;
 		}
-
-		type2llvm[TYPE_INT] = LLVMInt32Type();
-		type2llvm[TYPE_FLOAT] = LLVMFloatType();
-		type2llvm[TYPE_DOUBLE] = LLVMDoubleType();
-		type2llvm[TYPE_CHAR] = LLVMInt8Type();
-		type2llvm[TYPE_STRING] = LLVMPointerType(type2llvm[TYPE_CHAR], 0);
-		type2llvm[TYPE_VOID] = LLVMVoidType();
-		type2llvm[TYPE_BOOL] = LLVMInt1Type();
-		if (is64Bit)
-			type2llvm[TYPE_LONG] = LLVMInt64Type();
-		else
-			type2llvm[TYPE_LONG] = LLVMInt32Type();
 
 		module = LLVMModuleCreateWithName("[module]");
 		LLVMSetTarget(module, LLVMGetTargetMachineTriple(machine));
@@ -90,7 +69,6 @@ namespace tea {
 			LLVMDisposeMessage(moduleStr);
 		}
 
-		char* err = nullptr;
 		if (LLVMTargetMachineEmitToFile(machine, module, output, LLVMObjectFile, &err)) {
 			std::string _(err);
 			LLVMDisposeMessage(err);
@@ -141,7 +119,7 @@ namespace tea {
 			case tnode(GlobalVariableNode): {
 				GlobalVariableNode* globalVarNode = (GlobalVariableNode*)node.get();
 
-				LLVMTypeRef expected = type2llvm[globalVarNode->dataType];
+				LLVMTypeRef expected = globalVarNode->dataType.llvm;
 				LLVMValueRef global = LLVMAddGlobal(module, expected, globalVarNode->name.c_str());
 
 				if (globalVarNode->storage == STORAGE_PRIVATE)
@@ -151,7 +129,7 @@ namespace tea {
 					auto [got, value] = emitExpression(globalVarNode->value, true);
 					if (got != expected)
 						TEA_PANIC("variable value type (%s) is incompatible with variable type (%s). line %d, column %d",
-							llvm2readable(expected), llvm2readable(got), globalVarNode->line, globalVarNode->column);
+							llvm2readable(expected), llvm2readable(got.llvm), globalVarNode->line, globalVarNode->column);
 
 					LLVMSetInitializer(global, value);
 				} else

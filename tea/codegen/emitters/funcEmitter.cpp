@@ -31,11 +31,11 @@ namespace tea {
 
 		std::vector<LLVMTypeRef> argTypes;
 		for (const auto& arg : node->args)
-			argTypes.push_back(type2llvm[arg.first]);
+			argTypes.push_back(arg.first.llvm);
 
 		curArgs = &node->args;
 
-		LLVMTypeRef funcType = LLVMFunctionType(type2llvm[node->returnType], argTypes.data(), (uint32_t)node->args.size(), 0);
+		LLVMTypeRef funcType = LLVMFunctionType(node->returnType.llvm, argTypes.data(), (uint32_t)node->args.size(), 0);
 		func = LLVMAddFunction(module, node->name.c_str(), funcType);
 
 		LLVMSetFunctionCallConv(func, cc2llvm[node->cc]);
@@ -57,7 +57,7 @@ namespace tea {
 		emitBlock(node->body, "entry", func);
 
 		if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block))) {
-			if (node->returnType != TYPE_VOID)
+			if (node->returnType != Type::get(Type::VOID_))
 				TEA_PANIC("control reaches end of non-void function");
 			else {
 				if (noreturn)

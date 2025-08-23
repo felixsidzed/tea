@@ -13,13 +13,13 @@ namespace tea {
 	void CodeGen::emitFunctionImport(FunctionImportNode* node) {
 		std::vector<LLVMTypeRef> argTypes;
 		for (const auto& arg : node->args)
-			argTypes.push_back(type2llvm[arg.first]);
+			argTypes.push_back(arg.first.llvm);
 
 		LLVMValueRef imported = LLVMAddFunction(
 			module,
 			node->name.c_str(),
-			LLVMFunctionType(type2llvm[node->returnType], argTypes.data(), (uint32_t)node->args.size(), 0)
-		);
+			LLVMFunctionType(node->returnType.llvm, argTypes.data(), (uint32_t)node->args.size(), 0)
+	);
 		LLVMSetFunctionCallConv(imported, cc2llvm[node->cc]);
 	}
 }
