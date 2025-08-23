@@ -1,8 +1,9 @@
-import __stdcall func GetStdHandle(int a1) -> int;
-import __stdcall func WriteConsoleA(int a1, string a2, int a3, int* a4, void* a5) -> bool;
+import __fastcall func puts(string msg) -> int;
+import __fastcall func malloc(long size) -> void*;
 
 public func main() -> int
-	var charsWritten: int = -1;
-    WriteConsoleA(GetStdHandle(-11), "Hello, World!\n", 14, &charsWritten, null);
-    return charsWritten;
+	var s: string* = malloc(8);
+	*s = "Hello, World!";
+	puts(*s);
+	return 0;
 end

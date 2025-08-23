@@ -8,6 +8,7 @@ namespace tea {
 		TOKEN_INT,
 		TOKEN_FLOAT,
 		TOKEN_DOUBLE,
+		TOKEN_CHAR,
 
 		TOKEN_IDENTF,
 		TOKEN_KWORD,
@@ -19,6 +20,7 @@ namespace tea {
 		TOKEN_COMMA,
 		TOKEN_SCOPE,
 		TOKEN_COLON,
+		TOKEN_DOT,
 
 		TOKEN_ASSIGN,
 

@@ -30,7 +30,8 @@ namespace tea {
 		tnode(IfNode),
 		tnode(ElseNode),
 		tnode(ElseIfNode),
-		tnode(GlobalVariableNode)
+		tnode(GlobalVariableNode),
+		tnode(AssignmentNode),
 	};
 
 	enum StorageType : uint8_t {
@@ -40,7 +41,7 @@ namespace tea {
 
 	enum ExpressionType : uint8_t {
 		EXPR_STRING,
-
+		EXPR_CHAR,
 		EXPR_INT,
 		EXPR_FLOAT,
 		EXPR_DOUBLE,
@@ -65,6 +66,7 @@ namespace tea {
 		EXPR_OR,
 
 		EXPR_REF,
+		EXPR_DEREF,
 	};
 
 	enum CallingConvention : uint8_t {

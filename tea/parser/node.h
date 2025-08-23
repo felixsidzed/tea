@@ -34,9 +34,10 @@ namespace tea {
 		std::string name;
 		std::vector<std::pair<Type, std::string>> args;
 		Type returnType;
+		bool vararg;
 
-		FunctionNode(enum StorageType storage, enum CallingConvention cc, const std::string& name, const std::vector<std::pair<Type, std::string>>& args, Type& returnType)
-			: storage(storage), cc(cc), name(name), args(args), returnType(returnType) {};
+		FunctionNode(enum StorageType storage, enum CallingConvention cc, const std::string& name, const std::vector<std::pair<Type, std::string>>& args, Type& returnType, bool vararg)
+			: storage(storage), cc(cc), name(name), args(args), returnType(returnType), vararg(vararg) {};
 	};
 
 	struct ExpressionNode : Node {
@@ -80,9 +81,10 @@ namespace tea {
 		std::string name;
 		std::vector<std::pair<Type, std::string>> args;
 		Type returnType;
+		bool vararg;
 
-		FunctionImportNode(enum CallingConvention cc, const std::string& name, const std::vector<std::pair<Type, std::string>>& args, Type returnType)
-			: cc(cc), name(name), args(args), returnType(returnType) {
+		FunctionImportNode(enum CallingConvention cc, const std::string& name, const std::vector<std::pair<Type, std::string>>& args, Type returnType, bool vararg)
+			: cc(cc), name(name), args(args), returnType(returnType), vararg(vararg) {
 		};
 	};
 
@@ -119,5 +121,14 @@ namespace tea {
 
 		GlobalVariableNode(enum StorageType storage, const std::string& name, Type dataType, std::unique_ptr<ExpressionNode> value) :
 			storage(storage), name(name), dataType(dataType), value(std::move(value)) {};
+	};
+
+	struct AssignmentNode : Node {
+		std::unique_ptr<ExpressionNode> left;
+		std::unique_ptr<ExpressionNode> right;
+		enum TokenType extra;
+
+		AssignmentNode(std::unique_ptr<ExpressionNode> left, std::unique_ptr<ExpressionNode> right, enum TokenType extra) :
+			left(std::move(left)), right(std::move(right)), extra(extra) {}
 	};
 }

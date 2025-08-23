@@ -24,6 +24,7 @@ namespace tea {
 
 		void parseFuncFull();
 		std::string parseType();
+		bool tryParseAssignment();
 		void parseFunc(enum StorageType storage);
 		std::unique_ptr<ExpressionNode> parsePrimary();
 		std::unique_ptr<ExpressionNode> parseExpression();
