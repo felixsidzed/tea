@@ -64,7 +64,8 @@ TEA_NORETURN static panic(const char* message, ...) {
 
 namespace tea {
 	Configuration configuration = {
-		.panic = panic
+		.panic = panic,
+		.is64Bit = true
 	};
 }
 
@@ -72,12 +73,15 @@ namespace tea {
 
 namespace tea {
 	void compile(const std::string& src, const char* output, const std::string& importLookup, bool is64Bit, bool verbose) {
+		configuration.is64Bit = is64Bit;
+		Type::convert.clear();
+
 		const auto& tokens = tea::Lexer::tokenize(src);
 
 		tea::Parser parser;
 		const auto& root = parser.parse(tokens);
 
-		tea::CodeGen codegen(is64Bit, verbose, importLookup);
+		tea::CodeGen codegen(verbose, importLookup);
 		codegen.emit(root, output);
 	}
 }

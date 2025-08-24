@@ -117,7 +117,12 @@ namespace tea {
 					break;
 
 				case '/':
-					pushtok(TOKEN_DIV);
+					if (*(pos + 1) == '/') {
+						pos++;
+						while (*pos && *pos != '\n')
+							pos++;
+					} else
+						pushtok(TOKEN_DIV);
 					break;
 
 				case '@':

@@ -19,11 +19,10 @@ namespace tea {
 	public:
 		typedef std::unordered_map<std::string, LLVMValueRef> ImportedModule;
 		
-		bool is64Bit;
 		bool verbose;
 		fs::path importLookup;
 
-		CodeGen(bool is64bit = true, bool verbose = false, fs::path importLookup = ".") : is64Bit(is64bit), verbose(verbose), importLookup(importLookup) {}
+		CodeGen(bool verbose = false, fs::path importLookup = ".") : verbose(verbose), importLookup(importLookup) {}
 
 		void emit(const Tree& tree, const char* output);
 
@@ -62,7 +61,7 @@ namespace tea {
 		void emitFunction(FunctionNode* tree);
 		void emitVariable(VariableNode* node);
 		void emitAssignment(AssignmentNode* node);
-		void emitFunctionImport(FunctionImportNode* node);
+		LLVMValueRef emitFunctionImport(FunctionImportNode* node);
 		void emitBlock(const Tree& block, const char* name, LLVMValueRef parent, std::pair<LLVMTypeRef, LLVMValueRef>* returnInto = nullptr);
 		std::pair<Type, LLVMValueRef> emitExpression(const std::unique_ptr<ExpressionNode>& node, bool constant = false, bool* ptr = nullptr);
 

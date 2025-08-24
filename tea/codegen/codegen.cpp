@@ -31,7 +31,7 @@ namespace tea {
 		LLVMInitializeNativeAsmPrinter();
 
 		// hard coded :C
-		const char* triple = is64Bit ? "x86_64-pc-windows-msvc" : "i386-pc-windows-msvc";
+		const char* triple = TEA_IS64BIT ? "x86_64-pc-windows-msvc" : "i386-pc-windows-msvc";
 
 		LLVMTargetRef target;
 
@@ -87,7 +87,8 @@ namespace tea {
 				break;
 			case tnode(UsingNode): {
 				UsingNode* usingNode = (UsingNode*)node.get();
-				std::ifstream file(importLookup / (usingNode->name + ".tea"));
+				fs::path path = importLookup / (usingNode->name + ".tea");
+				std::ifstream file(path);
 				if (!file.is_open())
 					TEA_PANIC(("failed to import module '" + usingNode->name + "'").c_str());
 
@@ -99,9 +100,12 @@ namespace tea {
 
 					ImportedModule importedModule;
 					for (const auto& node_ : tree) {
-						if (node_->type == tnode(FunctionImportNode))
-							emitFunctionImport((FunctionImportNode*)node_.get());
-						else
+						if (node_->type == tnode(FunctionImportNode)) {
+							FunctionImportNode* fiNode = (FunctionImportNode*)node_.get();
+							std::string unprefixed = fiNode->name;
+							fiNode->name.insert(0, "_" + path.stem().string() + "__");
+							importedModule[unprefixed] = emitFunctionImport(fiNode);
+						} else
 							TEA_PANIC("invalid root statement. line %d, column %d", node_->line, node_->column);
 					}
 					modules[usingNode->name] = importedModule;
