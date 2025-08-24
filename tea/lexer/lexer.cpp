@@ -12,17 +12,17 @@ static const char* keywords[] = {
 	"using", "import",
 	//"macro",
 	"public", "private",
-	"if", "else", "elseif", "do", /*"while", "for", "break", "continue", */
+	"if", "else", "elseif", "do", "while", "for", /*"break", "continue", */
 	"func", "return",
 	"end",
 	"var",
-	"__stdcall", "__fastcall", "__cdecl",
+	"__stdcall", "__fastcall", "__cdecl", "__auto"
 	//"class", "new", "constructor", "deconstructor",
 };
 
 static bool isKeyword(const char* word, unsigned int len, int* idx) {
 	for (int i = 0; i < sizeof(keywords) / sizeof(const char*); i++)
-		if (strncmp(word, keywords[i], len) == 0) {
+		if (strlen(keywords[i]) == len && strncmp(word, keywords[i], len) == 0) {
 			*idx = i;
 			return true;
 		}
@@ -42,7 +42,12 @@ namespace tea {
 		while (*pos) {
 			char c = *pos;
 			if (isspace(c)) {
-				if (c == '\n') line++, col = 0;
+				if (c == '\n') {
+					pushtok(TOKEN_NEWLINE);
+
+					line++;
+					col = 0;
+				}
 
 			} else if (isalpha(c) || c == '_') {
 				unsigned int len = 0;

@@ -60,6 +60,7 @@ namespace tea {
 		void emitCode(const Tree& tree);
 		void emitFunction(FunctionNode* tree);
 		void emitVariable(VariableNode* node);
+		void emitWhileLoop(WhileLoopNode* node);
 		void emitAssignment(AssignmentNode* node);
 		LLVMValueRef emitFunctionImport(FunctionImportNode* node);
 		void emitBlock(const Tree& block, const char* name, LLVMValueRef parent, std::pair<LLVMTypeRef, LLVMValueRef>* returnInto = nullptr);

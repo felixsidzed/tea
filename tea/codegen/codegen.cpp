@@ -30,20 +30,41 @@ namespace tea {
 		LLVMInitializeNativeTarget();
 		LLVMInitializeNativeAsmPrinter();
 
-		// hard coded :C
-		const char* triple = TEA_IS64BIT ? "x86_64-pc-windows-msvc" : "i386-pc-windows-msvc";
+		std::string triple; {
+			char* _ = LLVMGetDefaultTargetTriple();
+			triple.assign(_);
+			LLVMDisposeMessage(_);
+		}
+		if (TEA_IS64BIT) {
+			if (triple.find("64") == std::string::npos) {
+				if (triple.find("i386") != std::string::npos)
+					triple.replace(triple.find("i386"), 4, "x86_64");
+				else
+					triple += "-64";
+			}
+		} else {
+			if (triple.find("64") != std::string::npos) {
+				if (triple.find("x86_64") != std::string::npos)
+					triple.replace(triple.find("x86_64"), 6, "i386");
+				else {
+					size_t pos = triple.find("64");
+					if (pos != std::string::npos)
+						triple.erase(pos, 2);
+				}
+			}
+		}
 
 		LLVMTargetRef target;
 
 		char* err = nullptr;
-		if (LLVMGetTargetFromTriple(triple, &target, &err)) {
+		if (LLVMGetTargetFromTriple(triple.c_str(), &target, &err)) {
 			std::string _(err);
 			LLVMDisposeMessage(err);
 			TEA_PANIC("Failed to create target machine: %s", _.c_str());
 		}
 
 		LLVMTargetMachineRef machine = LLVMCreateTargetMachine(
-			target, triple,
+			target, triple.c_str(),
 			"", "",
 			LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault
 		);
