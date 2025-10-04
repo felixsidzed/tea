@@ -32,7 +32,7 @@
 #define expect(tt) _expect(t,tt)
 
 namespace tea {
-	static const std::unordered_map<std::string, enum Type> name2type = {
+	std::unordered_map<std::string, enum Type> name2type = {
 		{"int", TYPE_INT},
 		{"float", TYPE_FLOAT},
 		{"double", TYPE_DOUBLE},
@@ -61,9 +61,8 @@ namespace tea {
 		tree = &root;
 		treeHistory = { &root };
 
-		state.imported.clear();
-		state.funcs.clear();
-		state.curFunc = nullptr;
+		imported.clear();
+		funcs.clear();
 
 		while (t->type != TOKEN_EOF) {
 			switch (t->type) {
@@ -72,10 +71,10 @@ namespace tea {
 				case KWORD_USING: {
 					advance();
 					const std::string& name = expect(TOKEN_STRING);
-					auto it = std::find(state.imported.begin(), state.imported.end(), name);
-					if (it != state.imported.end())
+					auto it = std::find(imported.begin(), imported.end(), name);
+					if (it != imported.end())
 						TEA_PANIC("module re-import. line %d, column %d", t->line, t->column);
-					state.imported.push_back(name);
+					imported.push_back(name);
 					expect(TOKEN_SEMI);
 					pushnode(UsingNode, name);
 				} break;
@@ -110,48 +109,45 @@ namespace tea {
 		return std::move(root);
 	}
 
-	std::unique_ptr<ExpressionNode> Parser::parseExpression() {
+	std::unique_ptr<ExpressionNode> Parser::parsePrimary() {
 		switch (t->type) {
 		case TOKEN_INT: {
 			auto node = std::make_unique<ExpressionNode>(EXPR_INT, t->value);
 			advance();
 			return node;
-
-		} case TOKEN_FLOAT: {
+		}
+		case TOKEN_FLOAT: {
 			auto node = std::make_unique<ExpressionNode>(EXPR_FLOAT, t->value);
 			advance();
 			return node;
-
-		} case TOKEN_DOUBLE: {
+		}
+		case TOKEN_DOUBLE: {
 			auto node = std::make_unique<ExpressionNode>(EXPR_DOUBLE, t->value);
 			advance();
 			return node;
-
-		} case TOKEN_STRING: {
+		}
+		case TOKEN_STRING: {
 			auto node = std::make_unique<ExpressionNode>(EXPR_STRING, t->value);
 			advance();
 			return node;
-
-		} case TOKEN_IDENTF: {
+		}
+		case TOKEN_IDENTF: {
 			std::vector<std::string> scope;
 			std::string value = t->value;
 			advance();
 
 			while (t->type == TOKEN_SCOPE) {
 				advance();
-
-				if (t->type != TOKEN_IDENTF)
-					unexpected();
+				if (t->type != TOKEN_IDENTF) unexpected();
 				scope.push_back(value);
 				value = t->value;
 				advance();
 			}
 
-			if (t->type == TOKEN_RPAR) {
+			if (t->type == TOKEN_LPAR) {
 				advance();
 				std::vector<std::unique_ptr<ExpressionNode>> args;
-
-				if (t->type != TOKEN_LPAR) {
+				if (t->type != TOKEN_RPAR) {
 					while (true) {
 						args.push_back(parseExpression());
 						if (t->type == TOKEN_COMMA) {
@@ -161,16 +157,61 @@ namespace tea {
 						break;
 					}
 				}
-
-				expect(TOKEN_LPAR);
+				expect(TOKEN_RPAR);
 				return std::make_unique<CallNode>(scope, value, std::move(args));
 			} else
 				return std::make_unique<ExpressionNode>(EXPR_IDENTF, value);
-
-		} default:
+		}
+		default:
 			unexpected();
 		}
 		return nullptr;
+	}
+
+	static inline int getPrecedence(enum TokenType type) {
+		switch (type) {
+		case TOKEN_ADD:
+		case TOKEN_SUB:
+			return 10;
+		case TOKEN_MUL:
+		case TOKEN_DIV:
+			return 20;
+		default:
+			return -1;
+		}
+	}
+
+	static const std::unordered_map<enum TokenType, enum ExpressionType> tt2et = {
+		{TOKEN_ADD, EXPR_ADD},
+		{TOKEN_SUB, EXPR_SUB},
+		{TOKEN_DIV, EXPR_DIV},
+		{TOKEN_MUL, EXPR_MUL},
+		{TOKEN_IDENTF, EXPR_IDENTF},
+	};
+
+	std::unique_ptr<ExpressionNode> Parser::parseRhs(int exprPrec, std::unique_ptr<ExpressionNode> lhs) {
+		while (true) {
+			int tokPrec = getPrecedence(t->type);
+
+			if (tokPrec < exprPrec)
+				return lhs;
+
+			enum TokenType tt = t->type;
+			advance();
+
+			auto rhs = parsePrimary();
+
+			int nextPrec = getPrecedence(t->type);
+			if (tokPrec < nextPrec)
+				rhs = parseRhs(tokPrec + 1, std::move(rhs));
+
+			lhs = std::make_unique<ExpressionNode>(tt2et.at(tt), "", std::move(lhs), std::move(rhs));
+		}
+	}
+
+	std::unique_ptr<ExpressionNode> Parser::parseExpression() {
+		auto lhs = parsePrimary();
+		return parseRhs(0, std::move(lhs));
 	}
 
 	void Parser::parseBlock() {
@@ -211,16 +252,31 @@ namespace tea {
 
 	void Parser::parseFunc(enum StorageType storage) {
 		const std::string& name = expect(TOKEN_IDENTF);
-		if (state.funcs.contains(name))
+		auto it = std::find(funcs.begin(), funcs.end(), name);
+		if (it != funcs.end())
 			TEA_PANIC("function re-definition. line %d, column %d", t->line, t->column);
-		state.funcs[name] = {};
-		state.curFunc = &state.funcs[name];
-		expect(TOKEN_RPAR);
-		// TODO: arguments
+		funcs.push_back(name);
 		expect(TOKEN_LPAR);
+
+		std::vector<std::pair<enum Type, std::string>> args;
+		if (t->type != TOKEN_RPAR) {
+			do {
+				const std::string& typeName = expect(TOKEN_IDENTF);
+				auto typeIt = name2type.find(typeName);
+				if (typeIt == name2type.end())
+					TEA_PANIC("unknown type '%s'. line %d, column %d", typeName.c_str(), (t - 1)->line, (t - 1)->column);
+				const std::string& argName = expect(TOKEN_IDENTF);
+				args.emplace_back(typeIt->second, argName);
+			} while (t->type == TOKEN_COMMA && t++);
+		}
+
+		expect(TOKEN_RPAR);
 		expect(TOKEN_ARROW);
 		const std::string& returnType = expect(TOKEN_IDENTF);
-		pushtree(FunctionNode, storage, name, name2type.at(returnType));
+		auto it2 = name2type.find(returnType);
+		if (it2 == name2type.end())
+			TEA_PANIC("unknown type '%s'. line %d, column %d", returnType.c_str(), (t - 1)->line, (t - 1)->column);
+		pushtree(FunctionNode, storage, name, args, it2->second);
 		parseBlock();
 	}
 

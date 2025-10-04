@@ -19,7 +19,7 @@ TEA_NORETURN panic(const char* message, ...) {
 	vprintf(message, va);
 	va_end(va);
 	putchar('\n');
-	__debugbreak();
+	exit(1);
 }
 #else
 TEA_NORETURN panic(const char* message, ...) {

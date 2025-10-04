@@ -8,12 +8,23 @@ namespace tea {
 			node->storage == STORAGE_PUBLIC ? "public" : "private",
 			// TODO: calling convention
 			node->name,
-			0 // TODO: arguments
+			node->args.size()
 		);
-		LLVMTypeRef funcType = LLVMFunctionType(type2llvm[node->returnType], nullptr, 0, 0);
+
+		std::vector<LLVMTypeRef> argTypes;
+		for (const auto& arg : node->args)
+			argTypes.push_back(type2llvm[arg.first]);
+
+		curArgs = &node->args;
+
+		LLVMTypeRef funcType = LLVMFunctionType(type2llvm[node->returnType], argTypes.data(), (uint32_t)node->args.size(), 0);
 		func = LLVMAddFunction(module, node->name.c_str(), funcType);
 		if (node->storage == STORAGE_PRIVATE)
-			LLVMSetLinkage(func, LLVMInternalLinkage);
+			LLVMSetLinkage(func, LLVMPrivateLinkage);
+
+		int i = 0;
+		for (const auto& arg : node->args)
+			LLVMSetValueName(LLVMGetParam(func, i++), arg.second.c_str());
 
 		emitBlock(node->body, "entry", func);
 	}

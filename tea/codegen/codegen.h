@@ -29,6 +29,8 @@ namespace tea {
 
 		std::unique_ptr<char, decltype(&LLVMDisposeMessage)> lastError = { nullptr, LLVMDisposeMessage };
 
+		std::vector<std::pair<enum Type, std::string>>* curArgs = nullptr;
+
 		inline void logUnformatted(const std::string& message) {
 			if (!verbose)
 				return;

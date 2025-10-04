@@ -94,10 +94,10 @@ namespace tea {
 			} else if (!isalnum(c) && !isspace(c)) {
 				switch (c) {
 				case '(':
-					pushtok(TOKEN_RPAR);
+					pushtok(TOKEN_LPAR);
 					break;
 				case ')':
-					pushtok(TOKEN_LPAR);
+					pushtok(TOKEN_RPAR);
 					break;
 				case ';':
 					pushtok(TOKEN_SEMI);
