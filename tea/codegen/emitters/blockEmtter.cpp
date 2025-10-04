@@ -3,6 +3,8 @@
 #include "tea/tea.h"
 
 namespace tea {
+	extern LLVMCallConv cc2llvm[CC__COUNT];
+
 	void CodeGen::emitBlock(const Tree& root, const char* name, LLVMValueRef parent, std::pair<LLVMTypeRef, LLVMValueRef>* returnInto) {
 		vector<struct Local> oldLocals = locals;
 
@@ -32,28 +34,61 @@ namespace tea {
 					delete[] attrs;
 				}
 
-				LLVMTypeRef expected = LLVMGetReturnType(LLVMGlobalGetValueType(func));
-				if (LLVMGetTypeKind(expected) == LLVMVoidTypeKind) {
-					if (((ReturnNode*)node.get())->value)
-						TEA_PANIC("void function '%s' should not return a value. line %d, column %d", LLVMGetValueName(func), node->line, node->column);
-					else {
-						LLVMBuildRetVoid(block);
+				LLVMTypeRef expected = nullptr;
+				if (!fnDeduceRetTy) {
+					expected = LLVMGetReturnType(LLVMGlobalGetValueType(func));
+					if (LLVMGetTypeKind(expected) == LLVMVoidTypeKind) {
+						if (((ReturnNode*)node.get())->value)
+							TEA_PANIC("void function '%s' should not return a value. line %d, column %d", LLVMGetValueName(func), node->line, node->column);
+						else {
+							LLVMBuildRetVoid(block);
+							return;
+						}
+					}
+					else if (!((ReturnNode*)node.get())->value) {
+						TEA_PANIC("non-void function '%s' should return a value. line %d, column %d", LLVMGetValueName(func), node->line, node->column);
 						return;
 					}
-				} else if (!((ReturnNode*)node.get())->value) {
-					TEA_PANIC("non-void function '%s' should return a value. line %d, column %d", LLVMGetValueName(func), node->line, node->column);
-					return;
 				}
 
 				auto [type, value] = emitExpression(((ReturnNode*)node.get())->value);
-				if (!returnInto) {
-					if (type != expected)
-						TEA_PANIC("return value type (%s) is incompatible with function return type (%s). line %d, column %d",
-							type2readable(type), type2readable(expected), node->line, node->column);
+				if (fnDeduceRetTy) {
+					fnDeduceRetTy = false;
+					log("Guessed return type for function '{}': '{}'", curFunc->name.data, type2readable(type));
+					curFunc->returnType = type;
+
+					LLVMSetValueName(func, ".`temp");
+					
+					vector<LLVMTypeRef> argTypes;
+					for (const auto& arg : curFunc->args)
+						argTypes.push(arg.first.llvm);
+
+					LLVMValueRef patched = LLVMAddFunction(module, curFunc->name.data, LLVMFunctionType(type.llvm, argTypes.data, argTypes.size, curFunc->vararg));
+					if (curFunc->cc != CC_AUTO) LLVMSetFunctionCallConv(patched, cc2llvm[curFunc->cc]);
+					if (curFunc->storage == STORAGE_PRIVATE) LLVMSetLinkage(patched, LLVMPrivateLinkage);
+
+					// llvm kinda gay bitdancer kinda noob
+					LLVMBasicBlockRef insertPoint = LLVMAppendBasicBlock(patched, ".`temp");
+					LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(func);
+					while (bb) {
+						LLVMBasicBlockRef next = LLVMGetNextBasicBlock(bb);
+						LLVMMoveBasicBlockBefore(bb, insertPoint);
+						bb = next;
+					}
+
+					LLVMDeleteBasicBlock(insertPoint);
+					LLVMDeleteFunction(func);
+					func = patched;
 				} else {
-					if (type != returnInto->first)
-						TEA_PANIC("return value type (%s) is incompatible with function return type (%s). line %d, column %d",
-							type2readable(type), type2readable(returnInto->first), node->line, node->column);
+					if (!returnInto) {
+						if (type != expected)
+							TEA_PANIC("return value type (%s) is incompatible with function return type (%s). line %d, column %d",
+								type2readable(type), type2readable(expected), node->line, node->column);
+					} else {
+						if (type != returnInto->first)
+							TEA_PANIC("return value type (%s) is incompatible with function return type (%s). line %d, column %d",
+								type2readable(type), type2readable(returnInto->first), node->line, node->column);
+					}
 				}
 
 				if (returnInto)

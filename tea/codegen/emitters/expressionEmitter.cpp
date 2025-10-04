@@ -159,6 +159,8 @@ namespace tea {
 						FunctionNode* funcNode = *it;
 
 						LLVMTypeRef returnType = funcNode->returnType.llvm;
+						if (!returnType)
+							TEA_PANIC("can't inline '%s' because the return type is unknown", funcNode->name.data);
 						LLVMValueRef returnValue = nullptr;
 						if (LLVMGetTypeKind(returnType) != LLVMVoidTypeKind)
 							returnValue = LLVMBuildAlloca(block, returnType, ""); // TODO: force this to be in rax

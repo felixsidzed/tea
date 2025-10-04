@@ -1,4 +1,4 @@
-#include "parser.h"
+﻿#include "parser.h"
 
 #include "tea/tea.h"
 #include "tea/map.h"
@@ -54,11 +54,13 @@ namespace tea {
 
 	Parser::Parser() {
 		t = 0;
-		tree = nullptr;
 		fn = nullptr;
+		tree = nullptr;
 	}
 
 	Tree Parser::parse(const vector<Token>& tokens) {
+		Type::get("void"); // initialize types if needed
+
 		t = tokens.data;
 
 		Tree root;
@@ -440,26 +442,31 @@ namespace tea {
 						pushnode(ReturnNode, parseExpression());
 						expect(TOKEN_SEMI);
 					}
-				}break;
+				} break;
 
 				case KWORD_VAR: {
 					advance();
 					const string& name = expect(TOKEN_IDENTF);
-					expect(TOKEN_COLON);
 
-					const string& dataType = parseType();
-					auto type = Type::get(dataType);
-					if (!type.second)
-						TEA_PANIC("unknown type '%s'. line %d, column %d", dataType, (t - 1)->line, (t - 1)->column);
-
+					Type type;
 					std::unique_ptr<ExpressionNode> value = nullptr;
-					if (t->type != TOKEN_SEMI) {
-						expect(TOKEN_ASSIGN);
+
+					if (t->type == TOKEN_COLON) {
+						advance();
+						const string& dataType = parseType();
+						auto pair = Type::get(dataType);
+						if (!pair.second)
+							TEA_PANIC("unknown type '%s'. line %d, column %d", dataType, (t - 1)->line, (t - 1)->column);
+						type = pair.first;
+					}
+
+					if (t->type == TOKEN_ASSIGN) {
+						advance();
 						value = parseExpression();
 					}
 					expect(TOKEN_SEMI);
 
-					pushnode(VariableNode, name, type.first, std::move(value));
+					pushnode(VariableNode, name, type, std::move(value));
 
 					auto vn = (VariableNode*)tree->data[tree->size - 1].get();
 					fn->prealloc.insert(vn, nullptr); // TODO: only variables inside loops should be preallocated
@@ -639,14 +646,21 @@ namespace tea {
 		}
 
 		expect(TOKEN_RPAR);
-		expect(TOKEN_ARROW);
-		const string& returnType = parseType(false);
-		auto type = Type::get(returnType);
-		if (!type.second)
-			TEA_PANIC("unknown type '%s'. line %d, column %d", returnType, (t - 1)->line, (t - 1)->column);
+
+		Type type;
+		if (t->type == TOKEN_ARROW) {
+			advance();
+
+			const string& returnType = parseType(false);
+			// could this be an alex g reference 🤔
+			auto [ty, success] = Type::get(returnType);
+			if (!success)
+				TEA_PANIC("unknown type '%s'. line %d, column %d", returnType, (t - 1)->line, (t - 1)->column);
+			type = ty;
+		}
 
 		Tree* oldTree = tree;
-		pushtree(FunctionNode, storage, cc, name, args, type.first, vararg);
+		pushtree(FunctionNode, storage, cc, name, args, type, vararg);
 		fn = (FunctionNode*)oldTree->operator[](oldTree->size-1).get();
 
 		parseBlock();

@@ -42,7 +42,12 @@ namespace tea {
 			argTypes.push(arg.first.llvm);
 
 		curArgs = &node->args;
+		curFunc = node;
 
+		if (!node->returnType.llvm) {
+			fnDeduceRetTy = true;
+			node->returnType.llvm = LLVMVoidType();
+		}
 		LLVMTypeRef funcType = LLVMFunctionType(node->returnType.llvm, argTypes.data, (uint32_t)node->args.size, node->vararg);
 		func = LLVMAddFunction(module, node->name, funcType);
 
@@ -59,9 +64,9 @@ namespace tea {
 		bool noreturn = false;
 		for (const auto& attr : node->attrs) {
 			if (attr < ATTR__LLVM_COUNT) {
-			LLVMAddAttributeAtIndex(func, LLVMAttributeFunctionIndex, LLVMCreateEnumAttribute(LLVMGetGlobalContext(), attr2llvm[attr], 0));
-			if (attr == LLVMNoReturnAttributeKind)
-				noreturn = true;
+				LLVMAddAttributeAtIndex(func, LLVMAttributeFunctionIndex, LLVMCreateEnumAttribute(LLVMGetGlobalContext(), attr2llvm[attr], 0));
+				if (attr == LLVMNoReturnAttributeKind)
+					noreturn = true;
 			}
 		}
 
@@ -72,8 +77,10 @@ namespace tea {
 				LLVMPositionBuilderAtEnd(block, _);
 			}
 
-			for (auto& [paNode, prealloc] : node->prealloc)
-				prealloc = LLVMBuildAlloca(block, paNode->dataType.llvm, "prealloc." + paNode->name);
+			for (auto& [paNode, prealloc] : node->prealloc) {
+				if (paNode->dataType.llvm)
+					prealloc = LLVMBuildAlloca(block, paNode->dataType.llvm, "prealloc." + paNode->name);
+			}
 
 			fnPrealloc = &node->prealloc;
 			emitBlock(node->body, "entry", nullptr);
@@ -91,5 +98,7 @@ namespace tea {
 					LLVMBuildRetVoid(block);
 			}
 		}
+
+		fnDeduceRetTy = false;
 	}
 }

@@ -113,7 +113,11 @@ namespace tea {
 		static void create(const string& name, LLVMTypeRef type);
 
 		bool operator==(const Type& other) const {
-			return llvm == other.llvm && constant == other.constant;
+			return llvm == other.llvm && constant == other.constant && sign == other.sign;
+		}
+
+		bool operator==(LLVMTypeRef other) const {
+			return llvm == other;
 		}
 
 	private:

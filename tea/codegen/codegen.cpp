@@ -120,7 +120,7 @@ namespace tea {
 						if (node_->type == tnode(FunctionImportNode)) {
 							FunctionImportNode* fiNode = (FunctionImportNode*)node_.get();
 							string unprefixed = fiNode->name;
-							// fuckass
+							// TODO FIXME NOTE WARNING fuckass
 							fiNode->name = (std::string(fiNode->name.data, fiNode->name.size).insert(0, "_" + path.stem().string() + "__")).c_str();
 							importedModule[unprefixed] = emitFunctionImport(fiNode);
 						} else

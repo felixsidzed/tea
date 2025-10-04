@@ -30,8 +30,8 @@ namespace tea {
 			Type::convert.push(LLVMInt8Type());
 			Type::convert.push(LLVMFloatType());
 			Type::convert.push(LLVMInt32Type());
-			Type::convert.push(LLVMDoubleType());
 			Type::convert.push(LLVMPointerType(LLVMInt8Type(), 0));
+			Type::convert.push(LLVMDoubleType());
 			Type::convert.push(LLVMInt64Type());
 		}
 	}

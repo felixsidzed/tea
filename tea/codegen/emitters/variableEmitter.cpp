@@ -4,8 +4,7 @@
 
 namespace tea {
 	void CodeGen::emitVariable(VariableNode* node) {
-		log("Emitting local '{}' of type {} (initialized = {})", node->name.data, type2readable(node->dataType), node->value != nullptr);
-
+		std::pair<Type, LLVMValueRef> thingy = {nullptr, nullptr};
 		LLVMTypeRef expected = node->dataType.llvm;
 
 		LLVMValueRef insn = nullptr;
@@ -15,15 +14,28 @@ namespace tea {
 				insn = *it;
 		}
 
+		// TODO: find a way to keep the order:
+		//									   %.1 = alloca
+		//									   ...result of emitExpression(node->value)
+		//									   store %.1
+		if (!expected) {
+			thingy = emitExpression(node->value);
+			node->dataType = thingy.first;
+			expected = thingy.first.llvm;
+		}
+
 		if (!insn)
-			insn = LLVMBuildAlloca(block, node->dataType.llvm, node->name);
+			insn = LLVMBuildAlloca(block, expected, node->name);
+
+		log("Emitting local '{}' of type '{}' (initialized = {})", node->name.data, type2readable(node->dataType), node->value != nullptr);
 
 		if (node->value != nullptr) {
-			auto [got, value] = emitExpression(node->value);
-			if (got != expected)
-				TEA_PANIC("variable value type (%s) is incompatible with variable type (%s). line %d, column %d",
-					type2readable(expected), type2readable(got), node->line, node->column);
-			LLVMBuildStore(block, value, insn);
+			if (!thingy.second)
+				thingy = emitExpression(node->value);
+			if (thingy.first != expected)
+				TEA_PANIC("variable initializer type (%s) is incompatible with variable type (%s). line %d, column %d",
+					type2readable(expected), type2readable(thingy.first), node->line, node->column);
+			LLVMBuildStore(block, thingy.second, insn);
 		}
 
 		locals.push({
