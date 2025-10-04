@@ -75,16 +75,37 @@ void printExpressionNode(const tea::ExpressionNode* expr, int indent) {
 		printf("  ");
 
 	const char* typeStr = "Unknown";
-	switch (expr->type) {
-		case EXPR_INT:    typeStr = "INT"; break;
-		case EXPR_FLOAT:  typeStr = "FLOAT"; break;
-		case EXPR_STRING: typeStr = "STRING"; break;
-		case EXPR_IDENTF: typeStr = "IDENTF"; break;
+	switch (expr->etype) {
+	case EXPR_INT:    typeStr = "INT"; break;
+	case EXPR_FLOAT:  typeStr = "FLOAT"; break;
+	case EXPR_STRING: typeStr = "STRING"; break;
+	case EXPR_IDENTF: typeStr = "IDENTF"; break;
+	case EXPR_CALL:   typeStr = "CALL"; break;
 	}
 
 	printf("ExpressionNode<%s>(\"%s\")\n", typeStr, expr->value.c_str());
-	if (expr->left)  printExpressionNode(expr->left, indent + 1);
-	if (expr->right) printExpressionNode(expr->right, indent + 1);
+
+	if (expr->type == EXPR_CALL) {
+		const CallNode* callNode = static_cast<const CallNode*>(expr);
+
+		if (!callNode->scope.empty()) {
+			for (int i = 0; i < indent + 1; ++i)
+				printf("  ");
+			printf("Scope: ");
+			for (size_t i = 0; i < callNode->scope.size(); ++i) {
+				printf("%s", callNode->scope[i].c_str());
+				if (i + 1 < callNode->scope.size())
+					printf("::");
+			}
+			printf("\n");
+		}
+
+		for (const auto& arg : callNode->args)
+			printExpressionNode(arg.get(), indent + 1);
+	} else {
+		if (expr->left)  printExpressionNode(expr->left, indent + 1);
+		if (expr->right) printExpressionNode(expr->right, indent + 1);
+	}
 }
 
 void printTree(const tea::Tree& tree) {
@@ -94,10 +115,8 @@ void printTree(const tea::Tree& tree) {
 
 int main() {
 	auto src = R"(
-using "io";
-
 public func main() -> int
-	return 1;
+	return GetTickCount();
 end
 )";
 

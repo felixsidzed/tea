@@ -8,7 +8,9 @@ namespace tea {
 	enum NodeType : uint8_t {
 		NODE_UsingNode,
 		NODE_FunctionNode,
-		NODE_ReturnNode
+		NODE_ExpressionNode,
+		NODE_ReturnNode,
+		NODE_CallNode,
 	};
 
 	struct Node {
@@ -16,6 +18,8 @@ namespace tea {
 
 		Node() = default;
 		virtual ~Node() = default;
+
+		Node(enum NodeType type) : type(type) {};
 	};
 
 	typedef std::vector<std::unique_ptr<Node>> Tree;
@@ -38,23 +42,34 @@ namespace tea {
 		EXPR_INT,
 		EXPR_FLOAT,
 		EXPR_STRING,
-		EXPR_IDENTF
+		EXPR_IDENTF,
+		EXPR_CALL
 	};
 
 	struct ExpressionNode : Node {
-		enum ExpressionType type;
+		enum ExpressionType etype;
 
 		std::string value;
 
 		ExpressionNode* left;
 		ExpressionNode* right;
 
-		ExpressionNode(enum ExpressionType type, const std::string& value, ExpressionNode* left = nullptr, ExpressionNode* right = nullptr) : type(type), value(value), left(left), right(right) {};
+		ExpressionNode(enum ExpressionType etype, const std::string& value, ExpressionNode* left = nullptr, ExpressionNode* right = nullptr) :
+			Node(NODE_ExpressionNode), etype(etype), value(value), left(left), right(right) { };
 	};
 
 	struct ReturnNode : Node {
 		std::unique_ptr<ExpressionNode> value;
 
 		ReturnNode(std::unique_ptr<ExpressionNode> value) : value(std::move(value)) {};
+	};
+
+	struct CallNode : ExpressionNode {
+		std::vector<std::string> scope;
+		// the callee is stored in ExpressionNode::value
+		std::vector<std::unique_ptr<ExpressionNode>> args;
+
+		CallNode(const std::vector<std::string>& scope, const std::string& callee, std::vector<std::unique_ptr<ExpressionNode>>&& args) :
+			scope(scope), args(std::move(args)), ExpressionNode(EXPR_CALL, callee) {}
 	};
 }
