@@ -162,6 +162,12 @@ namespace tea {
 			} else
 				return std::make_unique<ExpressionNode>(EXPR_IDENTF, value);
 		}
+		case TOKEN_LPAR: {
+			advance();
+			auto expr = parseExpression();
+			expect(TOKEN_RPAR);
+			return expr;
+		}
 		default:
 			unexpected();
 		}

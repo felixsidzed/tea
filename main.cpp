@@ -8,7 +8,7 @@
 int main() {
 	auto src = R"(
 private __cdecl func compute(int a, int b) -> int
-	return a + b * 2;
+	return (1 + 2) * 3;
 end
 
 public func main() -> int
