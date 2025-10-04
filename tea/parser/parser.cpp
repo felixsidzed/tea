@@ -88,7 +88,7 @@ namespace tea {
 					if (t->extra == KWORD_FUNC || isCC((enum KeywordType)t->extra))
 						parseFunc(STORAGE_PUBLIC);
 					else
-						goto unexpected;
+						unexpected();
 				} break;
 
 				case KWORD_PRIVATE: {
@@ -96,13 +96,63 @@ namespace tea {
 					if (t->extra == KWORD_FUNC || isCC((enum KeywordType)t->extra))
 						parseFunc(STORAGE_PRIVATE);
 					else
-						goto unexpected;
+						unexpected();
+				} break;
+
+				case KWORD_IMPORT: {
+					advance();
+					enum CallingConvention cc = DEFAULT_CC;
+
+					if (isCC((enum KeywordType)t->extra)) {
+						switch (t->extra) {
+						case KWORD_STDCC:	cc = CC_STD;	break;
+						case KWORD_FASTCC:	cc = CC_FAST;	break;
+						case KWORD_CCC:		cc = CC_C;		break;
+						}
+						advance();
+					}
+					else
+						unexpected();
+
+					if (t->type != TOKEN_KWORD || t->extra != KWORD_FUNC)
+						unexpected();
+					advance();
+
+					const TEA_TOKENVAL& name = expect(TOKEN_IDENTF);
+					auto it = std::find(funcs.begin(), funcs.end(), name);
+					if (it != funcs.end())
+						TEA_PANIC("function re-definition. line %d, column %d", t->line, t->column);
+					funcs.push_back(name);
+					expect(TOKEN_LPAR);
+
+					std::vector<std::pair<enum Type, std::string>> args;
+					if (t->type != TOKEN_RPAR) {
+						do {
+							const TEA_TOKENVAL& typeName = expect(TOKEN_IDENTF);
+							auto typeIt = name2type.find(typeName);
+							if (typeIt == name2type.end())
+								TEA_PANIC("unknown type '%s'. line %d, column %d", typeName.c_str(), (t - 1)->line, (t - 1)->column);
+							const TEA_TOKENVAL& argName = expect(TOKEN_IDENTF);
+							args.emplace_back(typeIt->second, argName);
+						} while (t->type == TOKEN_COMMA && t++);
+					}
+
+					expect(TOKEN_RPAR);
+					expect(TOKEN_ARROW);
+					const TEA_TOKENVAL& returnType = expect(TOKEN_IDENTF);
+					auto it2 = name2type.find(returnType);
+					if (it2 == name2type.end())
+						TEA_PANIC("unknown type '%s'. line %d, column %d", returnType.c_str(), (t - 1)->line, (t - 1)->column);
+
+					expect(TOKEN_SEMI);
+					pushnode(FunctionImportNode, cc, name, args, it2->second);
 				} break;
 
 				default:
-				unexpected:
 					unexpected();
-				}
+				} break;
+			default:
+				unexpected();
 			}
 		}
 
@@ -263,6 +313,7 @@ namespace tea {
 
 			case TOKEN_IDENTF: {
 				tree->push_back(parseExpression());
+				expect(TOKEN_SEMI);
 			} break;
 
 			default:
@@ -273,7 +324,7 @@ namespace tea {
 	}
 
 	void Parser::parseFunc(enum StorageType storage) {
-		enum CallingConvention cc = CC_FAST;
+		enum CallingConvention cc = DEFAULT_CC;
 
 		if (isCC((enum KeywordType)t->extra)) {
 			switch (t->extra) {

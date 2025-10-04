@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdexcept>
+#include <string>
 
 struct Configuration {
 	void(*panic)(const char* message, ...);
@@ -8,6 +8,8 @@ struct Configuration {
 
 namespace tea {
 	extern Configuration configuration;
+
+	extern void compile(const std::string& src, const char* output, const std::string& importLookup = ".", bool is64Bit = true, bool verbose = false);
 }
 
 #if defined(__clang__) && defined(__has_warning)
@@ -41,9 +43,9 @@ namespace tea {
 #ifdef _MSC_VER
 #include <intrin.h>
 
-#define TEA_RETURNADDR() _ReturnAddress()
+#define TEA_RETURNADDR _ReturnAddress()
 #else
-#define TEA_RETURNADDR() __builtin_return_address(0)
+#define TEA_RETURNADDR __builtin_return_address(0)
 #endif
 
 #ifdef _MSC_VER

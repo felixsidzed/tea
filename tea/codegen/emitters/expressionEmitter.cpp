@@ -87,29 +87,71 @@ namespace tea {
 		} break;
 
 		case EXPR_STRING: {
+			LLVMValueRef ptr = LLVMBuildGlobalString(block, node->value.c_str(), "");
+			LLVMValueRef indicies[] = { LLVMConstInt(LLVMInt32Type(), 0, 0), LLVMConstInt(LLVMInt32Type(), 0, 0) };
 			return {
 				type2llvm[TYPE_STRING],
-				LLVMBuildGlobalStringPtr(block, node->value.c_str(), "")
+				ptr
 			};
 		} break;
 
 		case EXPR_CALL: {
 			CallNode* call = (CallNode*)node.get();
 			std::vector<LLVMValueRef> args;
+			std::vector<LLVMTypeRef> argTypes;
 			args.reserve(call->args.size());
 
-			for (const auto& arg : call->args)
-				args.push_back(emitExpression(arg).second);
+			for (const auto& arg : call->args) {
+				auto [t, v] = emitExpression(arg);
+				argTypes.push_back(t);
+				args.push_back(v);
+			}
 
 			LLVMValueRef callee = nullptr;
 			if (call->scope.size() == 0) {
 				callee = LLVMGetNamedFunction(module, call->value.c_str()); // callee is stored in ExpressionNode::value
-			} // TODO: scoped calls
 
-			if (!callee)
-				TEA_PANIC("call to undefined function '%s'. line %d, column %d", call->value.c_str(), node->line, node->column);
+			} else if (call->scope.size() == 1) {
+				const std::string& scope = call->scope[0];
+				auto it = modules.find(scope);
+				if (it != modules.end()) {
+					auto& imported = it->second;
+					auto it2 = imported.find(call->value);
+					if (it2 != imported.end())
+						callee = it2->second;
+				}
+			} else
+				TEA_PANIC("deep scopes are not yet implemented. line &d, column %d", node->line, node->column);
 
-			// TODO: argument type checking
+			if (!callee) {
+				std::string fqn;
+				if (!call->scope.empty()) {
+					for (const auto& s : call->scope)
+						fqn += s + "::";
+				}
+				fqn += call->value;
+
+				TEA_PANIC("call to undefined function '%s'. line %d, column %d", fqn.c_str(), node->line, node->column);
+			}
+
+			LLVMTypeRef ftype = LLVMGlobalGetValueType(callee);
+			uint32_t nargs = LLVMCountParamTypes(ftype);
+			LLVMTypeRef* calleeArgTypes = new LLVMTypeRef[nargs + 1];
+			LLVMGetParamTypes(ftype, calleeArgTypes);
+
+			if (nargs != argTypes.size())
+				TEA_PANIC("argument count mismatch. expected %d, got %d. line %d, column %d", nargs, argTypes.size(), node->line, node->column);
+
+			for (uint32_t i = 0; i < nargs; i++) {
+				LLVMTypeRef got = argTypes[i];
+				LLVMTypeRef expected = calleeArgTypes[i];
+
+				if (got != expected)
+					TEA_PANIC("argument %d: expected type %s, got %s. line %d, column %d",
+						i + 1, llvm2readable(expected), llvm2readable(got, args[i]), node->line, node->column);
+			}
+
+			delete[] calleeArgTypes;
 
 			return {
 				LLVMGetReturnType(LLVMGlobalGetValueType(callee)),
@@ -146,6 +188,7 @@ namespace tea {
 			
 			TEA_PANIC("'%s' is not defined. line %d, column %d", node->value.c_str(), node->line, node->column);
 			TEA_UNREACHABLE();
+			break;
 		}
 
 		default:
