@@ -59,4 +59,3 @@ namespace tea {
 #endif
 
 #define TEA_PANIC tea::configuration.panic
-#define TEA_TOKENVAL std::string // std::string or something similar

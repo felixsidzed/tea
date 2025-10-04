@@ -10,7 +10,7 @@ static const char* keywords[] = {
 	/* ORDER KWORD */
 
 	"using", "import",
-	"macro",
+	//"macro",
 	"public", "private",
 	"if", /*"elseif",*/ "else", "do", /*"while", "for", "break", "continue", */
 	"func", "return",
