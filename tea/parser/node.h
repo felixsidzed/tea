@@ -25,6 +25,35 @@ namespace tea {
 		NODE_CallNode,
 	};
 
+	enum StorageType : uint8_t {
+		STORAGE_PUBLIC,
+		STORAGE_PRIVATE
+	};
+
+	enum ExpressionType : uint8_t {
+		EXPR_STRING,
+
+		EXPR_INT,
+		EXPR_FLOAT,
+		EXPR_DOUBLE,
+
+		EXPR_IDENTF,
+		EXPR_CALL,
+
+		EXPR_ADD,
+		EXPR_SUB,
+		EXPR_MUL,
+		EXPR_DIV
+	};
+
+	enum CallingConvention : uint8_t {
+		CC_C,
+		CC_FAST,
+		CC_STD,
+
+		CC__COUNT
+	};
+
 	struct Node {
 		enum NodeType type = static_cast<enum NodeType>(0);
 
@@ -45,37 +74,17 @@ namespace tea {
 		UsingNode(const std::string& name) : name(name) {}
 	};
 
-	enum StorageType : uint8_t {
-		STORAGE_PUBLIC,
-		STORAGE_PRIVATE
-	};
-
 	struct FunctionNode : Node {
 		Tree body;
 		
 		enum StorageType storage;
+		enum CallingConvention cc;
 		std::string name;
 		std::vector<std::pair<enum Type, std::string>> args;
 		enum Type returnType;
 
-		FunctionNode(enum StorageType storage, const std::string& name, const std::vector<std::pair<enum Type, std::string>>& args, enum Type returnType)
-			: storage(storage), name(name), args(args), returnType(returnType) {};
-	};
-
-	enum ExpressionType : uint8_t {
-		EXPR_STRING,
-
-		EXPR_INT,
-		EXPR_FLOAT,
-		EXPR_DOUBLE,
-
-		EXPR_IDENTF,
-		EXPR_CALL,
-
-		EXPR_ADD,
-		EXPR_SUB,
-		EXPR_MUL,
-		EXPR_DIV
+		FunctionNode(enum StorageType storage, enum CallingConvention cc, const std::string& name, const std::vector<std::pair<enum Type, std::string>>& args, enum Type returnType)
+			: storage(storage), cc(cc), name(name), args(args), returnType(returnType) {};
 	};
 
 	struct ExpressionNode : Node {
