@@ -5,19 +5,18 @@
 #include <filesystem>
 #include <unordered_map>
 
-#include "tea.h"
-#include "parser/node.h"
+#include "tea/tea.h"
+#include "tea/vector.h"
+#include "tea/parser/node.h"
 
 #include <llvm-c/Core.h>
 
 namespace tea {
 	namespace fs = std::filesystem;
 
-	extern LLVMAttributeKind attr2llvm[ATTR__COUNT];
-
 	class CodeGen {
 	public:
-		typedef std::unordered_map<std::string, LLVMValueRef> ImportedModule;
+		typedef map<string, LLVMValueRef> ImportedModule;
 		
 		bool verbose;
 		fs::path importLookup;
@@ -29,7 +28,7 @@ namespace tea {
 	private:
 		struct Local {
 			Type type;
-			std::string name;
+			string name;
 			LLVMValueRef allocated;
 		};
 
@@ -37,12 +36,12 @@ namespace tea {
 		LLVMValueRef func = nullptr;
 		LLVMBuilderRef block = nullptr;
 
-		std::vector<struct Local> locals;
-		std::unordered_map<std::string, ImportedModule> modules;
-		std::vector<std::pair<Type, std::string>>* curArgs = nullptr;
+		vector<struct Local> locals;
+		map<string, ImportedModule> modules;
+		vector<std::pair<Type, string>>* curArgs = nullptr;
 
-		std::vector<LLVMValueRef>* argsMap = nullptr;
-		std::unordered_map<std::string, FunctionNode*> inlineables;
+		vector<LLVMValueRef>* argsMap = nullptr;
+		map<string, FunctionNode*> inlineables;
 
 		inline void logUnformatted(const std::string& message) {
 			if (!verbose)

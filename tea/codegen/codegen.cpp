@@ -2,7 +2,8 @@
 
 #include <fstream>
 
-#include "tea.h"
+#include "tea/tea.h"
+#include "tea/map.h"
 #include "tea/lexer/lexer.h"
 #include "tea/parser/parser.h"
 
@@ -13,12 +14,7 @@
 #include <llvm-c/Transforms/PassBuilder.h>
 
 namespace tea {
-	LLVMAttributeKind attr2llvm[ATTR__COUNT] = {
-		LLVMAttrAlwaysInline,
-		LLVMAttrNoReturn,
-	};
-
-	std::unordered_map<LLVMTypeKind, const char*> typeKindName = {
+	map<LLVMTypeKind, const char*> typeKindName = {
 		{LLVMIntegerTypeKind, "int"},
 		{LLVMFloatTypeKind, "float"},
 		{LLVMDoubleTypeKind, "double"},
@@ -55,12 +51,12 @@ namespace tea {
 		}
 
 		LLVMTargetRef target;
-
+		
 		char* err = nullptr;
 		if (LLVMGetTargetFromTriple(triple.c_str(), &target, &err)) {
-			std::string _(err);
+			string _(err);
 			LLVMDisposeMessage(err);
-			TEA_PANIC("Failed to create target machine: %s", _.c_str());
+			TEA_PANIC("Failed to create target machine: %s", _);
 		}
 
 		LLVMTargetMachineRef machine = LLVMCreateTargetMachine(
@@ -91,9 +87,9 @@ namespace tea {
 		}
 
 		if (LLVMTargetMachineEmitToFile(machine, module, output, LLVMObjectFile, &err)) {
-			std::string _(err);
+			string _(err);
 			LLVMDisposeMessage(err);
-			TEA_PANIC("Failed to emit to file: %s", _.c_str());
+			TEA_PANIC("Failed to emit to file: %s", _);
 		}
 
 		LLVMDisposeModule(module);
@@ -108,10 +104,10 @@ namespace tea {
 				break;
 			case tnode(UsingNode): {
 				UsingNode* usingNode = (UsingNode*)node.get();
-				fs::path path = importLookup / (usingNode->name + ".tea");
+				fs::path path = importLookup / std::string(usingNode->name + ".tea");
 				std::ifstream file(path);
 				if (!file.is_open())
-					TEA_PANIC(("failed to import module '" + usingNode->name + "'").c_str());
+					TEA_PANIC("failed to import module '" + usingNode->name + "'");
 
 				try {
 					std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
@@ -123,17 +119,18 @@ namespace tea {
 					for (const auto& node_ : tree) {
 						if (node_->type == tnode(FunctionImportNode)) {
 							FunctionImportNode* fiNode = (FunctionImportNode*)node_.get();
-							std::string unprefixed = fiNode->name;
-							fiNode->name.insert(0, "_" + path.stem().string() + "__");
+							string unprefixed = fiNode->name;
+							// fuckass
+							fiNode->name = (std::string(fiNode->name.data, fiNode->name.size).insert(0, "_" + path.stem().string() + "__")).c_str();
 							importedModule[unprefixed] = emitFunctionImport(fiNode);
 						} else
 							TEA_PANIC("invalid root statement. line %d, column %d", node_->line, node_->column);
 					}
 					modules[usingNode->name] = importedModule;
-					log("Imported {} function(s) from module '{}'", importedModule.size(), usingNode->name);
+					log("Imported {} function(s) from module '{}'", importedModule.size(), usingNode->name.data);
 
 				} catch (const std::exception& e) {
-					TEA_PANIC(("failed to import module '" + usingNode->name + "': " + e.what()).c_str());
+					TEA_PANIC("failed to import module '" + usingNode->name + "': " + e.what());
 				}
 
 				file.close();
@@ -145,7 +142,7 @@ namespace tea {
 				GlobalVariableNode* globalVarNode = (GlobalVariableNode*)node.get();
 
 				LLVMTypeRef expected = globalVarNode->dataType.llvm;
-				LLVMValueRef global = LLVMAddGlobal(module, expected, globalVarNode->name.c_str());
+				LLVMValueRef global = LLVMAddGlobal(module, expected, globalVarNode->name);
 
 				if (globalVarNode->storage == STORAGE_PRIVATE)
 					LLVMSetLinkage(global, LLVMLinkerPrivateLinkage);
@@ -167,7 +164,7 @@ namespace tea {
 	}
 
 	const char* CodeGen::llvm2readable(LLVMTypeRef type) {
-		std::string result;
+		string result;
 		LLVMTypeRef t = type;
 
 		int nptr = 0;
@@ -203,8 +200,8 @@ namespace tea {
 
 		default:
 			auto it = typeKindName.find(kind);
-			if (it != typeKindName.end())
-				result = it->second;
+			if (it)
+				result = *it;
 			else {
 				char* llvmName = LLVMPrintTypeToString(t);
 				result = llvmName;
@@ -216,9 +213,10 @@ namespace tea {
 		for (int i = 0; i < nptr; i++)
 			result += '*';
 
-		char* cstr = new char[result.size() + 1];
-		std::copy(result.begin(), result.end(), cstr);
-		cstr[result.size()] = '\0';
+		uint32_t len = result.size;
+		char* cstr = new char[len + 1];
+		memcpy_s(cstr, len + 1, result + len, len);
+		cstr[len] = '\0';
 		return cstr;
 	}
 }

@@ -4,7 +4,7 @@
 #include <string>
 #include <memory>
 
-#include "types.h"
+#include "tea/parser/types.h"
 
 namespace tea {
 	struct Node {
@@ -17,38 +17,38 @@ namespace tea {
 		Node(enum NodeType type, uint32_t line = 0, uint32_t column = 0) : type(type), line(line), column(column) {};
 	};
 
-	typedef std::vector<std::unique_ptr<Node>> Tree;
+	typedef vector<std::unique_ptr<Node>> Tree;
 
 	struct UsingNode : Node {
-		std::string name;
+		string name;
 
-		UsingNode(const std::string& name) : name(name) {}
+		UsingNode(const string& name) : name(name) {}
 	};
 
 	struct FunctionNode : Node {
 		Tree body;
 		
-		std::vector<enum Attribute> attrs;
+		vector<LLVMAttributeKind> attrs;
 		enum StorageType storage;
-		enum CallingConvention cc;
-		std::string name;
-		std::vector<std::pair<Type, std::string>> args;
+		enum CallConv cc;
+		string name;
+		vector<std::pair<Type, string>> args;
 		Type returnType;
 		bool vararg;
 
-		FunctionNode(enum StorageType storage, enum CallingConvention cc, const std::string& name, const std::vector<std::pair<Type, std::string>>& args, Type& returnType, bool vararg)
+		FunctionNode(enum StorageType storage, enum CallConv cc, const string& name, const vector<std::pair<Type, string>>& args, Type& returnType, bool vararg)
 			: storage(storage), cc(cc), name(name), args(args), returnType(returnType), vararg(vararg) {};
 	};
 
 	struct ExpressionNode : Node {
 		enum ExpressionType etype;
 
-		std::string value;
+		string value;
 
 		std::unique_ptr<ExpressionNode> left;
 		std::unique_ptr<ExpressionNode> right;
 
-		ExpressionNode(enum ExpressionType etype, const std::string& value, std::unique_ptr<ExpressionNode> left = nullptr, std::unique_ptr<ExpressionNode> right = nullptr) :
+		ExpressionNode(enum ExpressionType etype, const string& value, std::unique_ptr<ExpressionNode> left = nullptr, std::unique_ptr<ExpressionNode> right = nullptr) :
 			Node(NODE_ExpressionNode), etype(etype), value(value), left(std::move(left)), right(std::move(right)) { };
 	};
 
@@ -59,31 +59,31 @@ namespace tea {
 	};
 
 	struct CallNode : ExpressionNode {
-		std::vector<std::string> scope;
-		// the callee is stored in ExpressionNode::value
-		std::vector<std::unique_ptr<ExpressionNode>> args;
+		vector<string> scope;
+		// callee is stored in ExpressionNode::value
+		vector<std::unique_ptr<ExpressionNode>> args;
 
-		CallNode(const std::vector<std::string>& scope, const std::string& callee, std::vector<std::unique_ptr<ExpressionNode>>&& args) :
+		CallNode(const vector<string>& scope, const string& callee, vector<std::unique_ptr<ExpressionNode>>&& args) :
 			scope(scope), args(std::move(args)), ExpressionNode(EXPR_CALL, callee) {}
 	};
 
 	struct VariableNode : Node {
-		std::string name;
+		string name;
 		Type dataType;
 		std::unique_ptr<ExpressionNode> value;
 
-		VariableNode(const std::string& name, Type dataType, std::unique_ptr<ExpressionNode> value)
+		VariableNode(const string& name, Type dataType, std::unique_ptr<ExpressionNode> value)
 			: name(name), dataType(dataType), value(std::move(value)) {}
 	};
 
 	struct FunctionImportNode : Node {
-		enum CallingConvention cc;
-		std::string name;
-		std::vector<std::pair<Type, std::string>> args;
+		enum CallConv cc;
+		string name;
+		vector<std::pair<Type, string>> args;
 		Type returnType;
 		bool vararg;
 
-		FunctionImportNode(enum CallingConvention cc, const std::string& name, const std::vector<std::pair<Type, std::string>>& args, Type returnType, bool vararg)
+		FunctionImportNode(enum CallConv cc, const string& name, const vector<std::pair<Type, string>>& args, Type returnType, bool vararg)
 			: cc(cc), name(name), args(args), returnType(returnType), vararg(vararg) {
 		};
 	};
@@ -115,11 +115,11 @@ namespace tea {
 
 	struct GlobalVariableNode : Node {
 		enum StorageType storage;
-		std::string name;
+		string name;
 		Type dataType;
 		std::unique_ptr<ExpressionNode> value;
 
-		GlobalVariableNode(enum StorageType storage, const std::string& name, Type dataType, std::unique_ptr<ExpressionNode> value) :
+		GlobalVariableNode(enum StorageType storage, const string& name, Type dataType, std::unique_ptr<ExpressionNode> value) :
 			storage(storage), name(name), dataType(dataType), value(std::move(value)) {};
 	};
 

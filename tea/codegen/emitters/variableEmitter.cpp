@@ -1,12 +1,12 @@
 #include "../codegen.h"
 
-#include "tea.h"
+#include "tea/tea.h"
 
 namespace tea {
 	void CodeGen::emitVariable(VariableNode* node) {
-		log("Emitting local '{}' of type {} (initialized = {})", node->name, llvm2readable(node->dataType.llvm), node->value != nullptr);
+		log("Emitting local '{}' of type {} (initialized = {})", node->name.data, llvm2readable(node->dataType.llvm), node->value != nullptr);
 		LLVMTypeRef expected = node->dataType.llvm;
-		auto insn = LLVMBuildAlloca(block, node->dataType.llvm, node->name.c_str());
+		auto insn = LLVMBuildAlloca(block, node->dataType.llvm, node->name);
 		if (node->value != nullptr) {
 			auto [got, value] = emitExpression(node->value);
 			if (got != expected) {
@@ -15,7 +15,7 @@ namespace tea {
 			}
 			LLVMBuildStore(block, value, insn);
 		}
-		locals.push_back({
+		locals.push({
 			.type = node->dataType,
 			.name = node->name,
 			.allocated = insn,

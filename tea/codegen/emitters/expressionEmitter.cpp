@@ -1,6 +1,6 @@
 #include "../codegen.h"
 
-#include "tea.h"
+#include "tea/tea.h"
 
 namespace tea {
 	std::pair<Type, LLVMValueRef> CodeGen::emitExpression(const std::unique_ptr<ExpressionNode>& node, bool constant, bool* ptr) {
@@ -98,26 +98,26 @@ namespace tea {
 		case EXPR_INT: {
 			return {
 				Type::get(Type::INT),
-				LLVMConstInt(Type::get(Type::INT).llvm, std::stoll(node->value), true)
+				LLVMConstInt(Type::get(Type::INT).llvm, std::stoll(std::string(node->value)), true)
 			};
 		} break;
 
 		case EXPR_FLOAT: {
 			return {
 				Type::get(Type::FLOAT),
-				LLVMConstReal(Type::get(Type::FLOAT).llvm, std::stod(node->value))
+				LLVMConstReal(Type::get(Type::FLOAT).llvm, std::stod(std::string(node->value)))
 			};
 		} break;
 
 		case EXPR_DOUBLE: {
 			return {
 				Type::get(Type::DOUBLE),
-				LLVMConstReal(Type::get(Type::DOUBLE).llvm, std::stod(node->value))
+				LLVMConstReal(Type::get(Type::DOUBLE).llvm, std::stod(std::string(node->value)))
 			};
 		} break;
 
 		case EXPR_STRING: {
-			LLVMValueRef str = LLVMBuildGlobalString(block, node->value.c_str(), "");
+			LLVMValueRef str = LLVMBuildGlobalString(block, node->value, "");
 			if (ptr) *ptr = true;
 			return {
 				Type::get(Type::STRING),
@@ -128,7 +128,7 @@ namespace tea {
 		case EXPR_CHAR: {
 			return {
 				Type::get(Type::CHAR),
-				LLVMConstInt(Type::get(Type::CHAR).llvm, *node->value.c_str(), false)
+				LLVMConstInt(Type::get(Type::CHAR).llvm, node->value[0], false)
 			};
 		}
 
@@ -137,38 +137,38 @@ namespace tea {
 				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
 
 			CallNode* call = (CallNode*)node.get();
-			std::vector<LLVMValueRef> args;
-			std::vector<LLVMTypeRef> argTypes;
-			args.reserve(call->args.size());
+			vector<LLVMValueRef> args;
+			vector<LLVMTypeRef> argTypes;
+			args.reserve(call->args.size);
 
 			for (const auto& arg : call->args) {
 				auto [t, v] = emitExpression(arg);
-				argTypes.push_back(t.llvm);
-				args.push_back(v);
+				argTypes.push(t.llvm);
+				args.push(v);
 			}
 
 			LLVMValueRef callee = nullptr;
-			if (call->scope.size() == 0) {
+			if (call->scope.size == 0) {
 				// callee is stored in ExpressionNode::value
-				callee = LLVMGetNamedFunction(module, call->value.c_str());
+				callee = LLVMGetNamedFunction(module, call->value);
 
 				if (!callee) {
 					auto it = inlineables.find(call->value);
-					if (it != inlineables.end()) { // TODO: improve
-						FunctionNode* funcNode = it->second;
+					if (it) { // TODO: improve
+						FunctionNode* funcNode = *it;
 
 						LLVMTypeRef returnType = funcNode->returnType.llvm;
 						LLVMValueRef returnValue = nullptr;
 						if (LLVMGetTypeKind(returnType) != LLVMVoidTypeKind)
-							returnValue = LLVMBuildAlloca(block, returnType, "");
+							returnValue = LLVMBuildAlloca(block, returnType, ""); // TODO: force this to be in rax
 
-						std::vector<std::pair<Type, std::string>>* oldCurArgs = curArgs;
+						vector<std::pair<Type, string>>* oldCurArgs = curArgs;
 
 						argsMap = &args;
 						curArgs = &funcNode->args;
 
 						std::pair<LLVMTypeRef, LLVMValueRef> returnInto = { returnType, returnValue };
-						emitBlock(funcNode->body, ".inlined.function", nullptr, &returnInto);
+						emitBlock(funcNode->body, ".`inlinedfunction", nullptr, &returnInto);
 
 						argsMap = nullptr;
 						curArgs = oldCurArgs;
@@ -196,14 +196,14 @@ namespace tea {
 					}
 				}
 
-			} else if (call->scope.size() == 1) {
-				const std::string& scope = call->scope[0];
+			} else if (call->scope.size == 1) {
+				const string& scope = call->scope[0];
 				auto it = modules.find(scope);
-				if (it != modules.end()) {
-					auto& imported = it->second;
+				if (it) {
+					auto& imported = *it;
 					auto it2 = imported.find(call->value);
-					if (it2 != imported.end())
-						callee = it2->second;
+					if (it2)
+						callee = *it2;
 				}
 			} else
 				TEA_PANIC("deep scopes are not yet implemented. line &d, column %d", node->line, node->column);
@@ -211,8 +211,10 @@ namespace tea {
 			if (!callee) {
 				std::string fqn;
 				if (!call->scope.empty()) {
-					for (const auto& s : call->scope)
-						fqn += s + "::";
+					for (const auto& s : call->scope) {
+						fqn.append(s);
+						fqn.append(2, ':');
+					}
 				}
 				fqn += call->value;
 
@@ -224,8 +226,8 @@ namespace tea {
 			LLVMTypeRef* calleeArgTypes = new LLVMTypeRef[nargs + 1];
 			LLVMGetParamTypes(ftype, calleeArgTypes);
 
-			if ((!LLVMIsFunctionVarArg(ftype) && nargs != argTypes.size()) || (LLVMIsFunctionVarArg(ftype) && nargs > argTypes.size()))
-				TEA_PANIC("argument count mismatch. expected %d, got %d. line %d, column %d", nargs, argTypes.size(), node->line, node->column);
+			if ((!LLVMIsFunctionVarArg(ftype) && nargs != argTypes.size) || (LLVMIsFunctionVarArg(ftype) && nargs > argTypes.size))
+				TEA_PANIC("argument count mismatch. expected %d, got %d. line %d, column %d", nargs, argTypes.size, node->line, node->column);
 
 			for (uint32_t i = 0; i < nargs; i++) {
 				LLVMTypeRef got = argTypes[i];
@@ -246,7 +248,7 @@ namespace tea {
 			delete[] calleeArgTypes;
 			return {
 				LLVMGetReturnType(ftype),
-				LLVMBuildCall(block, callee, args.data(), (uint32_t)args.size(), "")
+				LLVMBuildCall(block, callee, args.data, args.size, "")
 			};
 		}
 
@@ -272,7 +274,7 @@ namespace tea {
 			if (constant)
 				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
 
-			LLVMValueRef global = LLVMGetNamedGlobal(module, node->value.c_str());
+			LLVMValueRef global = LLVMGetNamedGlobal(module, node->value);
 			if (global) {
 				LLVMTypeRef type = LLVMGlobalGetValueType(global);
 				if (ptr) {
@@ -307,7 +309,7 @@ namespace tea {
 					}
 
 					if (argsMap) {
-						LLVMValueRef mapped = argsMap->at(i);
+						LLVMValueRef mapped = argsMap->operator[](i);
 						LLVMTypeRef type = LLVMTypeOf(mapped);
 						if (ptr) {
 							*ptr = true;
@@ -340,7 +342,7 @@ namespace tea {
 				}
 			}
 			
-			TEA_PANIC("'%s' is not defined. line %d, column %d", node->value.c_str(), node->line, node->column);
+			TEA_PANIC("'%s' is not defined. line %d, column %d", node->value, node->line, node->column);
 			TEA_UNREACHABLE();
 		} break;
 

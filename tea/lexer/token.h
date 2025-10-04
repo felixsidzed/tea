@@ -1,6 +1,7 @@
 #pragma once
 
-#include "tea.h"
+#include "tea/tea.h"
+#include "tea/string.h"
 
 namespace tea {
 	enum TokenType : uint8_t {
@@ -64,7 +65,7 @@ namespace tea {
 
 	struct Token {
 		enum TokenType type;
-		const std::string value;
+		const string value;
 		int extra;
 
 		uint32_t length;

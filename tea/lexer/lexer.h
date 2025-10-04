@@ -4,9 +4,10 @@
 #include <string>
 
 #include "token.h"
+#include "tea/vector.h"
 
 namespace tea {
 	namespace Lexer {
-		std::vector<Token> tokenize(const std::string& source);
+		vector<Token> tokenize(const std::string& source);
 	}
 }

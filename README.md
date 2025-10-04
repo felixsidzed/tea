@@ -1,4 +1,5 @@
 # Tea
+# This rewrite is still in progress, so most of the content is not yet functional
 
 **Tea**, pronounced /teə/, is a lightweight, general purpose scripting language inspired by Lua. Its designed to be easy to understand while having low-level access, and it compiles down to a native executable file.
 

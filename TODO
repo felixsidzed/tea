@@ -8,5 +8,5 @@ TOOD list (in order):
 #. objects
 #. cli
 #. linux support
-#. jit compiler
+#. jit
 #. repl

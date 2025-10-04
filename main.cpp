@@ -2,7 +2,7 @@
 #include <sstream>
 #include <iostream>
 
-#include "tea.h"
+#include "tea/tea.h"
 
 int main() {
 	std::ifstream file("playground/test.tea");

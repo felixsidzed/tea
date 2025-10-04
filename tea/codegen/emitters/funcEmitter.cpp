@@ -1,6 +1,6 @@
 #include "../codegen.h"
 
-#include "tea.h"
+#include "tea/tea.h"
 
 namespace tea {
 	static const char* ccname[CC__COUNT] = {
@@ -13,11 +13,11 @@ namespace tea {
 	LLVMCallConv cc2llvm[CC__COUNT] = {
 		LLVMCCallConv,
 		LLVMFastCallConv,
-		LLVMX86StdcallCallConv
+		LLVMX86StdcallCallConv,
 	};
 
 	void CodeGen::emitFunction(FunctionNode* node) {
-		auto it = std::find(node->attrs.begin(), node->attrs.end(), ATTR_INLINE);
+		auto it = std::find(node->attrs.begin(), node->attrs.end(), LLVMAlwaysInlineAttribute);
 		if (it != node->attrs.end()) {
 			inlineables[node->name] = node;
 			return;
@@ -26,18 +26,18 @@ namespace tea {
 		log("Entering function '{} {} func {}(...) ({} arguments)",
 			node->storage == STORAGE_PUBLIC ? "public" : "private",
 			ccname[node->cc],
-			node->name,
-			node->args.size()
+			node->name.data,
+			node->args.size
 		);
 
-		std::vector<LLVMTypeRef> argTypes;
+		vector<LLVMTypeRef> argTypes;
 		for (const auto& arg : node->args)
-			argTypes.push_back(arg.first.llvm);
+			argTypes.push(arg.first.llvm);
 
 		curArgs = &node->args;
 
-		LLVMTypeRef funcType = LLVMFunctionType(node->returnType.llvm, argTypes.data(), (uint32_t)node->args.size(), node->vararg);
-		func = LLVMAddFunction(module, node->name.c_str(), funcType);
+		LLVMTypeRef funcType = LLVMFunctionType(node->returnType.llvm, argTypes.data, (uint32_t)node->args.size, node->vararg);
+		func = LLVMAddFunction(module, node->name, funcType);
 
 		if (node->cc != CC_AUTO)
 			LLVMSetFunctionCallConv(func, cc2llvm[node->cc]);
@@ -47,12 +47,12 @@ namespace tea {
 
 		int i = 0;
 		for (const auto& arg : node->args)
-			LLVMSetValueName(LLVMGetParam(func, i++), arg.second.c_str());
+			LLVMSetValueName(LLVMGetParam(func, i++), arg.second);
 
 		bool noreturn = false;
 		for (const auto& attr : node->attrs) {
-			LLVMAddAttributeAtIndex(func, LLVMAttributeFunctionIndex, LLVMCreateEnumAttribute(LLVMGetGlobalContext(), attr2llvm[attr], 0));
-			if (attr == ATTR_NORETURN)
+			LLVMAddAttributeAtIndex(func, LLVMAttributeFunctionIndex, LLVMCreateEnumAttribute(LLVMGetGlobalContext(), attr, 0));
+			if (attr == LLVMNoReturnAttribute)
 				noreturn = true;
 		}
 

@@ -1,13 +1,14 @@
 #include "parser.h"
 
-#include "tea.h"
-#include "lexer/token.h"
+#include "tea/tea.h"
+#include "tea/map.h"
+#include "tea/lexer/token.h"
 
 #define pushnode(T,...) { \
 	auto node = std::make_unique<T>(__VA_ARGS__); \
 	node->type = tnode(T); \
 	node->line = t->line; node->column = t->column; \
-	tree->push_back(std::move(node)); \
+	tree->push(std::move(node)); \
 }
 
 #define pushtree(T,...) { \
@@ -15,15 +16,15 @@
 	node->type = tnode(T); \
 	node->line = t->line; node->column = t->column; \
 	auto body = &node->body; \
-	treeHistory.push_back(tree); \
-	tree->push_back(std::move(node)); \
+	treeHistory.push(tree); \
+	tree->push(std::move(node)); \
 	tree = body; \
 }
 #define poptree() { \
 	if (TEA_UNLIKELY(treeHistory.empty())) \
 		__debugbreak(); \
-	tree = treeHistory.back(); \
-	treeHistory.pop_back(); \
+	tree = treeHistory[treeHistory.size-1]; \
+	treeHistory.pop(); \
 }
 
 #define advance() { \
@@ -33,22 +34,22 @@
 #define expect(tt) _expect(t,tt)
 
 namespace tea {
-	std::unordered_map<std::string, enum Attribute> name2attr = {
-		{"inline", ATTR_INLINE},
-		{"noreturn", ATTR_NORETURN}
+	map<string, LLVMAttributeKind> name2attr = {
+		{"inline", LLVMAlwaysInlineAttribute},
+		{"noreturn", LLVMNoReturnAttribute}
 	};
 
-	static inline const std::string& _expect(const Token*& t, enum TokenType expected) {
+	static inline const char* _expect(const Token*& t, enum TokenType expected) {
 		while (t->type == TOKEN_NEWLINE)
 			t++;
 		if (t->type != expected)
-			TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value.c_str(), t->line, t->column);
+			TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value, t->line, t->column);
 		advance();
 		return (t - 1)->value;
 	}
 
 	static inline bool isCC(enum KeywordType tt) {
-		return tt == KWORD_FASTCC || tt == KWORD_STDCC || tt == KWORD_CCC;
+		return tt == KWORD_FASTCC || tt == KWORD_STDCC || tt == KWORD_CCC || tt == KWORD_AUTOCC;
 	}
 
 	Parser::Parser() {
@@ -56,8 +57,8 @@ namespace tea {
 		tree = nullptr;
 	}
 
-	Tree Parser::parse(const std::vector<Token>& tokens) {
-		t = tokens.data();
+	Tree Parser::parse(const vector<Token>& tokens) {
+		t = tokens.data;
 
 		Tree root;
 		tree = &root;
@@ -72,11 +73,11 @@ namespace tea {
 				switch (t->extra) {
 				case KWORD_USING: {
 					advance();
-					const std::string& name = expect(TOKEN_STRING);
-					auto it = std::find(imported.begin(), imported.end(), name);
-					if (it != imported.end())
+					const string& name = expect(TOKEN_STRING);
+					auto it = imported.find(name);;
+					if (it)
 						TEA_PANIC("module re-import. line %d, column %d", t->line, t->column);
-					imported.push_back(name);
+					imported.push(name);
 					expect(TOKEN_SEMI);
 					pushnode(UsingNode, name);
 				} break;
@@ -94,13 +95,13 @@ namespace tea {
 						t++;
 						advance();
 
-						const std::string& name = expect(TOKEN_IDENTF);
+						const string& name = expect(TOKEN_IDENTF);
 						expect(TOKEN_COLON);
 						
-						const std::string& dataType = parseType();
+						const string& dataType = parseType();
 						auto type = Type::get(dataType);
 						if (!type.second)
-							TEA_PANIC("unknown type '%s'. line %d, column %d", dataType.c_str(), (t - 1)->line, (t - 1)->column);
+							TEA_PANIC("unknown type '%s'. line %d, column %d", dataType, (t - 1)->line, (t - 1)->column);
 
 						std::unique_ptr<ExpressionNode> value = nullptr;
 						if (t->type != TOKEN_SEMI) {
@@ -116,7 +117,7 @@ namespace tea {
 
 				case KWORD_IMPORT: {
 					advance();
-					enum CallingConvention cc = DEFAULT_CC;
+					enum CallConv cc = DEFAULT_CC;
 
 					if (isCC((enum KeywordType)t->extra)) {
 						switch (t->extra) {
@@ -134,15 +135,15 @@ namespace tea {
 						unexpected();
 					advance();
 
-					const std::string& name = expect(TOKEN_IDENTF);
-					auto it = std::find(funcs.begin(), funcs.end(), name);
+					const string& name = expect(TOKEN_IDENTF);
+					auto it = funcs.find(name);
 					if (it != funcs.end())
 						TEA_PANIC("function re-definition. line %d, column %d", t->line, t->column);
-					funcs.push_back(name);
+					funcs.push(name);
 					expect(TOKEN_LPAR);
 
 					bool vararg = false;
-					std::vector<std::pair<Type, std::string>> args;
+					vector<std::pair<Type, string>> args;
 					if (t->type != TOKEN_RPAR) {
 						do {
 							if (t->type == TOKEN_DOT && (t + 1)->type == TOKEN_DOT && (t + 2)->type == TOKEN_DOT) {
@@ -153,21 +154,21 @@ namespace tea {
 								break;
 							}
 
-							const std::string& typeName = parseType();
+							const string& typeName = parseType();
 							auto type = Type::get(typeName);
 							if (!type.second)
-								TEA_PANIC("unknown type '%s'. line %d, column %d", typeName.c_str(), (t - 1)->line, (t - 1)->column);
-							const std::string& argName = expect(TOKEN_IDENTF);
-							args.emplace_back(type.first, argName);
+								TEA_PANIC("unknown type '%s'. line %d, column %d", typeName, (t - 1)->line, (t - 1)->column);
+							const string& argName = expect(TOKEN_IDENTF);
+							args.emplace(type.first, argName);
 						} while (t->type == TOKEN_COMMA && t++);
 					}
 
 					expect(TOKEN_RPAR);
 					expect(TOKEN_ARROW);
-					const std::string& returnType = parseType();
+					const string& returnType = parseType();
 					auto type = Type::get(returnType);
 					if (!type.second)
-						TEA_PANIC("unknown type '%s'. line %d, column %d", returnType.c_str(), (t - 1)->line, (t - 1)->column);
+						TEA_PANIC("unknown type '%s'. line %d, column %d", returnType, (t - 1)->line, (t - 1)->column);
 
 					expect(TOKEN_SEMI);
 					pushnode(FunctionImportNode, cc, name, args, type.first, vararg);
@@ -180,14 +181,16 @@ namespace tea {
 
 			case TOKEN_ATTR: {
 				advance();
-				std::vector<enum Attribute> attrs;
+				vector<LLVMAttributeKind> attrs;
 				while (true) {
-					const std::string& attrName = expect(TOKEN_IDENTF);
+					const string& attrName = expect(TOKEN_IDENTF);
 					auto it = name2attr.find(attrName);
-					if (it == name2attr.end())
-						TEA_PANIC("'%s' is not a valid attribute. line %d, column %d", attrName.c_str(), t->line, t->column);
+					if (!it) {
+						TEA_PANIC("'%s' is not a valid attribute. line %d, column %d", attrName, t->line, t->column);
+						TEA_UNREACHABLE();
+					}
 
-					attrs.push_back(it->second);
+					attrs.push(*it);
 
 					if ((t + 1)->type == TOKEN_COMMA) {
 						expect(TOKEN_ATTR);
@@ -197,7 +200,7 @@ namespace tea {
 				}
 
 				parseFuncFull();
-				((FunctionNode*)tree->back().get())->attrs = attrs;
+				((FunctionNode*)tree->operator[](tree->size-1).get())->attrs = attrs;
 			} break;
 
 			case TOKEN_NEWLINE:
@@ -242,22 +245,22 @@ namespace tea {
 			return node;
 		}
 		case TOKEN_IDENTF: {
-			std::vector<std::string> scope;
-			std::string value = t->value;
+			vector<string> scope;
+			string value = t->value;
 			advance();
 			while (t->type == TOKEN_SCOPE) {
 				advance();
 				if (t->type != TOKEN_IDENTF) unexpected();
-				scope.push_back(value);
+				scope.push(value);
 				value = t->value;
 				advance();
 			}
 			if (t->type == TOKEN_LPAR) {
 				advance();
-				std::vector<std::unique_ptr<ExpressionNode>> args;
+				vector<std::unique_ptr<ExpressionNode>> args;
 				if (t->type != TOKEN_RPAR) {
 					while (true) {
-						args.push_back(parseExpression());
+						args.push(parseExpression());
 						if (t->type == TOKEN_COMMA) {
 							advance();
 							continue;
@@ -338,7 +341,7 @@ namespace tea {
 		}
 	}
 
-	static const std::unordered_map<enum TokenType, enum ExpressionType> tt2et = {
+	static const map<enum TokenType, enum ExpressionType> tt2et = {
 		{TOKEN_ADD, EXPR_ADD},
 		{TOKEN_SUB, EXPR_SUB},
 		{TOKEN_DIV, EXPR_DIV},
@@ -369,7 +372,7 @@ namespace tea {
 			int nextPrec = getPrecedence(t->type);
 			if (tokPrec < nextPrec)
 				rhs = parseRhs(tokPrec + 1, std::move(rhs));
-			lhs = std::make_unique<ExpressionNode>(tt2et.at(tt), "", std::move(lhs), std::move(rhs));
+			lhs = std::make_unique<ExpressionNode>(*tt2et.find(tt), "", std::move(lhs), std::move(rhs));
 			lhs->line = (t - 1)->line; lhs->column = (t - 1)->column;
 		}
 	}
@@ -379,7 +382,7 @@ namespace tea {
 		return parseRhs(0, std::move(lhs));
 	}
 
-	void Parser::parseBlock(const std::vector<enum KeywordType>& extraTerminators) {
+	void Parser::parseBlock(const vector<enum KeywordType>& extraTerminators) {
 		while (t->type != TOKEN_EOF) {
 			switch (t->type) {
 			case TOKEN_KWORD: {
@@ -415,13 +418,13 @@ namespace tea {
 				}
 				case KWORD_VAR: {
 					advance();
-					const std::string& name = expect(TOKEN_IDENTF);
+					const string& name = expect(TOKEN_IDENTF);
 					expect(TOKEN_COLON);
 
-					const std::string& dataType = parseType();
+					const string& dataType = parseType();
 					auto type = Type::get(dataType);
 					if (!type.second)
-						TEA_PANIC("unknown type '%s'. line %d, column %d", dataType.c_str(), (t - 1)->line, (t - 1)->column);
+						TEA_PANIC("unknown type '%s'. line %d, column %d", dataType, (t - 1)->line, (t - 1)->column);
 
 					std::unique_ptr<ExpressionNode> value = nullptr;
 					if (t->type != TOKEN_SEMI) {
@@ -452,7 +455,7 @@ namespace tea {
 					ifNode->line = line;
 					ifNode->column = column;
 
-					treeHistory.push_back(tree);
+					treeHistory.push(tree);
 					tree = &ifNode->body;
 
 					parseBlock({ KWORD_ELSE, KWORD_ELSEIF });
@@ -472,7 +475,7 @@ namespace tea {
 						elseIfNode->line = t->line;
 						elseIfNode->column = t->column;
 
-						treeHistory.push_back(tree);
+						treeHistory.push(tree);
 						tree = &elseIfNode->body;
 
 						parseBlock({ KWORD_ELSE, KWORD_ELSEIF });
@@ -492,7 +495,7 @@ namespace tea {
 						elseNode->line = t->line;
 						elseNode->column = t->column;
 
-						treeHistory.push_back(tree);
+						treeHistory.push(tree);
 						tree = &elseNode->body;
 
 						parseBlock();
@@ -500,7 +503,7 @@ namespace tea {
 						ifNode->else_ = std::move(elseNode);
 					}
 
-					tree->push_back(std::move(ifNode));
+					tree->push(std::move(ifNode));
 				} break;
 
 				case KWORD_WHILE: {
@@ -523,7 +526,7 @@ namespace tea {
 
 			case TOKEN_IDENTF: {
 				if (!tryParseAssignment()) {
-					tree->push_back(parseExpression());
+					tree->push(parseExpression());
 					expect(TOKEN_SEMI);
 				} else
 					expect(TOKEN_SEMI);
@@ -567,7 +570,7 @@ namespace tea {
 	}
 
 	void Parser::parseFunc(enum StorageType storage) {
-		enum CallingConvention cc = DEFAULT_CC;
+		enum CallConv cc = DEFAULT_CC;
 
 		if (isCC((enum KeywordType)t->extra)) {
 			switch (t->extra) {
@@ -580,15 +583,14 @@ namespace tea {
 		}
 		advance();
 
-		const std::string& name = expect(TOKEN_IDENTF);
-		auto it = std::find(funcs.begin(), funcs.end(), name);
-		if (it != funcs.end())
+		const string& name = expect(TOKEN_IDENTF);
+		if (funcs.find(name))
 			TEA_PANIC("function re-definition. line %d, column %d", t->line, t->column);
-		funcs.push_back(name);
+		funcs.push(name);
 		expect(TOKEN_LPAR);
 
 		bool vararg = false;
-		std::vector<std::pair<Type, std::string>> args;
+		vector<std::pair<Type, string>> args;
 		if (t->type != TOKEN_RPAR) {
 			do {
 				if (t->type == TOKEN_DOT && (t + 1)->type == TOKEN_DOT && (t + 2)->type == TOKEN_DOT) {
@@ -599,40 +601,40 @@ namespace tea {
 					break;
 				}
 
-				const std::string& typeName = parseType();
+				const string& typeName = parseType();
 				auto type = Type::get(typeName);
 				if (!type.second)
-					TEA_PANIC("unknown type '%s'. line %d, column %d", typeName.c_str(), (t - 1)->line, (t - 1)->column);
-				const std::string& argName = expect(TOKEN_IDENTF);
-				args.emplace_back(type.first, argName);
+					TEA_PANIC("unknown type '%s'. line %d, column %d", typeName, (t - 1)->line, (t - 1)->column);
+				const string& argName = expect(TOKEN_IDENTF);
+				args.emplace(type.first, argName);
 			} while (t->type == TOKEN_COMMA && t++);
 		}
 
 		expect(TOKEN_RPAR);
 		expect(TOKEN_ARROW);
-		const std::string& returnType = parseType(false);
+		const string& returnType = parseType(false);
 		auto type = Type::get(returnType);
 		if (!type.second)
-			TEA_PANIC("unknown type '%s'. line %d, column %d", returnType.c_str(), (t - 1)->line, (t - 1)->column);
+			TEA_PANIC("unknown type '%s'. line %d, column %d", returnType, (t - 1)->line, (t - 1)->column);
 		pushtree(FunctionNode, storage, cc, name, args, type.first, vararg);
 		parseBlock();
 	}
 
 	void Parser::unexpected() {
-		TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value.c_str(), t->line, t->column);
+		TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value, t->line, t->column);
 	}
 
-	std::string Parser::parseType(bool ignoreNl) {
-		std::string typeName = expect(TOKEN_IDENTF);
+	string Parser::parseType(bool ignoreNl) {
+		string typeName = expect(TOKEN_IDENTF);
 
 		if (typeName == "const") {
-			typeName.append(1, ' ');
+			typeName += ' ';
 			typeName += expect(TOKEN_IDENTF);
 		}
 
 		if (ignoreNl && t->type != TOKEN_NEWLINE) {
 			while (t->type == TOKEN_MUL) {
-				typeName.append(1, '*');
+				typeName += '*';
 				advance();
 			}
 		}

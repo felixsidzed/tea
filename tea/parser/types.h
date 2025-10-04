@@ -1,10 +1,9 @@
 #pragma once
 
-#include <string>
-#include <vector>
-#include <unordered_map>
-
 #include <llvm-c/Core.h>
+
+#include "tea/map.h"
+#include "tea/string.h"
 
 #ifndef DEFAULT_CC
 #define DEFAULT_CC CC_AUTO
@@ -66,37 +65,30 @@ namespace tea {
 		EXPR_DEREF,
 	};
 
-	enum CallingConvention : uint8_t {
+	enum CallConv : uint8_t {
 		CC_C,
-		CC_FAST,
 		CC_STD,
+		CC_FAST,
 		CC_AUTO,
 
 		CC__COUNT
-	};
-
-	enum Attribute : uint8_t {
-		ATTR_INLINE,
-		ATTR_NORETURN,
-
-		ATTR__COUNT
 	};
 
 	class Type {
 	public:
 		enum Kind : uint8_t {
 			/* ORDER BASIC_TYPE */
-			INT,
-			FLOAT,
-			DOUBLE,
-			CHAR,
-			STRING,
 			VOID_,
 			BOOL,
-			LONG
+			CHAR,
+			FLOAT,
+			INT,
+			STRING,
+			DOUBLE,
+			LONG,
 		};
 
-		static std::vector<LLVMTypeRef> convert;
+		static vector<LLVMTypeRef> convert;
 
 		LLVMTypeRef llvm;
 		bool constant;
@@ -104,20 +96,16 @@ namespace tea {
 		Type() : llvm(nullptr), constant(false) {};
 		Type(LLVMTypeRef llvm, bool constant = false) : llvm(llvm), constant(constant) {}
 
-		static Type get(enum Kind kind) { return Type(convert[kind]); }
-		static std::pair<Type, bool> get(const std::string& name);
+		static std::pair<Type, bool> get(const string& name);
+		static Type get(enum Kind kind, bool constant = false) { return Type(convert[kind], constant); }
 
-		static void create(const std::string& name, LLVMTypeRef type);
+		static void create(const string& name, LLVMTypeRef type);
 
 		bool operator==(const Type& other) const {
 			return llvm == other.llvm && constant == other.constant;
 		}
 
-		const char* str() {
-
-		}
-
 	private:
-		static std::unordered_map<std::string, Kind> name2kind;
+		static map<string, enum Kind> name2kind;
 	};
 }

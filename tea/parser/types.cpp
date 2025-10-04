@@ -2,11 +2,11 @@
 
 #include <regex>
 
-#include "tea.h"
+#include "tea/tea.h"
 
 namespace tea {
-	std::vector<LLVMTypeRef> Type::convert;
-	std::unordered_map<std::string, enum Type::Kind> Type::name2kind = {
+	vector<LLVMTypeRef> Type::convert;
+	map<string, enum Type::Kind> Type::name2kind = {
 		{"int", Type::INT},
 		{"float", Type::FLOAT},
 		{"double", Type::DOUBLE},
@@ -25,24 +25,24 @@ namespace tea {
 			LLVMContextSetOpaquePointers(LLVMGetGlobalContext(), false);
 
 			/* ORDER BASIC_TYPE */
-			Type::convert.push_back(LLVMInt32Type());
-			Type::convert.push_back(LLVMFloatType());
-			Type::convert.push_back(LLVMDoubleType());
-			Type::convert.push_back(LLVMInt8Type());
-			Type::convert.push_back(LLVMPointerType(LLVMInt8Type(), 0));
-			Type::convert.push_back(LLVMVoidType());
-			Type::convert.push_back(LLVMInt1Type());
+			Type::convert.push(LLVMVoidType());
+			Type::convert.push(LLVMInt1Type());
+			Type::convert.push(LLVMInt8Type());
+			Type::convert.push(LLVMFloatType());
+			Type::convert.push(LLVMInt32Type());
+			Type::convert.push(LLVMDoubleType());
+			Type::convert.push(LLVMPointerType(LLVMInt8Type(), 0));
 			if (TEA_IS64BIT)
-				Type::convert.push_back(LLVMInt64Type());
+				Type::convert.push(LLVMInt64Type());
 			else
-				Type::convert.push_back(LLVMInt32Type());
+				Type::convert.push(LLVMInt32Type());
 		}
 	}
 
-	std::pair<Type, bool> Type::get(const std::string& name) {
+	std::pair<Type, bool> Type::get(const string& name) {
 		initializeTypes();
 		Type result;
-		std::string tmp = name;
+		std::string tmp(name.data, name.size);
 
 		if (name.empty())
 			return { result, false };
@@ -65,10 +65,11 @@ namespace tea {
 		const std::string& basename = match[1];
 		const std::string& array = match[2];
 
-		if (name2kind.find(basename) == name2kind.end())
+		auto it = name2kind.find(basename.c_str());
+		if (!it)
 			return { result, false };
 
-		enum Kind kind = name2kind[basename];
+		enum Kind kind = *it;
 		if (kind == Type::VOID_ && nptr > 0)
 			kind = Type::CHAR;
 
@@ -94,9 +95,9 @@ namespace tea {
 		return { result, true };
 	}
 
-	void Type::create(const std::string& name, LLVMTypeRef type) {
+	void Type::create(const string& name, LLVMTypeRef type) {
 		initializeTypes();
-		convert.push_back(type);
-		name2kind[name] = (Kind)(convert.size() - 1);
+		convert.push(type);
+		name2kind[name] = (Kind)(convert.size - 1);
 	}
 }

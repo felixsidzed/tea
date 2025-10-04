@@ -1,22 +1,20 @@
 #include "../codegen.h"
 
-#include "tea.h"
+#include "tea/tea.h"
 
 namespace tea {
-	extern LLVMCallConv cc2llvm[CC__COUNT];
-
 	LLVMValueRef CodeGen::emitFunctionImport(FunctionImportNode* node) {
-		std::vector<LLVMTypeRef> argTypes;
+		vector<LLVMTypeRef> argTypes;
 		for (const auto& arg : node->args)
-			argTypes.push_back(arg.first.llvm);
+			argTypes.push(arg.first.llvm);
 
 		LLVMValueRef imported = LLVMAddFunction(
 			module,
-			node->name.c_str(),
-			LLVMFunctionType(node->returnType.llvm, argTypes.data(), (uint32_t)node->args.size(), node->vararg)
+			node->name,
+			LLVMFunctionType(node->returnType.llvm, argTypes.data, (uint32_t)node->args.size, node->vararg)
 		);
 		if (node->cc != CC_AUTO)
-			LLVMSetFunctionCallConv(imported, cc2llvm[node->cc]);
+			LLVMSetFunctionCallConv(imported, node->cc);
 		return imported;
 	}
 }

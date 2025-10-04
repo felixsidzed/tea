@@ -3,32 +3,33 @@
 #include <vector>
 #include <unordered_map>
 
-#include "tea.h"
-#include "node.h"
-#include "lexer/token.h"
+#include "tea/tea.h"
+#include "tea/vector.h"
+#include "tea/parser/node.h"
+#include "tea/lexer/token.h"
 
 namespace tea {
 	class Parser {
 	public:
 		Parser();
 
-		Tree parse(const std::vector<Token>& tokens);
+		Tree parse(const vector<Token>& tokens);
 	private:
 		Tree* tree;
-		std::vector<Tree*> treeHistory;
+		vector<Tree*> treeHistory;
 
 		const Token* t;
 
-		std::vector<std::string> funcs;
-		std::vector<std::string> imported;
+		vector<string> funcs;
+		vector<string> imported;
 
 		void parseFuncFull();
 		bool tryParseAssignment();
 		void parseFunc(enum StorageType storage);
-		std::string parseType(bool ignoreNl = true);
+		string parseType(bool ignoreNl = true);
 		std::unique_ptr<ExpressionNode> parsePrimary();
 		std::unique_ptr<ExpressionNode> parseExpression();
-		void parseBlock(const std::vector<enum KeywordType>& extraTerminators = {});
+		void parseBlock(const vector<enum KeywordType>& extraTerminators = {});
 		std::unique_ptr<ExpressionNode> parseRhs(int exprPrec, std::unique_ptr<ExpressionNode> lhs);
 
 		TEA_NORETURN unexpected();

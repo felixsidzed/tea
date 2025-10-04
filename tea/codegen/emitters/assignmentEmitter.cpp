@@ -1,7 +1,7 @@
 #include "../codegen.h"
 
-#include "tea.h"
-#include "lexer/token.h"
+#include "tea/tea.h"
+#include "tea/lexer/token.h"
 
 namespace tea {
 	void CodeGen::emitAssignment(AssignmentNode* node) {

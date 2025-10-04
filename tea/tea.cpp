@@ -1,4 +1,4 @@
-#include "tea.h"
+#include "tea/tea.h"
 
 #ifndef TEA_NODEFAULTCONFIG
 

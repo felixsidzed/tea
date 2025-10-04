@@ -1,8 +1,8 @@
 #include "lexer.h"
 
-#include "tea.h"
+#include "tea/tea.h"
 
-#define pushtokex(t,v,l,e) container.push_back(Token{(t),{(v),unsigned int(l)},e,unsigned int(l),col,line})
+#define pushtokex(t,v,l,e) container.push(Token{(t),{(v),unsigned(l)},e,unsigned(l),col,line})
 #define pushtokv(t,v) pushtokex(t,v,pos-(v),0)
 #define pushtok(t) pushtokex(t,pos,1,0)
 
@@ -30,8 +30,8 @@ static bool isKeyword(const char* word, unsigned int len, int* idx) {
 }
 
 namespace tea {
-	std::vector<Token> Lexer::tokenize(const std::string& src) {
-		std::vector<Token> container;
+	vector<Token> Lexer::tokenize(const std::string& src) {
+		vector<Token> container;
 		if (src.empty())
 			return container;
 
@@ -223,7 +223,7 @@ namespace tea {
 						pos++;
 					}
 
-					container.push_back(Token{ TOKEN_STRING, { buffer.c_str(), uint32_t(pos - start) - escaped }, 0, uint32_t(pos - start) - escaped, col, line });
+					container.push(Token{ TOKEN_STRING, { buffer.c_str(), uint32_t(pos - start) - escaped }, 0, uint32_t(pos - start) - escaped, col, line });
 				} break;
 
 				case '\'': {
@@ -256,7 +256,7 @@ namespace tea {
 					if (*pos != '\'')
 						TEA_PANIC("multi-character literal or missing closing quote. line %d, column %d", line, col);
 
-					container.push_back(Token{ TOKEN_CHAR, { value }, 0, uint32_t(pos - start), col, line });
+					container.push(Token{ TOKEN_CHAR, { &value }, 0, uint32_t(pos - start), col, line });
 				} break;
 
 
@@ -281,8 +281,8 @@ namespace tea {
 			col++;
 		}
 
-		container.push_back(Token{ TOKEN_EOF, "", 0, 1, 0, line });
-		return container;
+		container.push(Token{ TOKEN_EOF, "", 0, 1, 0, line });
+		return std::move(container);
 	}
 
 }

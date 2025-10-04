@@ -1,6 +1,6 @@
 #include "../codegen.h"
 
-#include "tea.h"
+#include "tea/tea.h"
 
 namespace tea {
 	void CodeGen::emitWhileLoop(WhileLoopNode* node) {

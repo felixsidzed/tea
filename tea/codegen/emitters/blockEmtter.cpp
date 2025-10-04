@@ -1,10 +1,10 @@
 #include "../codegen.h"
 
-#include "tea.h"
+#include "tea/tea.h"
 
 namespace tea {
 	void CodeGen::emitBlock(const Tree& root, const char* name, LLVMValueRef parent, std::pair<LLVMTypeRef, LLVMValueRef>* returnInto) {
-		std::vector<Local> oldLocals = locals;
+		vector<struct Local> oldLocals = locals;
 
 		if (parent) {
 			LLVMBasicBlockRef _ = LLVMAppendBasicBlock(parent, name);
@@ -20,7 +20,7 @@ namespace tea {
 					LLVMAttributeRef* attrs = new LLVMAttributeRef[nattrs + 1];
 					LLVMGetAttributesAtIndex(func, LLVMAttributeFunctionIndex, attrs);
 					for (int i = 0; i < nattrs; i++) {
-						if (LLVMGetEnumAttributeKind(attrs[i]) == LLVMAttrNoReturn) {
+						if (LLVMGetEnumAttributeKind(attrs[i]) == LLVMNoReturnAttribute) {
 							delete[] attrs;
 							if (((ReturnNode*)node.get())->value)
 								TEA_PANIC("@noreturn function '%s' does return. line %d, column %d", LLVMGetValueName(func), node->line, node->column);
@@ -184,7 +184,6 @@ namespace tea {
 			}
 		}
 
-		//LLVMDisposeBuilder(block);
 		locals = oldLocals;
 	}
 }
