@@ -4,6 +4,7 @@
 
 struct Configuration {
 	void(*panic)(const char* message, ...);
+	bool is64Bit;
 };
 
 namespace tea {
@@ -59,3 +60,4 @@ namespace tea {
 #endif
 
 #define TEA_PANIC tea::configuration.panic
+#define TEA_IS64BIT tea::configuration.is64Bit

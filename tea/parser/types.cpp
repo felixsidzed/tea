@@ -2,6 +2,8 @@
 
 #include <regex>
 
+#include "tea.h"
+
 namespace tea {
 	std::vector<LLVMTypeRef> Type::convert;
 	std::unordered_map<std::string, enum Type::Kind> Type::name2kind = {
@@ -30,7 +32,10 @@ namespace tea {
 			Type::convert.push_back(LLVMPointerType(LLVMInt8Type(), 0));
 			Type::convert.push_back(LLVMVoidType());
 			Type::convert.push_back(LLVMInt1Type());
-			Type::convert.push_back(LLVMInt64Type());
+			if (TEA_IS64BIT)
+				Type::convert.push_back(LLVMInt64Type());
+			else
+				Type::convert.push_back(LLVMInt32Type());
 		}
 	}
 

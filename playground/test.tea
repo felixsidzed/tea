@@ -1,9 +1,6 @@
-import __fastcall func puts(string msg) -> int;
-import __fastcall func malloc(long size) -> void*;
+using "io";
 
 public func main() -> int
-	var s: string* = malloc(8);
-	*s = "Hello, World!";
-	puts(*s);
+	io::printf("Hello, World!");
 	return 0;
 end

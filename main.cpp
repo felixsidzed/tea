@@ -11,7 +11,7 @@ int main() {
 	const std::string& src = buffer.str();
 
 	try {
-		tea::compile(src, "x64/Debug/build/test.o", "playground", true, true);
+		tea::compile(src, "x64/Debug/build/test.o", "stdlib", true, true);
 	} catch (const std::exception& e) {
 		std::cout << e.what() << std::endl;
 		return 1;
