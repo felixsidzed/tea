@@ -1,16 +1,15 @@
 TOOD list (in order):
-1. elseif
-2. global variables
-3. 'long' type
-4. pointer support
-5. variable preallocation
-6. casting
-7. macros
-9. type deduction
-10. arrays
-11. standard library
-12. exception handling
-13. objects
-14. linux support
-15. repl
-16. jit compiler & cli repl
+#. global variables
+#. 'long' type
+#. pointer support
+#. variable preallocation
+#. casting
+#. macros
+#. type deduction
+#. arrays
+#. standard library
+#. exception handling
+#. objects
+#. linux support
+#. cli & jit compiler
+#. repl
