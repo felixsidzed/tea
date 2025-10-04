@@ -77,6 +77,12 @@ namespace tea {
 		CC__COUNT
 	};
 
+	enum Attribute : uint8_t {
+		ATTR_INLINE,
+
+		ATTR__COUNT
+	};
+
 	struct Node {
 		enum NodeType type = static_cast<enum NodeType>(0);
 
@@ -100,6 +106,7 @@ namespace tea {
 	struct FunctionNode : Node {
 		Tree body;
 		
+		std::vector<enum Attribute> attrs;
 		enum StorageType storage;
 		enum CallingConvention cc;
 		std::string name;

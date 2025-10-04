@@ -109,7 +109,34 @@ namespace tea {
 
 			LLVMValueRef callee = nullptr;
 			if (call->scope.size() == 0) {
-				callee = LLVMGetNamedFunction(module, call->value.c_str()); // callee is stored in ExpressionNode::value
+				// callee is stored in ExpressionNode::value
+				callee = LLVMGetNamedFunction(module, call->value.c_str());
+
+				if (!callee) {
+					auto it = inlineables.find(call->value);
+					if (it != inlineables.end()) { // TODO: improve/move to parser
+						FunctionNode* funcNode = it->second;
+
+						LLVMTypeRef returnType = type2llvm[funcNode->returnType];
+						LLVMValueRef returnValue = LLVMBuildAlloca(block, returnType, "");
+
+						std::vector<std::pair<enum Type, std::string>>* oldCurArgs = curArgs;
+
+						argsMap = &args;
+						curArgs = &funcNode->args;
+
+						std::pair<LLVMTypeRef, LLVMValueRef> returnInto = { returnType, returnValue };
+						emitBlock(funcNode->body, nullptr, nullptr, &returnInto);
+
+						argsMap = nullptr;
+						curArgs = oldCurArgs;
+
+						return {
+							returnType,
+							LLVMBuildLoad2(block, returnType, returnValue, "")
+						};
+					}
+				}
 
 			} else if (call->scope.size() == 1) {
 				const std::string& scope = call->scope[0];
@@ -153,9 +180,12 @@ namespace tea {
 
 			delete[] calleeArgTypes;
 
+			LLVMTypeRef returnType = LLVMGetReturnType(ftype);
+
 			return {
-				LLVMGetReturnType(LLVMGlobalGetValueType(callee)),
-				LLVMBuildCall2(block, LLVMGlobalGetValueType(callee), callee, args.data(), (uint32_t)args.size(), "")
+				returnType,
+				LLVMBuildCall2(block, LLVMGlobalGetValueType(callee), callee,
+								args.data(), (uint32_t)args.size(), "")
 			};
 		}
 
@@ -168,7 +198,12 @@ namespace tea {
 						return {
 							LLVMTypeOf(arg),
 							arg
-					};
+						};
+					else if (argsMap)
+						return {
+							LLVMTypeOf(argsMap->at(i)),
+							argsMap->at(i)
+						};
 				}
 				i++;
 			}
@@ -183,7 +218,6 @@ namespace tea {
 							val
 						};
 				}
-				i++;
 			}
 			
 			TEA_PANIC("'%s' is not defined. line %d, column %d", node->value.c_str(), node->line, node->column);
