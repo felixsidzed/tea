@@ -2,13 +2,13 @@
 
 #include "tea.h"
 
-#define pushtokex(t,v,l) container.push_back(Token{(t),std::string((v),unsigned int(l)),unsigned int(l),unsigned int((v)-src.data()),line})
-#define pushtokv(t,v) pushtokex(t,v,pos-(v))
-#define pushtok(t) pushtokex(t,pos,1)
+#define pushtokex(t,v,l,e) container.push_back(Token{(t),{(v),unsigned int(l)},e,unsigned int(l),unsigned int((v)-src.data()),line})
+#define pushtokv(t,v) pushtokex(t,v,pos-(v),0)
+#define pushtok(t) pushtokex(t,pos,1,0)
 
-#define panic tea::configuration.panic
+static const char* keywords[] = {
+	/* ORDER KWORD */
 
-const char* keywords[] = {
 	"using", "func", //"import", "macro",
 	"public", "private",
 	/*"if", "elseif", "else", "while", "for", "break", "continue",*/ "return",
@@ -17,10 +17,12 @@ const char* keywords[] = {
 	//"class", "new", "constructor", "deconstructor",
 };
 
-static bool isKeyword(const char* word, unsigned int len) {
+static bool isKeyword(const char* word, unsigned int len, int* idx) {
 	for (int i = 0; i < sizeof(keywords) / sizeof(const char*); i++)
-		if (strncmp(word, keywords[i], len) == 0)
+		if (strncmp(word, keywords[i], len) == 0) {
+			*idx = i;
 			return true;
+		}
 	return false;
 }
 
@@ -49,7 +51,8 @@ namespace tea {
 				while (isalnum(*pos) || *pos == '_')
 					pos++, len++;
 
-				pushtokex(isKeyword(start, len) ? TOKEN_KWORD : TOKEN_IDENTF, start, len);
+				int i = 0;
+				pushtokex(isKeyword(start, len, &i) ? TOKEN_KWORD : TOKEN_IDENTF, start, len, i);
 				continue;
 
 			} else if (isdigit(c)) {
@@ -73,7 +76,7 @@ namespace tea {
 					break;
 				case '-':
 					if (*(pos + 1) == '>') {
-						pushtokex(TOKEN_ARROW, pos, 2);
+						pushtokex(TOKEN_ARROW, pos, 2, 0);
 						pos++;
 					} else pushtok(TOKEN_SUB);
 					break;
@@ -94,21 +97,21 @@ namespace tea {
 					break;
 				case '&':
 					if (*(pos + 1) == '&') {
-						pushtokex(TOKEN_AND, pos, 2);
+						pushtokex(TOKEN_AND, pos, 2, 0);
 						pos++;
 						break;
 					}
 					TEA_FALLTHROUGH;
 				case '|':
 					if (*(pos + 1) == '|') {
-						pushtokex(TOKEN_OR, pos, 2);
+						pushtokex(TOKEN_OR, pos, 2, 0);
 						pos++;
 						break;
 					}
 					TEA_FALLTHROUGH;
 				case ':':
 					if (*(pos + 1) == ':') {
-						pushtokex(TOKEN_SCOPE, pos, 2);
+						pushtokex(TOKEN_SCOPE, pos, 2, 0);
 						pos++;
 						break;
 					}
@@ -127,7 +130,7 @@ namespace tea {
 
 			} else {
 			unexpected:
-				panic("unexpected character '%c'", c);
+				TEA_PANIC("unexpected character '%c'", c);
 			}
 
 			pos++;
