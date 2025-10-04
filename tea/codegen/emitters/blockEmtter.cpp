@@ -4,6 +4,8 @@
 
 namespace tea {
 	void CodeGen::emitBlock(const Tree& root, const char* name, LLVMValueRef parent) {
+		std::vector<Local> oldLocals = locals;
+
 		LLVMBasicBlockRef _ = LLVMAppendBasicBlock(parent, name);
 		block = LLVMCreateBuilder();
 		LLVMPositionBuilderAtEnd(block, _);
@@ -32,11 +34,18 @@ namespace tea {
 				break;
 			}
 
+			case tnode(VariableNode): {
+				emitVariable((VariableNode*)node.get());
+				break;
+			}
+
 			default:
 				TEA_PANIC("invalid statement. line %d, column %d", node->line, node->column);
 			}
 		}
 
 		LLVMDisposeBuilder(block);
+
+		locals = oldLocals;
 	}
 }

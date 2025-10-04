@@ -130,6 +130,19 @@ namespace tea {
 				}
 				i++;
 			}
+
+			for (const auto& local : locals) {
+				if (local.name == node->value) {
+					LLVMTypeRef type = type2llvm[local.type];
+					LLVMValueRef val = LLVMBuildLoad2(block, type, local.allocated, "");
+					if (val)
+						return {
+							type,
+							val
+						};
+				}
+				i++;
+			}
 			
 			TEA_PANIC("'%s' is not defined. line %d, column %d", node->value.c_str(), node->line, node->column);
 			TEA_UNREACHABLE();

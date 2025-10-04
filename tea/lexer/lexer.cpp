@@ -15,7 +15,7 @@ static const char* keywords[] = {
 	/*"if", "elseif", "else", "while", "for", "break", "continue",*/
 	"func", "return",
 	"end",
-	//"var",
+	"var",
 	"__stdcall", "__fastcall", "__cdecl",
 	//"class", "new", "constructor", "deconstructor",
 };
@@ -138,12 +138,12 @@ namespace tea {
 					}
 					goto unexpected;
 				case ':':
-					if (*(pos + 1) == ':') {
+					if (*(pos + 1) == ':')
 						pushtokex(TOKEN_SCOPE, pos, 2, 0);
-						pos++;
-						break;
-					}
-					goto unexpected;
+					else
+						pushtokex(TOKEN_COLON, pos, 1, 0);
+					pos++;
+					break;
 				case '"': {
 					const char* start = ++pos;
 					while (*pos != '"' && *pos != '\n') {

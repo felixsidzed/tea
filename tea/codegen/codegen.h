@@ -11,6 +11,12 @@
 #define tnode(node) NODE_##node
 
 namespace tea {
+	struct Local {
+		enum Type type;
+		std::string name;
+		LLVMValueRef allocated;
+	};
+
 	extern LLVMTypeRef type2llvm[TYPE__COUNT];
 
 	class CodeGen {
@@ -29,6 +35,7 @@ namespace tea {
 
 		std::unique_ptr<char, decltype(&LLVMDisposeMessage)> lastError = { nullptr, LLVMDisposeMessage };
 
+		std::vector<struct Local> locals;
 		std::vector<std::pair<enum Type, std::string>>* curArgs = nullptr;
 
 		inline void logUnformatted(const std::string& message) {
@@ -46,6 +53,7 @@ namespace tea {
 
 		void emitCode(const Tree& tree);
 		void emitFunction(FunctionNode* tree);
+		void emitVariable(VariableNode* node);
 		void emitBlock(const Tree& block, const char* name, LLVMValueRef parent);
 		std::pair<LLVMTypeRef, LLVMValueRef> emitExpression(const std::unique_ptr<ExpressionNode>& node);
 	};
