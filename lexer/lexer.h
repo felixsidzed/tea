@@ -14,5 +14,6 @@ namespace tea {
 	private:
 		const char* pos;
 		uint32_t line;
+		uint32_t col;
 	};
 }
