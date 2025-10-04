@@ -30,7 +30,8 @@ namespace tea {
 		NODE_ReturnNode,
 		NODE_CallNode,
 		NODE_VariableNode,
-		NODE_FunctionImportNode
+		NODE_FunctionImportNode,
+		NODE_IfNode,
 	};
 
 	enum StorageType : uint8_t {
@@ -51,7 +52,18 @@ namespace tea {
 		EXPR_ADD,
 		EXPR_SUB,
 		EXPR_MUL,
-		EXPR_DIV
+		EXPR_DIV,
+
+		EXPR_EQ,
+		EXPR_NEQ,
+		EXPR_LT,
+		EXPR_GT,
+		EXPR_LE,
+		EXPR_GE,
+
+		EXPR_NOT,
+		EXPR_AND,
+		EXPR_OR,
 	};
 
 	enum CallingConvention : uint8_t {
@@ -140,5 +152,14 @@ namespace tea {
 		FunctionImportNode(enum CallingConvention cc, const std::string& name, const std::vector<std::pair<enum Type, std::string>>& args, enum Type returnType)
 			: cc(cc), name(name), args(args), returnType(returnType) {
 		};
+	};
+
+	struct IfNode : Node {
+		Tree body;
+
+		std::unique_ptr<ExpressionNode> pred;
+		// TODO: else, elseif
+
+		IfNode(std::unique_ptr<ExpressionNode> pred) : pred(std::move(pred)) {};
 	};
 }

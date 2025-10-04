@@ -12,7 +12,7 @@ static const char* keywords[] = {
 	"using", "import",
 	"macro",
 	"public", "private",
-	/*"if", "elseif", "else", "while", "for", "break", "continue",*/
+	"if", /*"elseif", "else",*/ "do", /*"while", "for", "break", "continue", */
 	"func", "return",
 	"end",
 	"var",
@@ -36,13 +36,13 @@ namespace tea {
 			return container;
 
 		const char* pos = src.data();
-		uint32_t line = 0;
-		uint32_t col = 0;
+		uint32_t line = 1;
+		uint32_t col = 1;
 
 		while (*pos) {
 			char c = *pos;
 			if (isspace(c)) {
-				if (c == '\n') line++, col = 0;
+				if (c == '\n') line++, col = 1;
 
 			} else if (isalpha(c) || c == '_') {
 				unsigned int len = 0;
@@ -54,9 +54,12 @@ namespace tea {
 				pushtokex(isKeyword(start, len, &i) ? TOKEN_KWORD : TOKEN_IDENTF, start, len, i);
 				continue;
 
-			} else if (isdigit(c)) {
+			} else if (isdigit(c) || (c == '-' && isdigit(*(pos + 1)))) {
 				const char* start = pos;
 				bool dot = false;
+
+				if (c == '-')
+					pos++;
 
 				while (isdigit(*pos))
 					pos++;
@@ -105,18 +108,48 @@ namespace tea {
 				case '+':
 					pushtok(TOKEN_ADD);
 					break;
-				case '=':
-					pushtok(TOKEN_EQ);
-					break;
 				case '*':
 					pushtok(TOKEN_MUL);
 					break;
 				case '/':
 					pushtok(TOKEN_DIV);
 					break;
-				case '!':
-					pushtok(TOKEN_NOT);
+				case '=':
+					if (*(pos + 1) == '=') {
+						pushtokex(TOKEN_EQ, pos, 2, 0);
+						pos++;
+					}
+					else
+						pushtok(TOKEN_ASSIGN);
 					break;
+
+				case '!':
+					if (*(pos + 1) == '=') {
+						pushtokex(TOKEN_NEQ, pos, 2, 0);
+						pos++;
+					}
+					else
+						pushtok(TOKEN_NOT);
+					break;
+
+				case '<':
+					if (*(pos + 1) == '=') {
+						pushtokex(TOKEN_LE, pos, 2, 0);
+						pos++;
+					}
+					else
+						pushtok(TOKEN_LT);
+					break;
+
+				case '>':
+					if (*(pos + 1) == '=') {
+						pushtokex(TOKEN_GE, pos, 2, 0);
+						pos++;
+					}
+					else
+						pushtok(TOKEN_GT);
+					break;
+
 				case '&':
 					if (*(pos + 1) == '&') {
 						pushtokex(TOKEN_AND, pos, 2, 0);
@@ -124,6 +157,7 @@ namespace tea {
 						break;
 					}
 					goto unexpected;
+
 				case '|':
 					if (*(pos + 1) == '|') {
 						pushtokex(TOKEN_OR, pos, 2, 0);
@@ -131,6 +165,7 @@ namespace tea {
 						break;
 					}
 					goto unexpected;
+
 				case ':':
 					if (*(pos + 1) == ':')
 						pushtokex(TOKEN_SCOPE, pos, 2, 0);
@@ -160,6 +195,8 @@ namespace tea {
 
 			pos++;
 			col++;
+			if (c == '\t')
+				col += 4;
 		}
 
 		container.push_back(Token{ TOKEN_EOF, "", 0, 1, 0, line });

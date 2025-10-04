@@ -9,7 +9,7 @@ namespace tea {
 		"__stdcall"
 	};
 
-	static LLVMCallConv cc2llvm[CC__COUNT] = {
+	LLVMCallConv cc2llvm[CC__COUNT] = {
 		LLVMCCallConv,
 		LLVMFastCallConv,
 		LLVMX86StdcallCallConv
