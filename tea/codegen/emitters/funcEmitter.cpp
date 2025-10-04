@@ -47,9 +47,24 @@ namespace tea {
 		for (const auto& arg : node->args)
 			LLVMSetValueName(LLVMGetParam(func, i++), arg.second.c_str());
 
-		for (const auto& attr : node->attrs)
+		bool noreturn = false;
+		for (const auto& attr : node->attrs) {
 			LLVMAddAttributeAtIndex(func, LLVMAttributeFunctionIndex, LLVMCreateEnumAttribute(LLVMGetGlobalContext(), attr2llvm[attr], 0));
+			if (attr == ATTR_NORETURN)
+				noreturn = true;
+		}
 
 		emitBlock(node->body, "entry", func);
+
+		if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block))) {
+			if (node->returnType != TYPE_VOID)
+				TEA_PANIC("control reaches end of non-void function");
+			else {
+				if (noreturn)
+					LLVMBuildUnreachable(block);
+				else
+					LLVMBuildRetVoid(block);
+			}
+		}
 	}
 }

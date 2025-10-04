@@ -40,11 +40,13 @@ namespace tea {
 		{"char", TYPE_CHAR},
 		{"string", TYPE_STRING},
 		{"void", TYPE_VOID},
-		{"bool", TYPE_BOOL}
+		{"bool", TYPE_BOOL},
+		{"long", TYPE_LONG}
 	};
 
 	std::unordered_map<std::string, enum Attribute> name2attr = {
 		{"inline", ATTR_INLINE},
+		{"noreturn", ATTR_NORETURN}
 	};
 
 	static inline const std::string& _expect(const Token*& t, enum TokenType expected) {
@@ -374,8 +376,13 @@ namespace tea {
 
 				case KWORD_RETURN: {
 					advance();
-					pushnode(ReturnNode, parseExpression());
-					expect(TOKEN_SEMI);
+					if (t->type == TOKEN_SEMI) {
+						advance();
+						pushnode(ReturnNode, nullptr);
+					} else {
+						pushnode(ReturnNode, parseExpression());
+						expect(TOKEN_SEMI);
+					}
 					break;
 				}
 				case KWORD_VAR: {
