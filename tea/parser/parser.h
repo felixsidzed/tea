@@ -23,6 +23,8 @@ namespace tea {
 		vector<string> funcs;
 		vector<string> imported;
 
+		FunctionNode* fn;
+
 		void parseFuncFull();
 		bool tryParseAssignment();
 		void parseFunc(enum StorageType storage);

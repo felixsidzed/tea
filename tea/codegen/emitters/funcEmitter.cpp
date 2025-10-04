@@ -56,7 +56,21 @@ namespace tea {
 				noreturn = true;
 		}
 
-		emitBlock(node->body, "entry", func);
+		if (!node->prealloc.empty()) {
+			{
+				LLVMBasicBlockRef _ = LLVMAppendBasicBlock(func, "entry");
+				block = LLVMCreateBuilder();
+				LLVMPositionBuilderAtEnd(block, _);
+			}
+
+			for (auto& [paNode, prealloc] : node->prealloc)
+				prealloc = LLVMBuildAlloca(block, paNode->dataType.llvm, "prealloc." + paNode->name);
+
+			fnPrealloc = &node->prealloc;
+			emitBlock(node->body, "entry", nullptr);
+			fnPrealloc = nullptr;
+		} else
+			emitBlock(node->body, "entry", func);
 
 		if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block))) {
 			if (node->returnType != Type::get(Type::VOID_))

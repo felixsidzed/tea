@@ -33,8 +33,9 @@ namespace tea {
 		enum CallConv cc;
 		string name;
 		vector<std::pair<Type, string>> args;
-		Type returnType;
 		bool vararg;
+		Type returnType;
+		map<struct VariableNode*, LLVMValueRef> prealloc;
 
 		FunctionNode(enum StorageType storage, enum CallConv cc, const string& name, const vector<std::pair<Type, string>>& args, Type& returnType, bool vararg)
 			: storage(storage), cc(cc), name(name), args(args), returnType(returnType), vararg(vararg) {};

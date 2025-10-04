@@ -43,6 +43,8 @@ namespace tea {
 		vector<LLVMValueRef>* argsMap = nullptr;
 		map<string, FunctionNode*> inlineables;
 
+		map<VariableNode*, LLVMValueRef>* fnPrealloc;
+
 		inline void logUnformatted(const std::string& message) {
 			if (!verbose)
 				return;

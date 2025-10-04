@@ -414,8 +414,8 @@ namespace tea {
 						pushnode(ReturnNode, parseExpression());
 						expect(TOKEN_SEMI);
 					}
-					break;
-				}
+				}break;
+
 				case KWORD_VAR: {
 					advance();
 					const string& name = expect(TOKEN_IDENTF);
@@ -434,8 +434,10 @@ namespace tea {
 					expect(TOKEN_SEMI);
 
 					pushnode(VariableNode, name, type.first, std::move(value));
-					break;
-				}
+
+					auto vn = (VariableNode*)tree->data[tree->size - 1].get();
+					fn->prealloc.insert(vn, nullptr); // TODO: only variables inside loops should be preallocated
+				} break;
 
 				case KWORD_IF: {
 					uint32_t line = t->line;
@@ -616,7 +618,11 @@ namespace tea {
 		auto type = Type::get(returnType);
 		if (!type.second)
 			TEA_PANIC("unknown type '%s'. line %d, column %d", returnType, (t - 1)->line, (t - 1)->column);
+
+		Tree* oldTree = tree;
 		pushtree(FunctionNode, storage, cc, name, args, type.first, vararg);
+		fn = (FunctionNode*)oldTree->operator[](oldTree->size-1).get();
+
 		parseBlock();
 	}
 
