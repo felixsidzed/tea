@@ -12,7 +12,7 @@ static const char* keywords[] = {
 	"using", "import",
 	"macro",
 	"public", "private",
-	"if", /*"elseif", "else",*/ "do", /*"while", "for", "break", "continue", */
+	"if", /*"elseif",*/ "else", "do", /*"while", "for", "break", "continue", */
 	"func", "return",
 	"end",
 	"var",
@@ -37,12 +37,12 @@ namespace tea {
 
 		const char* pos = src.data();
 		uint32_t line = 1;
-		uint32_t col = 1;
+		uint32_t col = 0;
 
 		while (*pos) {
 			char c = *pos;
 			if (isspace(c)) {
-				if (c == '\n') line++, col = 1;
+				if (c == '\n') line++, col = 0;
 
 			} else if (isalpha(c) || c == '_') {
 				unsigned int len = 0;
@@ -83,8 +83,7 @@ namespace tea {
 						pushtokv(TOKEN_FLOAT, start);
 					else
 						pushtokv(TOKEN_DOUBLE, start);
-				}
-				else
+				} else
 					pushtokv(TOKEN_INT, start);
 				continue;
 
@@ -93,27 +92,34 @@ namespace tea {
 				case '(':
 					pushtok(TOKEN_LPAR);
 					break;
+
 				case ')':
 					pushtok(TOKEN_RPAR);
 					break;
+
 				case ';':
 					pushtok(TOKEN_SEMI);
 					break;
+
 				case '-':
 					if (*(pos + 1) == '>') {
 						pushtokex(TOKEN_ARROW, pos, 2, 0);
 						pos++;
 					} else pushtok(TOKEN_SUB);
-					break;
+					break
+						;
 				case '+':
 					pushtok(TOKEN_ADD);
 					break;
+
 				case '*':
 					pushtok(TOKEN_MUL);
 					break;
+
 				case '/':
 					pushtok(TOKEN_DIV);
 					break;
+
 				case '=':
 					if (*(pos + 1) == '=') {
 						pushtokex(TOKEN_EQ, pos, 2, 0);
@@ -173,30 +179,55 @@ namespace tea {
 						pushtokex(TOKEN_COLON, pos, 1, 0);
 					pos++;
 					break;
+
 				case '"': {
 					const char* start = ++pos;
-					while (*pos != '"' && *pos != '\n') {
+					std::string buffer;
+
+					uint32_t escaped = 0;
+					while (*pos != '"') {
+						if (!*pos)
+							TEA_PANIC("unterminated string. line %d, column %d", line, col);
+
+						if (*pos == '\\') {
+							pos++;
+							switch (*pos) {
+							case 'n': buffer += '\n'; break;
+							case 't': buffer += '\t'; break;
+							case '\\': buffer += '\\'; break;
+							case '"': buffer += '"'; break;
+							default:
+								TEA_PANIC("invalid escape sequence \\%c. line %d, column %d", *pos, line, col);
+							}
+							escaped++;
+						}
+						else {
+							if (*pos == '\n') {
+								TEA_PANIC("unterminated string before '\\n'. line %d, column %d", line, col);
+							}
+							buffer += *pos;
+						}
 						pos++;
 					}
 
-					pushtokv(TOKEN_STRING, start);
+					container.push_back(Token{ TOKEN_STRING, { buffer.c_str(), uint32_t(pos - start) - escaped }, 0, uint32_t(pos - start) - escaped, col, line });
 				} break;
+
 				case ',': {
 					pushtok(TOKEN_COMMA);
 				} break;
+
 				default:
 					goto unexpected;
 				}
 
 			} else {
 			unexpected:
-				TEA_PANIC("unexpected character '%c'", c);
+				TEA_PANIC("unexpected character '%c'. line %d, column %d", c, line, col);
 			}
 
 			pos++;
 			col++;
-			if (c == '\t')
-				col += 4;
 		}
 
 		container.push_back(Token{ TOKEN_EOF, "", 0, 1, 0, line });

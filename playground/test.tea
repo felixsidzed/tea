@@ -1,10 +1,14 @@
+import __cdecl func puts(string s) -> int;
+
 private func isNegative(int a) -> bool
 	return a < 0;
 end
 
 public func main() -> int
 	if (isNegative(-1)) do
-		return 1;
+		puts("Negative\n");
+	else
+		puts("Positive\n");
 	end
 	return 0;
 end

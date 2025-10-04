@@ -10,6 +10,8 @@
 #define DEFAULT_CC CC_C
 #endif
 
+#define tnode(T) NODE_##T
+
 namespace tea {
 	enum Type : uint8_t {
 		TYPE_INT,
@@ -32,6 +34,7 @@ namespace tea {
 		NODE_VariableNode,
 		NODE_FunctionImportNode,
 		NODE_IfNode,
+		NODE_ElseNode
 	};
 
 	enum StorageType : uint8_t {
@@ -154,11 +157,18 @@ namespace tea {
 		};
 	};
 
+	struct ElseNode : Node {
+		Tree body;
+
+		ElseNode() {}
+	};
+
 	struct IfNode : Node {
 		Tree body;
 
 		std::unique_ptr<ExpressionNode> pred;
-		// TODO: else, elseif
+		std::unique_ptr<ElseNode> else_;
+		// TODO: elseif
 
 		IfNode(std::unique_ptr<ExpressionNode> pred) : pred(std::move(pred)) {};
 	};

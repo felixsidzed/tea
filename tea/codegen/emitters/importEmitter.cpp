@@ -28,9 +28,8 @@ namespace tea {
 			for (const auto& node_ : tree) {
 				if (node_->type == tnode(FunctionImportNode))
 					emitFunctionImport((FunctionImportNode*)node_.get());
-				else {
+				else
 					TEA_PANIC("invalid root statement. line %d, column %d", node_->line, node_->column);
-				}
 			}
 			modules[node->name] = importedModule;
 			log("Imported {} function(s) from module '{}'", importedModule.size(), node->name);
