@@ -1,15 +1,19 @@
 import __cdecl func puts(string s) -> int;
 
 @inline
-private func isNegative(int a) -> bool
-	return a < 0;
+private func compute(int a, int b) -> bool
+	if ((a + b) * a / b > 0) then
+		return true;
+	else
+		return false;
+	end
 end
 
 public func main() -> int
-	if (isNegative(-1)) do
-		puts("Negative\n");
+	if (compute(4, 2)) do
+		puts("true\n");
 	else
-		puts("Positive\n");
+		puts("false\n");
 	end
 	return 0;
 end

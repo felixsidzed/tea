@@ -4,7 +4,7 @@
 
 namespace tea {
 	void CodeGen::emitVariable(VariableNode* node) {
-		log("Emitting local '{}' of type {} (initialized = {})", node->name, (uint8_t)node->dataType, node->value != nullptr);
+		log("Emitting local '{}' of type {} (initialized = {})", node->name, llvm2readable(type2llvm[node->dataType]), node->value != nullptr);
 
 		LLVMTypeRef expected = type2llvm[node->dataType];
 

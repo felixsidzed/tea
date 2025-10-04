@@ -179,27 +179,44 @@ namespace tea {
 			}
 
 			delete[] calleeArgTypes;
-
-			LLVMTypeRef returnType = LLVMGetReturnType(ftype);
-
 			return {
-				returnType,
+				LLVMGetReturnType(ftype),
 				LLVMBuildCall2(block, LLVMGlobalGetValueType(callee), callee,
 								args.data(), (uint32_t)args.size(), "")
 			};
 		}
 
 		case EXPR_IDENTF: {
-			int i = 0;
+			if (node->value == "true") {
+				return {
+					type2llvm[TYPE_BOOL],
+					LLVMConstInt(type2llvm[TYPE_BOOL], 1, 0)
+				};
+			} else if (node->value == "false") {
+				return {
+					type2llvm[TYPE_BOOL],
+					LLVMConstInt(type2llvm[TYPE_BOOL], 0, 0)
+				};
+			} else if (node->value == "null") {
+				auto pvoid = LLVMPointerType(type2llvm[TYPE_VOID], 0);
+				return {
+					pvoid,
+					LLVMConstNull(pvoid)
+				};
+			}
+
+			uint32_t i = 0;
 			for (const auto& arg : *curArgs) {
 				if (arg.second == node->value) {
-					LLVMValueRef arg = LLVMGetParam(func, i);
-					if (arg)
-						return {
-							LLVMTypeOf(arg),
-							arg
-						};
-					else if (argsMap)
+					if (i < LLVMCountParams(func)) {
+						LLVMValueRef arg = LLVMGetParam(func, i);
+						if (arg)
+							return {
+								LLVMTypeOf(arg),
+								arg
+							};
+					}
+					if (argsMap)
 						return {
 							LLVMTypeOf(argsMap->at(i)),
 							argsMap->at(i)
@@ -222,8 +239,7 @@ namespace tea {
 			
 			TEA_PANIC("'%s' is not defined. line %d, column %d", node->value.c_str(), node->line, node->column);
 			TEA_UNREACHABLE();
-			break;
-		}
+		} break;
 
 		case EXPR_NOT: {
 			auto [exprType, expr] = emitExpression(node->left);
