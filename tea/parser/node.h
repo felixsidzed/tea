@@ -131,4 +131,11 @@ namespace tea {
 		AssignmentNode(std::unique_ptr<ExpressionNode> left, std::unique_ptr<ExpressionNode> right, enum TokenType extra) :
 			left(std::move(left)), right(std::move(right)), extra(extra) {}
 	};
+
+	struct WhileLoopNode : Node {
+		Tree body;
+		std::unique_ptr<ExpressionNode> pred;
+
+		WhileLoopNode(std::unique_ptr<ExpressionNode> pred) : pred(std::move(pred)) {};
+	};
 }

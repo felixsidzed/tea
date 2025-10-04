@@ -23,9 +23,9 @@ namespace tea {
 		std::vector<std::string> imported;
 
 		void parseFuncFull();
-		std::string parseType();
 		bool tryParseAssignment();
 		void parseFunc(enum StorageType storage);
+		std::string parseType(bool ignoreNl = true);
 		std::unique_ptr<ExpressionNode> parsePrimary();
 		std::unique_ptr<ExpressionNode> parseExpression();
 		void parseBlock(const std::vector<enum KeywordType>& extraTerminators = {});

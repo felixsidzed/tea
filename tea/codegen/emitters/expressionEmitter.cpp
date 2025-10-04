@@ -1,4 +1,5 @@
 #include "../codegen.h"
+
 #include "tea.h"
 
 namespace tea {
@@ -117,7 +118,7 @@ namespace tea {
 
 		case EXPR_STRING: {
 			LLVMValueRef str = LLVMBuildGlobalString(block, node->value.c_str(), "");
-			if (ptr) *ptr = true; // ptr is set to true if the returned value is a pointer to the actual value
+			if (ptr) *ptr = true;
 			return {
 				Type::get(Type::STRING),
 				LLVMBuildBitCast(block, str, Type::get(Type::STRING).llvm, "")
@@ -167,7 +168,7 @@ namespace tea {
 						curArgs = &funcNode->args;
 
 						std::pair<LLVMTypeRef, LLVMValueRef> returnInto = { returnType, returnValue };
-						emitBlock(funcNode->body, nullptr, nullptr, &returnInto);
+						emitBlock(funcNode->body, ".inlined.function", nullptr, &returnInto);
 
 						argsMap = nullptr;
 						curArgs = oldCurArgs;

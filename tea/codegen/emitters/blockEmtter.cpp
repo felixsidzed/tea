@@ -6,7 +6,7 @@ namespace tea {
 	void CodeGen::emitBlock(const Tree& root, const char* name, LLVMValueRef parent, std::pair<LLVMTypeRef, LLVMValueRef>* returnInto) {
 		std::vector<Local> oldLocals = locals;
 
-		if (name) {
+		if (parent) {
 			LLVMBasicBlockRef _ = LLVMAppendBasicBlock(parent, name);
 			block = LLVMCreateBuilder();
 			LLVMPositionBuilderAtEnd(block, _); 
@@ -116,7 +116,7 @@ namespace tea {
 				LLVMBuildCondBr(block, pred, thenBlock, ifNode->elseIf ? elseIfBlock : elseBlock);
 
 				LLVMPositionBuilderAtEnd(block, thenBlock);
-				emitBlock(ifNode->body, nullptr, func, returnInto);
+				emitBlock(ifNode->body, "if.then", nullptr, returnInto);
 				if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
 					LLVMBuildBr(block, mergeBlock);
 
@@ -150,7 +150,7 @@ namespace tea {
 					LLVMBuildCondBr(block, elseIfPred, elseIfThen, nextBlock);
 
 					LLVMPositionBuilderAtEnd(block, elseIfThen);
-					emitBlock(elseIf->body, nullptr, func, returnInto);
+					emitBlock(elseIf->body, "eleif.then", nullptr, returnInto);
 					if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
 						LLVMBuildBr(block, mergeBlock);
 
@@ -160,7 +160,7 @@ namespace tea {
 
 				if (ifNode->else_) {
 					LLVMPositionBuilderAtEnd(block, elseBlock);
-					emitBlock(ifNode->else_->body, nullptr, func, returnInto);
+					emitBlock(ifNode->else_->body, "else", nullptr, returnInto);
 					if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
 						LLVMBuildBr(block, mergeBlock);
 				}
@@ -175,12 +175,16 @@ namespace tea {
 				emitAssignment((AssignmentNode*)node.get());
 				break;
 
+			case tnode(WhileLoopNode):
+				emitWhileLoop((WhileLoopNode*)node.get());
+				break;
+
 			default:
 				TEA_PANIC("invalid statement. line %d, column %d", node->line, node->column);
 			}
 		}
 
-		LLVMDisposeBuilder(block);
+		//LLVMDisposeBuilder(block);
 		locals = oldLocals;
 	}
 }

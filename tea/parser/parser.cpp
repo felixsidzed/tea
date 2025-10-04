@@ -39,6 +39,8 @@ namespace tea {
 	};
 
 	static inline const std::string& _expect(const Token*& t, enum TokenType expected) {
+		while (t->type == TOKEN_NEWLINE)
+			t++;
 		if (t->type != expected)
 			TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value.c_str(), t->line, t->column);
 		advance();
@@ -121,6 +123,7 @@ namespace tea {
 						case KWORD_STDCC:	cc = CC_STD;	break;
 						case KWORD_FASTCC:	cc = CC_FAST;	break;
 						case KWORD_CCC:		cc = CC_C;		break;
+						case KWORD_AUTOCC:	cc = CC_AUTO;	break;
 						}
 						advance();
 					}
@@ -197,10 +200,17 @@ namespace tea {
 				((FunctionNode*)tree->back().get())->attrs = attrs;
 			} break;
 
+			case TOKEN_NEWLINE:
+				t++;
+				break;
+
 			default:
 				unexpected();
 			}
 		}
+
+		if (tree != &root)
+			TEA_PANIC("unexpected EOF (did you forget to close a function?)");
 
 		return std::move(root);
 	}
@@ -493,6 +503,19 @@ namespace tea {
 					tree->push_back(std::move(ifNode));
 				} break;
 
+				case KWORD_WHILE: {
+					advance();
+					auto pred = parseExpression();
+					pushtree(WhileLoopNode, std::move(pred));
+					
+					if (t->type != TOKEN_KWORD || t->extra != KWORD_DO)
+						goto unexpected;
+					else
+						advance();
+
+					parseBlock();
+				} break;
+
 				default:
 					goto unexpected;
 				}
@@ -511,6 +534,11 @@ namespace tea {
 					goto unexpected;
 				else
 					expect(TOKEN_SEMI);
+				break;
+
+			case TOKEN_SEMI:
+			case TOKEN_NEWLINE:
+				advance();
 				break;
 
 			default:
@@ -546,6 +574,7 @@ namespace tea {
 			case KWORD_STDCC:	cc = CC_STD;	break;
 			case KWORD_FASTCC:	cc = CC_FAST;	break;
 			case KWORD_CCC:		cc = CC_C;		break;
+			case KWORD_AUTOCC:	cc = CC_AUTO;	break;
 			}
 			advance();
 		}
@@ -581,7 +610,7 @@ namespace tea {
 
 		expect(TOKEN_RPAR);
 		expect(TOKEN_ARROW);
-		const std::string& returnType = parseType();
+		const std::string& returnType = parseType(false);
 		auto type = Type::get(returnType);
 		if (!type.second)
 			TEA_PANIC("unknown type '%s'. line %d, column %d", returnType.c_str(), (t - 1)->line, (t - 1)->column);
@@ -593,7 +622,7 @@ namespace tea {
 		TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value.c_str(), t->line, t->column);
 	}
 
-	std::string Parser::parseType() {
+	std::string Parser::parseType(bool ignoreNl) {
 		std::string typeName = expect(TOKEN_IDENTF);
 
 		if (typeName == "const") {
@@ -601,9 +630,11 @@ namespace tea {
 			typeName += expect(TOKEN_IDENTF);
 		}
 
-		while (t->type == TOKEN_MUL) {
-			typeName.append(1, '*');
-			advance();
+		if (ignoreNl && t->type != TOKEN_NEWLINE) {
+			while (t->type == TOKEN_MUL) {
+				typeName.append(1, '*');
+				advance();
+			}
 		}
 
 		return typeName;
@@ -625,6 +656,7 @@ namespace tea {
 			case TOKEN_MUL:
 			case TOKEN_DIV:
 				extra = t->type;
+				advance();
 				goto end;
 			default:
 				t = oldt;

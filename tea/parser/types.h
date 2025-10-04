@@ -7,11 +7,7 @@
 #include <llvm-c/Core.h>
 
 #ifndef DEFAULT_CC
-#ifdef _WIN32
-#define DEFAULT_CC CC_FAST
-#else
-#define DEFAULT_CC CC_C
-#endif
+#define DEFAULT_CC CC_AUTO
 #endif
 
 #ifndef tnode
@@ -32,6 +28,7 @@ namespace tea {
 		tnode(ElseIfNode),
 		tnode(GlobalVariableNode),
 		tnode(AssignmentNode),
+		tnode(WhileLoopNode),
 	};
 
 	enum StorageType : uint8_t {
@@ -73,6 +70,7 @@ namespace tea {
 		CC_C,
 		CC_FAST,
 		CC_STD,
+		CC_AUTO,
 
 		CC__COUNT
 	};
@@ -112,7 +110,7 @@ namespace tea {
 		static void create(const std::string& name, LLVMTypeRef type);
 
 		bool operator==(const Type& other) const {
-			return LLVMGetTypeKind(llvm) == LLVMGetTypeKind(other.llvm) && constant == other.constant;
+			return llvm == other.llvm && constant == other.constant;
 		}
 
 		const char* str() {

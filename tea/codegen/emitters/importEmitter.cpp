@@ -15,7 +15,8 @@ namespace tea {
 			node->name.c_str(),
 			LLVMFunctionType(node->returnType.llvm, argTypes.data(), (uint32_t)node->args.size(), node->vararg)
 		);
-		LLVMSetFunctionCallConv(imported, cc2llvm[node->cc]);
+		if (node->cc != CC_AUTO)
+			LLVMSetFunctionCallConv(imported, cc2llvm[node->cc]);
 		return imported;
 	}
 }
