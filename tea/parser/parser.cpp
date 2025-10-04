@@ -89,9 +89,37 @@ namespace tea {
 				} break;
 
 				case KWORD_PRIVATE:
-				case KWORD_PUBLIC:
-					parseFuncFull();
-					break;
+				case KWORD_PUBLIC: {
+					if ((t + 1)->type == TOKEN_KWORD && (t + 1)->extra == KWORD_VAR) {
+						enum StorageType storage;
+						if (t->extra == KWORD_PUBLIC)
+							storage = STORAGE_PUBLIC;
+						else if (t->extra == KWORD_PRIVATE)
+							storage = STORAGE_PRIVATE;
+						else
+							unexpected();
+						t++;
+						advance();
+
+						const std::string& name = expect(TOKEN_IDENTF);
+						expect(TOKEN_COLON);
+						
+						const std::string& dataType = expect(TOKEN_IDENTF);
+						auto it = name2type.find(dataType);
+						if (it == name2type.end())
+							TEA_PANIC("unknown type '%s'. line %d, column %d", dataType.c_str(), (t - 1)->line, (t - 1)->column);
+
+						std::unique_ptr<ExpressionNode> value = nullptr;
+						if (t->type != TOKEN_SEMI) {
+							expect(TOKEN_ASSIGN);
+							value = parseExpression();
+						}
+						expect(TOKEN_SEMI);
+
+						pushnode(GlobalVariableNode, storage, name, it->second, std::move(value));
+					} else
+						parseFuncFull();
+				} break;
 
 				case KWORD_IMPORT: {
 					advance();
@@ -354,7 +382,11 @@ namespace tea {
 					advance();
 					const std::string& name = expect(TOKEN_IDENTF);
 					expect(TOKEN_COLON);
-					enum Type dataType = name2type[expect(TOKEN_IDENTF)];
+
+					const std::string& dataType = expect(TOKEN_IDENTF);
+					auto it = name2type.find(dataType);
+					if (it == name2type.end())
+						TEA_PANIC("unknown type '%s'. line %d, column %d", dataType.c_str(), (t - 1)->line, (t - 1)->column);
 
 					std::unique_ptr<ExpressionNode> value = nullptr;
 					if (t->type != TOKEN_SEMI) {
@@ -363,7 +395,7 @@ namespace tea {
 					}
 					expect(TOKEN_SEMI);
 
-					pushnode(VariableNode, name, dataType, std::move(value));
+					pushnode(VariableNode, name, it->second, std::move(value));
 					break;
 				}
 
@@ -462,10 +494,8 @@ namespace tea {
 			storage = STORAGE_PUBLIC;
 		else if (t->extra == KWORD_PRIVATE)
 			storage = STORAGE_PRIVATE;
-		else {
+		else
 			unexpected();
-			__assume(0);
-		}
 		advance();
 		if (t->extra == KWORD_FUNC || isCC((enum KeywordType)t->extra))
 			parseFunc(storage);

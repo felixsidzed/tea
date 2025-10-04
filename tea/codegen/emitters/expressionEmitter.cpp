@@ -2,10 +2,39 @@
 #include "tea.h"
 
 namespace tea {
-	std::pair<LLVMTypeRef, LLVMValueRef> CodeGen::emitExpression(const std::unique_ptr<ExpressionNode>& node) {
+	std::pair<LLVMTypeRef, LLVMValueRef> CodeGen::emitExpression(const std::unique_ptr<ExpressionNode>& node, bool constant) {
 		if (node->etype >= EXPR_ADD && node->etype <= EXPR_DIV) {
-			auto [ltype, lhs] = emitExpression(node->left);
-			auto [rtype, rhs] = emitExpression(node->right);
+			auto [ltype, lhs] = emitExpression(node->left, constant);
+			auto [rtype, rhs] = emitExpression(node->right, constant);
+
+			if (constant) {
+				if (!LLVMIsConstant(lhs))
+					TEA_PANIC("value is not a constant expression. line %d, column %d", node->left->line, node->left->column);
+				if (!LLVMIsConstant(rhs))
+					TEA_PANIC("value is not a constant expression. line %d, column %d", node->right->line, node->right->column);
+
+				if (ltype == type2llvm[TYPE_INT]) {
+					long long lval = LLVMConstIntGetSExtValue(lhs);
+					long long rval = LLVMConstIntGetSExtValue(rhs);
+					switch (node->etype) {
+					case EXPR_ADD: return { ltype, LLVMConstInt(type2llvm[TYPE_INT], lval + rval, true) };
+					case EXPR_SUB: return { ltype, LLVMConstInt(type2llvm[TYPE_INT], lval - rval, true) };
+					case EXPR_MUL: return { ltype, LLVMConstInt(type2llvm[TYPE_INT], lval * rval, true) };
+					case EXPR_DIV: return { ltype, LLVMConstInt(type2llvm[TYPE_INT], lval / rval, true) };
+					}
+				}
+				else if (ltype == type2llvm[TYPE_FLOAT] || ltype == type2llvm[TYPE_DOUBLE]) {
+					LLVMBool _;
+					double lval = LLVMConstRealGetDouble(lhs, &_);
+					double rval = LLVMConstRealGetDouble(rhs, &_);
+					switch (node->etype) {
+					case EXPR_ADD: return { ltype, LLVMConstReal(ltype, lval + rval) };
+					case EXPR_SUB: return { ltype, LLVMConstReal(ltype, lval - rval) };
+					case EXPR_MUL: return { ltype, LLVMConstReal(ltype, lval * rval) };
+					case EXPR_DIV: return { ltype, LLVMConstReal(ltype, lval / rval) };
+					}
+				}
+			}
 
 			if (ltype != rtype)
 				TEA_PANIC("type mismatch in expression. line %d, column %d", node->line, node->column);
@@ -96,6 +125,9 @@ namespace tea {
 		} break;
 
 		case EXPR_CALL: {
+			if (constant)
+				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
+
 			CallNode* call = (CallNode*)node.get();
 			std::vector<LLVMValueRef> args;
 			std::vector<LLVMTypeRef> argTypes;
@@ -175,7 +207,7 @@ namespace tea {
 
 				if (got != expected)
 					TEA_PANIC("argument %d: expected type %s, got %s. line %d, column %d",
-						i + 1, llvm2readable(expected), llvm2readable(got, args[i]), node->line, node->column);
+						i + 1, llvm2readable(expected), llvm2readable(got), node->line, node->column);
 			}
 
 			delete[] calleeArgTypes;
@@ -204,6 +236,18 @@ namespace tea {
 					LLVMConstNull(pvoid)
 				};
 			}
+
+			LLVMValueRef global = LLVMGetNamedGlobal(module, node->value.c_str());
+			if (global) {
+				LLVMTypeRef type = LLVMGlobalGetValueType(global);
+				return {
+					type,
+					LLVMBuildLoad2(block, type, global, "")
+				};
+			}
+
+			if (constant)
+				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
 
 			uint32_t i = 0;
 			for (const auto& arg : *curArgs) {
@@ -242,7 +286,7 @@ namespace tea {
 		} break;
 
 		case EXPR_NOT: {
-			auto [exprType, expr] = emitExpression(node->left);
+			auto [exprType, expr] = emitExpression(node->left, constant);
 
 			if (LLVMGetTypeKind(exprType) != LLVMIntegerTypeKind)
 				TEA_PANIC("type mismatch in '!' operation. line %d, column %d", node->line, node->column);
@@ -252,22 +296,22 @@ namespace tea {
 		} break;
 
 		case EXPR_AND: {
-			auto [lhsType, lhs] = emitExpression(node->left);
-			auto [rhsType, rhs] = emitExpression(node->right);
+			auto [lhsType, lhs] = emitExpression(node->left, constant);
+			auto [rhsType, rhs] = emitExpression(node->right, constant);
 
 			return { type2llvm[TYPE_BOOL], LLVMBuildAnd(block, lhs, rhs, "") };
 		} break;
 
 		case EXPR_OR: {
-			auto [lhsType, lhs] = emitExpression(node->left);
-			auto [rhsType, rhs] = emitExpression(node->right);
+			auto [lhsType, lhs] = emitExpression(node->left, constant);
+			auto [rhsType, rhs] = emitExpression(node->right, constant);
 
 			return { type2llvm[TYPE_BOOL], LLVMBuildOr(block, lhs, rhs, "") };
 		} break;
 
 		case EXPR_EQ: {
-			auto [lhsType, lhs] = emitExpression(node->left);
-			auto [rhsType, rhs] = emitExpression(node->right);
+			auto [lhsType, lhs] = emitExpression(node->left, constant);
+			auto [rhsType, rhs] = emitExpression(node->right, constant);
 
 			LLVMValueRef cmp = NULL;
 
@@ -285,8 +329,8 @@ namespace tea {
 		} break;
 
 		case EXPR_NEQ: {
-			auto [lhsType, lhs] = emitExpression(node->left);
-			auto [rhsType, rhs] = emitExpression(node->right);
+			auto [lhsType, lhs] = emitExpression(node->left, constant);
+			auto [rhsType, rhs] = emitExpression(node->right, constant);
 
 			if (LLVMGetTypeKind(lhsType) != LLVMGetTypeKind(rhsType))
 				TEA_PANIC("type mismatch in '!=' operation. line %d, column %d", node->line, node->column);
@@ -296,8 +340,8 @@ namespace tea {
 		} break;
 
 		case EXPR_LT: {
-			auto [lhsType, lhs] = emitExpression(node->left);
-			auto [rhsType, rhs] = emitExpression(node->right);
+			auto [lhsType, lhs] = emitExpression(node->left, constant);
+			auto [rhsType, rhs] = emitExpression(node->right, constant);
 
 			if (LLVMGetTypeKind(lhsType) != LLVMGetTypeKind(rhsType))
 				TEA_PANIC("type mismatch in '<' operation. line %d, column %d", node->line, node->column);
@@ -307,8 +351,8 @@ namespace tea {
 		} break;
 
 		case EXPR_GT: {
-			auto [lhsType, lhs] = emitExpression(node->left);
-			auto [rhsType, rhs] = emitExpression(node->right);
+			auto [lhsType, lhs] = emitExpression(node->left, constant);
+			auto [rhsType, rhs] = emitExpression(node->right, constant);
 
 			if (LLVMGetTypeKind(lhsType) != LLVMGetTypeKind(rhsType))
 				TEA_PANIC("type mismatch in '>' operation. line %d, column %d", node->line, node->column);
@@ -318,8 +362,8 @@ namespace tea {
 		} break;
 
 		case EXPR_LE: {
-			auto [lhsType, lhs] = emitExpression(node->left);
-			auto [rhsType, rhs] = emitExpression(node->right);
+			auto [lhsType, lhs] = emitExpression(node->left, constant);
+			auto [rhsType, rhs] = emitExpression(node->right, constant);
 
 			if (LLVMGetTypeKind(lhsType) != LLVMGetTypeKind(rhsType))
 				TEA_PANIC("type mismatch in '<=' operation. line %d, column %d", node->line, node->column);
@@ -329,8 +373,8 @@ namespace tea {
 		} break;
 
 		case EXPR_GE: {
-			auto [lhsType, lhs] = emitExpression(node->left);
-			auto [rhsType, rhs] = emitExpression(node->right);
+			auto [lhsType, lhs] = emitExpression(node->left, constant);
+			auto [rhsType, rhs] = emitExpression(node->right, constant);
 
 			if (LLVMGetTypeKind(lhsType) != LLVMGetTypeKind(rhsType))
 				TEA_PANIC("type mismatch in '>=' operation. line %d, column %d", node->line, node->column);

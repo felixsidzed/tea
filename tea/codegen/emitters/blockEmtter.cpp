@@ -21,11 +21,11 @@ namespace tea {
 				if (!returnInto) {
 					if (type != expected)
 						TEA_PANIC("return value (%s) is incompatible with function return type (%s). line %d, column %d",
-							llvm2readable(type, value), llvm2readable(expected), node->line, node->column);
+							llvm2readable(type), llvm2readable(expected), node->line, node->column);
 				} else {
 					if (type != returnInto->first)
 						TEA_PANIC("return value (%s) is incompatible with function return type (%s). line %d, column %d",
-							llvm2readable(type, value), llvm2readable(returnInto->first), node->line, node->column);
+							llvm2readable(type), llvm2readable(returnInto->first), node->line, node->column);
 				}
 
 				if (returnInto)

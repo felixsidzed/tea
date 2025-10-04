@@ -62,13 +62,12 @@ namespace tea {
 		}
 
 		void emitCode(const Tree& tree);
-		void emitInclude(UsingNode* node);
 		void emitFunction(FunctionNode* tree);
 		void emitVariable(VariableNode* node);
 		void emitFunctionImport(FunctionImportNode* node);
 		void emitBlock(const Tree& block, const char* name, LLVMValueRef parent, std::pair<LLVMTypeRef, LLVMValueRef>* returnInto = nullptr);
-		std::pair<LLVMTypeRef, LLVMValueRef> emitExpression(const std::unique_ptr<ExpressionNode>& node);
+		std::pair<LLVMTypeRef, LLVMValueRef> emitExpression(const std::unique_ptr<ExpressionNode>& node, bool constant = false);
 
-		static const char* llvm2readable(LLVMTypeRef type, LLVMValueRef value = nullptr);
+		static const char* llvm2readable(LLVMTypeRef type);
 	};
 }
