@@ -117,12 +117,19 @@ namespace tea {
 
 		case EXPR_STRING: {
 			LLVMValueRef str = LLVMBuildGlobalString(block, node->value.c_str(), "");
-			if (ptr) *ptr = true;
+			if (ptr) *ptr = true; // ptr is set to true if the returned value is a pointer to the actual value
 			return {
 				Type::get(Type::STRING),
-				str
+				LLVMBuildBitCast(block, str, Type::get(Type::STRING).llvm, "")
 			};
 		} break;
+
+		case EXPR_CHAR: {
+			return {
+				Type::get(Type::CHAR),
+				LLVMConstInt(Type::get(Type::CHAR).llvm, *node->value.c_str(), false)
+			};
+		}
 
 		case EXPR_CALL: {
 			if (constant)
@@ -181,7 +188,7 @@ namespace tea {
 							} else
 								return {
 									returnType,
-									LLVMBuildLoad2(block, returnType, returnValue, "")
+									LLVMBuildLoad(block, returnValue, "")
 								};
 						}
 						
@@ -216,23 +223,29 @@ namespace tea {
 			LLVMTypeRef* calleeArgTypes = new LLVMTypeRef[nargs + 1];
 			LLVMGetParamTypes(ftype, calleeArgTypes);
 
-			if (nargs != argTypes.size())
+			if ((!LLVMIsFunctionVarArg(ftype) && nargs != argTypes.size()) || (LLVMIsFunctionVarArg(ftype) && nargs > argTypes.size()))
 				TEA_PANIC("argument count mismatch. expected %d, got %d. line %d, column %d", nargs, argTypes.size(), node->line, node->column);
 
 			for (uint32_t i = 0; i < nargs; i++) {
 				LLVMTypeRef got = argTypes[i];
 				LLVMTypeRef expected = calleeArgTypes[i];
 
-				if (got != expected)
-					TEA_PANIC("argument %d: expected type %s, got %s. line %d, column %d",
-						i + 1, llvm2readable(expected), llvm2readable(got), node->line, node->column);
+				if (got != expected) {
+					if (LLVMGetTypeKind(got) == LLVMIntegerTypeKind && LLVMGetTypeKind(expected) == LLVMIntegerTypeKind) {
+						if (LLVMGetIntTypeWidth(got) > LLVMGetIntTypeWidth(expected))
+							args[i] = LLVMBuildZExt(block, args[i], expected, "");
+						else
+							args[i] = LLVMBuildTrunc(block, args[i], expected, "");
+					} else
+						TEA_PANIC("argument %d: expected type %s, got %s. line %d, column %d",
+							i + 1, llvm2readable(expected), llvm2readable(got), node->line, node->column);
+				}
 			}
 
 			delete[] calleeArgTypes;
 			return {
 				LLVMGetReturnType(ftype),
-				LLVMBuildCall2(block, LLVMGlobalGetValueType(callee), callee,
-								args.data(), (uint32_t)args.size(), "")
+				LLVMBuildCall(block, callee, args.data(), (uint32_t)args.size(), "")
 			};
 		}
 
@@ -270,7 +283,7 @@ namespace tea {
 				} else
 					return {
 						type,
-						LLVMBuildLoad2(block, type, global, "")
+						LLVMBuildLoad(block, global, "")
 					};
 			}
 
@@ -321,7 +334,7 @@ namespace tea {
 					} else
 						return {
 							type,
-							LLVMBuildLoad2(block, type, local.allocated, "")
+							LLVMBuildLoad(block, local.allocated, "")
 						};
 				}
 			}
@@ -442,6 +455,27 @@ namespace tea {
 				LLVMIsAGlobalValue(value) ? LLVMGlobalGetValueType(value) : LLVMTypeOf(value),
 				value
 			};
+		} break;
+
+		case EXPR_DEREF: {
+			if (constant)
+				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
+
+			auto [type, value] = emitExpression(node->left);
+			if (LLVMGetTypeKind(type.llvm) != LLVMPointerTypeKind)
+				TEA_PANIC("cannot dereference non-pointer type. line %d, column %d", node->line, node->column);
+
+			if (ptr) {
+				*ptr = true;
+				return {
+					type.llvm,
+					value
+				};
+			} else
+				return {
+					LLVMGetElementType(type.llvm),
+					LLVMBuildLoad(block, value, "")
+				};
 		} break;
 
 		default:

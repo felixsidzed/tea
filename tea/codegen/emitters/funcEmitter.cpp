@@ -35,7 +35,7 @@ namespace tea {
 
 		curArgs = &node->args;
 
-		LLVMTypeRef funcType = LLVMFunctionType(node->returnType.llvm, argTypes.data(), (uint32_t)node->args.size(), 0);
+		LLVMTypeRef funcType = LLVMFunctionType(node->returnType.llvm, argTypes.data(), (uint32_t)node->args.size(), node->vararg);
 		func = LLVMAddFunction(module, node->name.c_str(), funcType);
 
 		LLVMSetFunctionCallConv(func, cc2llvm[node->cc]);

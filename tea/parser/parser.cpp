@@ -138,9 +138,18 @@ namespace tea {
 					funcs.push_back(name);
 					expect(TOKEN_LPAR);
 
+					bool vararg = false;
 					std::vector<std::pair<Type, std::string>> args;
 					if (t->type != TOKEN_RPAR) {
 						do {
+							if (t->type == TOKEN_DOT && (t + 1)->type == TOKEN_DOT && (t + 2)->type == TOKEN_DOT) {
+								advance();
+								advance();
+								advance();
+								vararg = true;
+								break;
+							}
+
 							const std::string& typeName = parseType();
 							auto type = Type::get(typeName);
 							if (!type.second)
@@ -158,7 +167,7 @@ namespace tea {
 						TEA_PANIC("unknown type '%s'. line %d, column %d", returnType.c_str(), (t - 1)->line, (t - 1)->column);
 
 					expect(TOKEN_SEMI);
-					pushnode(FunctionImportNode, cc, name, args, type.first);
+					pushnode(FunctionImportNode, cc, name, args, type.first, vararg);
 				} break;
 
 				default:
@@ -274,6 +283,19 @@ namespace tea {
 			auto operand = parsePrimary();
 			auto node = std::make_unique<ExpressionNode>(EXPR_REF, "", std::move(operand));
 			node->line = t->line; node->column = t->column;
+			return node;
+		}
+		case TOKEN_MUL: {
+			advance();
+			auto operand = parsePrimary();
+			auto node = std::make_unique<ExpressionNode>(EXPR_DEREF, "", std::move(operand));
+			node->line = t->line; node->column = t->column;
+			return node;
+		}
+		case TOKEN_CHAR: {
+			auto node = std::make_unique<ExpressionNode>(EXPR_CHAR, t->value);
+			node->line = t->line; node->column = t->column;
+			advance();
 			return node;
 		}
 		default:
@@ -477,9 +499,19 @@ namespace tea {
 			} break;
 
 			case TOKEN_IDENTF: {
-				tree->push_back(parseExpression());
-				expect(TOKEN_SEMI);
+				if (!tryParseAssignment()) {
+					tree->push_back(parseExpression());
+					expect(TOKEN_SEMI);
+				} else
+					expect(TOKEN_SEMI);
 			} break;
+
+			case TOKEN_MUL:
+				if (!tryParseAssignment())
+					goto unexpected;
+				else
+					expect(TOKEN_SEMI);
+				break;
 
 			default:
 			unexpected:
@@ -526,9 +558,18 @@ namespace tea {
 		funcs.push_back(name);
 		expect(TOKEN_LPAR);
 
+		bool vararg = false;
 		std::vector<std::pair<Type, std::string>> args;
 		if (t->type != TOKEN_RPAR) {
 			do {
+				if (t->type == TOKEN_DOT && (t + 1)->type == TOKEN_DOT && (t + 2)->type == TOKEN_DOT) {
+					advance();
+					advance();
+					advance();
+					vararg = true;
+					break;
+				}
+
 				const std::string& typeName = parseType();
 				auto type = Type::get(typeName);
 				if (!type.second)
@@ -544,7 +585,7 @@ namespace tea {
 		auto type = Type::get(returnType);
 		if (!type.second)
 			TEA_PANIC("unknown type '%s'. line %d, column %d", returnType.c_str(), (t - 1)->line, (t - 1)->column);
-		pushtree(FunctionNode, storage, cc, name, args, type.first);
+		pushtree(FunctionNode, storage, cc, name, args, type.first, vararg);
 		parseBlock();
 	}
 
@@ -566,5 +607,33 @@ namespace tea {
 		}
 
 		return typeName;
+	}
+
+	bool Parser::tryParseAssignment() {
+		const Token* oldt = t;
+		if (t->type != TOKEN_IDENTF && t->type != TOKEN_MUL)
+			return false;
+
+		auto lhs = parsePrimary();
+		enum TokenType extra = (TokenType)0;
+
+		switch (t->type) {
+			case TOKEN_ASSIGN:
+				goto end;
+			case TOKEN_ADD:
+			case TOKEN_SUB:
+			case TOKEN_MUL:
+			case TOKEN_DIV:
+				extra = t->type;
+				goto end;
+			default:
+				t = oldt;
+				return false;
+		} end:
+		expect(TOKEN_ASSIGN);
+
+		auto rhs = parseExpression();
+		pushnode(AssignmentNode, std::move(lhs), std::move(rhs), extra);
+		return true;
 	}
 }

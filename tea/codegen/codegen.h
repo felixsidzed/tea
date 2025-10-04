@@ -42,8 +42,8 @@ namespace tea {
 		std::unordered_map<std::string, ImportedModule> modules;
 		std::vector<std::pair<Type, std::string>>* curArgs = nullptr;
 
+		std::vector<LLVMValueRef>* argsMap = nullptr;
 		std::unordered_map<std::string, FunctionNode*> inlineables;
-		std::vector<LLVMValueRef>* argsMap;
 
 		inline void logUnformatted(const std::string& message) {
 			if (!verbose)
@@ -61,6 +61,7 @@ namespace tea {
 		void emitCode(const Tree& tree);
 		void emitFunction(FunctionNode* tree);
 		void emitVariable(VariableNode* node);
+		void emitAssignment(AssignmentNode* node);
 		void emitFunctionImport(FunctionImportNode* node);
 		void emitBlock(const Tree& block, const char* name, LLVMValueRef parent, std::pair<LLVMTypeRef, LLVMValueRef>* returnInto = nullptr);
 		std::pair<Type, LLVMValueRef> emitExpression(const std::unique_ptr<ExpressionNode>& node, bool constant = false, bool* ptr = nullptr);

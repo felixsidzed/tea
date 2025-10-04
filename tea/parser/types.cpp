@@ -20,12 +20,14 @@ namespace tea {
 		if (!typesInitialized) {
 			typesInitialized = true;
 
+			LLVMContextSetOpaquePointers(LLVMGetGlobalContext(), false);
+
 			/* ORDER BASIC_TYPE */
 			Type::convert.push_back(LLVMInt32Type());
 			Type::convert.push_back(LLVMFloatType());
 			Type::convert.push_back(LLVMDoubleType());
 			Type::convert.push_back(LLVMInt8Type());
-			Type::convert.push_back(LLVMPointerType(Type::get(Type::CHAR).llvm, 0));
+			Type::convert.push_back(LLVMPointerType(LLVMInt8Type(), 0));
 			Type::convert.push_back(LLVMVoidType());
 			Type::convert.push_back(LLVMInt1Type());
 			Type::convert.push_back(LLVMInt64Type());
@@ -36,6 +38,9 @@ namespace tea {
 		initializeTypes();
 		Type result;
 		std::string tmp = name;
+
+		if (name.empty())
+			return { result, false };
 
 		result.constant = tmp.find("const") != std::string::npos;
 		tmp = std::regex_replace(tmp, std::regex("const"), "");
@@ -59,8 +64,8 @@ namespace tea {
 			return { result, false };
 
 		enum Kind kind = name2kind[basename];
-		/*if (kind == Type::VOID_ && nptr > 0)
-			kind = Type::CHAR;*/
+		if (kind == Type::VOID_ && nptr > 0)
+			kind = Type::CHAR;
 
 		LLVMTypeRef llvmType = convert[kind];
 

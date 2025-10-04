@@ -206,9 +206,8 @@ namespace tea {
 							escaped++;
 						}
 						else {
-							if (*pos == '\n') {
-								TEA_PANIC("unterminated string before '\\n'. line %d, column %d", line, col);
-							}
+							if (*pos == '\n')
+								TEA_PANIC("unterminated string before newline. line %d, column %d", line, col);
 							buffer += *pos;
 						}
 						pos++;
@@ -217,9 +216,47 @@ namespace tea {
 					container.push_back(Token{ TOKEN_STRING, { buffer.c_str(), uint32_t(pos - start) - escaped }, 0, uint32_t(pos - start) - escaped, col, line });
 				} break;
 
-				case ',': {
-					pushtok(TOKEN_COMMA);
+				case '\'': {
+					const char* start = ++pos;
+					char value = 0;
+
+					if (!*pos)
+						TEA_PANIC("unterminated character literal. line %d, column %d", line, col);
+
+					if (*pos == '\\') {
+						pos++;
+						switch (*pos) {
+						case 'n': value = '\n'; break;
+						case 't': value = '\t'; break;
+						case '\\': value = '\\'; break;
+						case '\'': value = '\''; break;
+						case '\"': value = '\"'; break; 
+						default:
+							TEA_PANIC("invalid escape sequence in character literal: \\%c. line %d, column %d", *pos, line, col);
+						}
+						pos++;
+					}
+					else {
+						if (*pos == '\n' || *pos == '\0')
+							TEA_PANIC("unterminated character literal. line %d, column %d", line, col);
+
+						value = *pos++;
+					}
+
+					if (*pos != '\'')
+						TEA_PANIC("multi-character literal or missing closing quote. line %d, column %d", line, col);
+
+					container.push_back(Token{ TOKEN_CHAR, { value }, 0, uint32_t(pos - start), col, line });
 				} break;
+
+
+				case ',':
+					pushtok(TOKEN_COMMA);
+					break;
+
+				case '.':
+					pushtok(TOKEN_DOT);
+					break;
 
 				default:
 					goto unexpected;

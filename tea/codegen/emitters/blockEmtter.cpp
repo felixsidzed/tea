@@ -171,6 +171,10 @@ namespace tea {
 				break;
 			}
 
+			case tnode(AssignmentNode):
+				emitAssignment((AssignmentNode*)node.get());
+				break;
+
 			default:
 				TEA_PANIC("invalid statement. line %d, column %d", node->line, node->column);
 			}

@@ -161,8 +161,11 @@ namespace tea {
 			} else if (bits == 8) {
 				result = "char";
 				break;
-			} else if (bits >= 32) {
+			} else if (bits == 32) {
 				result = "int";
+				break;
+			} else if (bits >= 64) {
+				result = "long";
 				break;
 			}
 			TEA_FALLTHROUGH;
