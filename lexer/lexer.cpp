@@ -8,10 +8,13 @@
 
 #define panic tea::configuration.panic
 
-static const char* keywords[] = {
-	"return", "func", "end",
-	"using", "import",
+const char* keywords[] = {
+	"using", "func", //"import", "macro",
 	"public", "private",
+	/*"if", "elseif", "else", "while", "for", "break", "continue",*/ "return",
+	//"var",
+	//"__stdcall", "__fastcall", "__cdecl",
+	//"class", "new", "constructor", "deconstructor",
 };
 
 static bool isKeyword(const char* word, unsigned int len) {
