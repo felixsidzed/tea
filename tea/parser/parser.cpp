@@ -34,16 +34,16 @@
 #define expect(tt) _expect(t,tt)
 
 namespace tea {
-	map<string, LLVMAttributeKind> name2attr = {
-		{"inline", LLVMAlwaysInlineAttribute},
-		{"noreturn", LLVMNoReturnAttribute}
+	map<string, enum Attribute> name2attr = {
+		{"inline", ATTR_INLINE},
+		{"noreturn", ATTR_NORETURN}
 	};
 
 	static inline const char* _expect(const Token*& t, enum TokenType expected) {
 		while (t->type == TOKEN_NEWLINE)
 			t++;
 		if (t->type != expected)
-			TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value, t->line, t->column);
+			TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value.data, t->line, t->column);
 		advance();
 		return (t - 1)->value;
 	}
@@ -182,7 +182,7 @@ namespace tea {
 
 			case TOKEN_ATTR: {
 				advance();
-				vector<LLVMAttributeKind> attrs;
+				vector<enum Attribute> attrs;
 				while (true) {
 					const string& attrName = expect(TOKEN_IDENTF);
 					auto it = name2attr.find(attrName);
@@ -283,13 +283,14 @@ namespace tea {
 			advance();
 
 			if (t->type == TOKEN_IDENTF) {
-				string typeName = t->value;
-				advance();
-				while (t->type == TOKEN_SCOPE) {
+				string typeName;
+		        bool first = true;
+
+				while (t->type == TOKEN_IDENTF || t->type == TOKEN_SCOPE) {
+					if (!first) typeName += " ";
+					typeName += t->value;
 					advance();
-					if (t->type != TOKEN_IDENTF) unexpected();
-					typeName = t->value;
-					advance();
+					first = false;
 				}
 
 				if (t->type == TOKEN_RPAR) {
@@ -652,16 +653,33 @@ namespace tea {
 	}
 
 	void Parser::unexpected() {
-		TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value, t->line, t->column);
+		TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value.data, t->line, t->column);
 	}
 
 	string Parser::parseType(bool ignoreNl) {
-		string typeName = expect(TOKEN_IDENTF);
+		string typeName;
+		string first = expect(TOKEN_IDENTF);
 
-		if (typeName == "const") {
+		if (first == "const") {
+			typeName += "const ";
+			string next = expect(TOKEN_IDENTF);
+			if (next == "signed" || next == "unsigned") {
+				typeName += next;
+				typeName += ' ';
+				typeName += expect(TOKEN_IDENTF);
+			} else
+				typeName += next;
+		} else if (first == "signed" || first == "unsigned") {
+			typeName += first;
 			typeName += ' ';
-			typeName += expect(TOKEN_IDENTF);
-		}
+			string next = expect(TOKEN_IDENTF);
+			if (next == "const") {
+				typeName += "const ";
+				typeName += expect(TOKEN_IDENTF);
+			} else
+				typeName += next;
+		} else
+			typeName += first;
 
 		if (ignoreNl && t->type != TOKEN_NEWLINE) {
 			while (t->type == TOKEN_MUL) {

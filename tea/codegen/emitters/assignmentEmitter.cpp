@@ -12,7 +12,7 @@ namespace tea {
 
 		if (rhsType.llvm != LLVMGetElementType(lhsType.llvm)) {
 			TEA_PANIC("assignment type mismatch: cannot assign %s to %s. line %d, column %d",
-				llvm2readable(rhsType.llvm), llvm2readable(LLVMGetElementType(lhsType.llvm)), node->line, node->column);
+				type2readable(rhsType), type2readable(LLVMGetElementType(lhsType.llvm)), node->line, node->column);
 		}
 
 		LLVMValueRef finalValue = rhsValue;

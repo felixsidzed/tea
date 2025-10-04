@@ -28,7 +28,7 @@ namespace tea {
 	struct FunctionNode : Node {
 		Tree body;
 		
-		vector<LLVMAttributeKind> attrs;
+		vector<enum Attribute> attrs;
 		enum StorageType storage;
 		enum CallConv cc;
 		string name;

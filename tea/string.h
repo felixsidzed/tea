@@ -1,7 +1,9 @@
 #pragma once
 
+#include <format>
 #include <cstdint>
 #include <string.h>
+#include <string_view>
 
 namespace tea {
 	class string {
@@ -156,6 +158,16 @@ namespace tea {
 			if (size != strlen(other)) return false;
 			if (data == nullptr || other == nullptr) return data == other;
 			return !strcmp(data, other);
+		}
+	};
+}
+
+namespace std {
+	template<>
+	struct formatter<tea::string> : formatter<std::string_view> {
+		auto format(const tea::string& s, std::format_context& ctx) const {
+			std::string_view sv{s.data, s.size};
+			return std::formatter<std::string_view>::format(sv, ctx);
 		}
 	};
 }

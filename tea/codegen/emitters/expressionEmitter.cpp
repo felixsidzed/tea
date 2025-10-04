@@ -16,13 +16,13 @@ namespace tea {
 					TEA_PANIC("value is not a constant expression. line %d, column %d", node->right->line, node->right->column);
 
 				if (ltype == Type::get(Type::INT).llvm) {
-					long long lval = LLVMConstIntGetSExtValue(lhs);
-					long long rval = LLVMConstIntGetSExtValue(rhs);
+					uint64_t lval = LLVMConstIntGetSExtValue(lhs);
+					uint64_t rval = LLVMConstIntGetSExtValue(rhs);
 					switch (node->etype) {
-					case EXPR_ADD: return { ltype, LLVMConstInt(Type::get(Type::INT).llvm, lval + rval, true) };
-					case EXPR_SUB: return { ltype, LLVMConstInt(Type::get(Type::INT).llvm, lval - rval, true) };
-					case EXPR_MUL: return { ltype, LLVMConstInt(Type::get(Type::INT).llvm, lval * rval, true) };
-					case EXPR_DIV: return { ltype, LLVMConstInt(Type::get(Type::INT).llvm, lval / rval, true) };
+					case EXPR_ADD: return { ltype, LLVMConstInt(Type::get(Type::INT).llvm, lval + rval, ltype.sign) };
+					case EXPR_SUB: return { ltype, LLVMConstInt(Type::get(Type::INT).llvm, lval - rval, ltype.sign) };
+					case EXPR_MUL: return { ltype, LLVMConstInt(Type::get(Type::INT).llvm, lval * rval, ltype.sign) };
+					case EXPR_DIV: return { ltype, LLVMConstInt(Type::get(Type::INT).llvm, lval / rval, ltype.sign) };
 					}
 				}
 				else if (ltype == Type::get(Type::FLOAT) || ltype == Type::get(Type::DOUBLE)) {
@@ -129,7 +129,7 @@ namespace tea {
 		case EXPR_CHAR: {
 			return {
 				Type::get(Type::CHAR),
-				LLVMConstInt(Type::get(Type::CHAR).llvm, node->value[0], false)
+				LLVMConstInt(Type::get(Type::CHAR).llvm, node->value[0], true)
 			};
 		}
 
@@ -242,7 +242,7 @@ namespace tea {
 							args[i] = LLVMBuildTrunc(block, args[i], expected, "");
 					} else
 						TEA_PANIC("argument %d: expected type %s, got %s. line %d, column %d",
-							i + 1, llvm2readable(expected), llvm2readable(got), node->line, node->column);
+							i + 1, type2readable(expected), type2readable(got), node->line, node->column);
 				}
 			}
 
@@ -257,12 +257,12 @@ namespace tea {
 			if (node->value == "true") {
 				return {
 					Type::get(Type::BOOL),
-					LLVMConstInt(Type::get(Type::BOOL).llvm, 1, 0)
+					LLVMConstInt(Type::get(Type::BOOL).llvm, true, false)
 				};
 			} else if (node->value == "false") {
 				return {
 					Type::get(Type::BOOL),
-					LLVMConstInt(Type::get(Type::BOOL).llvm, 0, 0)
+					LLVMConstInt(Type::get(Type::BOOL).llvm, false, false)
 				};
 			} else if (node->value == "null") {
 				auto pvoid = LLVMPointerType(Type::get(Type::VOID_).llvm, 0);
@@ -488,9 +488,9 @@ namespace tea {
 				TEA_PANIC("unknown type '%s' in cast. line %d, column %d", node->value, node->line, node->column);
 
 			auto [type, val] = emitExpression(node->left);
-			auto [success2, casted] = util::cast(block, castTo.llvm, type.llvm, val); // success is the only thing i understand // harvey - alex g
+			auto [success2, casted] = util::cast(block, castTo, type, val); // success is the only thing i understand // harvey - alex g
 			if (!success2)
-				TEA_PANIC("unable to cast '%s' to '%s'. line %d, column %d", llvm2readable(type.llvm), llvm2readable(castTo.llvm), node->line, node->column);
+				TEA_PANIC("unable to cast '%s' to '%s'. line %d, column %d", type2readable(type), type2readable(castTo), node->line, node->column);
 
 			return { castTo, casted };
 		} break;

@@ -16,8 +16,6 @@ namespace tea {
 
 	class CodeGen {
 	public:
-		typedef map<string, LLVMValueRef> ImportedModule;
-		
 		bool verbose;
 		fs::path importLookup;
 
@@ -26,6 +24,8 @@ namespace tea {
 		void emit(const Tree& tree, const char* output);
 
 	private:
+		typedef map<string, LLVMValueRef> ImportedModule;
+
 		struct Local {
 			Type type;
 			string name;
@@ -43,7 +43,7 @@ namespace tea {
 		vector<LLVMValueRef>* argsMap = nullptr;
 		map<string, FunctionNode*> inlineables;
 
-		map<VariableNode*, LLVMValueRef>* fnPrealloc;
+		map<VariableNode*, LLVMValueRef>* fnPrealloc = nullptr;
 
 		inline void logUnformatted(const std::string& message) {
 			if (!verbose)
@@ -67,6 +67,6 @@ namespace tea {
 		void emitBlock(const Tree& block, const char* name, LLVMValueRef parent, std::pair<LLVMTypeRef, LLVMValueRef>* returnInto = nullptr);
 		std::pair<Type, LLVMValueRef> emitExpression(const std::unique_ptr<ExpressionNode>& node, bool constant = false, bool* ptr = nullptr);
 
-		static const char* llvm2readable(LLVMTypeRef type);
+		static string type2readable(const Type& type);
 	};
 }

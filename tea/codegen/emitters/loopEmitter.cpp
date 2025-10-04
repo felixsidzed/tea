@@ -16,7 +16,7 @@ namespace tea {
 			LLVMTypeKind kind = LLVMGetTypeKind(predType.llvm);
 			switch (kind) {
 			case LLVMIntegerTypeKind:
-				pred = LLVMBuildICmp(block, LLVMIntNE, pred, LLVMConstInt(predType.llvm, 0, 0), "");
+				pred = LLVMBuildICmp(block, LLVMIntNE, pred, LLVMConstInt(predType.llvm, false, false), "");
 				break;
 			case LLVMFloatTypeKind:
 			case LLVMDoubleTypeKind:

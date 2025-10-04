@@ -75,6 +75,15 @@ namespace tea {
 		CC__COUNT
 	};
 
+	enum Attribute : uint8_t {
+		ATTR_INLINE,
+		ATTR_NORETURN,
+
+		ATTR__LLVM_COUNT,
+
+		ATTR__COUNT
+	};
+
 	class Type {
 	public:
 		enum Kind : uint8_t {
@@ -93,12 +102,13 @@ namespace tea {
 
 		LLVMTypeRef llvm;
 		bool constant;
+		bool sign;
 
-		Type() : llvm(nullptr), constant(false) {};
-		Type(LLVMTypeRef llvm, bool constant = false) : llvm(llvm), constant(constant) {}
+		Type() : llvm(nullptr), constant(false), sign(true) {};
+		Type(LLVMTypeRef llvm, bool constant = false, bool sign = true) : llvm(llvm), constant(constant), sign(sign) {}
 
 		static std::pair<Type, bool> get(const string& name);
-		static Type get(enum Kind kind, bool constant = false) { return Type(convert[kind], constant); }
+		static Type get(enum Kind kind, bool constant = false, bool sign = true) { return Type(convert[kind], constant, sign); }
 
 		static void create(const string& name, LLVMTypeRef type);
 

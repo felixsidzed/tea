@@ -141,8 +141,8 @@ namespace tea {
 			case tnode(GlobalVariableNode): {
 				GlobalVariableNode* globalVarNode = (GlobalVariableNode*)node.get();
 
-				LLVMTypeRef expected = globalVarNode->dataType.llvm;
-				LLVMValueRef global = LLVMAddGlobal(module, expected, globalVarNode->name);
+				Type& expected = globalVarNode->dataType;
+				LLVMValueRef global = LLVMAddGlobal(module, expected.llvm, globalVarNode->name);
 
 				if (globalVarNode->storage == STORAGE_PRIVATE)
 					LLVMSetLinkage(global, LLVMLinkerPrivateLinkage);
@@ -151,11 +151,11 @@ namespace tea {
 					auto [got, value] = emitExpression(globalVarNode->value, true);
 					if (got != expected)
 						TEA_PANIC("variable value type (%s) is incompatible with variable type (%s). line %d, column %d",
-							llvm2readable(expected), llvm2readable(got.llvm), globalVarNode->line, globalVarNode->column);
+							type2readable(expected), type2readable(got), globalVarNode->line, globalVarNode->column);
 
 					LLVMSetInitializer(global, value);
 				} else
-					LLVMSetInitializer(global, LLVMConstNull(expected));
+					LLVMSetInitializer(global, LLVMConstNull(expected.llvm));
 			} break;
 			default:
 				TEA_PANIC("invalid root statement. line %d, column %d", node->line, node->column);
@@ -163,15 +163,20 @@ namespace tea {
 		}
 	}
 
-	const char* CodeGen::llvm2readable(LLVMTypeRef type) {
+	string CodeGen::type2readable(const Type& type) {
 		string result;
-		LLVMTypeRef t = type;
+		LLVMTypeRef t = type.llvm;
 
 		int nptr = 0;
 		while (LLVMGetTypeKind(t) == LLVMPointerTypeKind) {
 			t = LLVMGetElementType(t);
 			nptr++;
 		}
+
+		if (type.constant)
+			result += "const";
+		if (!type.sign)
+			result += "unsigned";
 
 		LLVMTypeKind kind = LLVMGetTypeKind(t);
 		switch (kind) {
@@ -193,11 +198,6 @@ namespace tea {
 			TEA_FALLTHROUGH;
 		}
 
-		case LLVMMetadataTypeKind: {
-			result = "pointer";
-			nptr--;
-		} break;
-
 		default:
 			auto it = typeKindName.find(kind);
 			if (it)
@@ -213,10 +213,6 @@ namespace tea {
 		for (int i = 0; i < nptr; i++)
 			result += '*';
 
-		uint32_t len = result.size;
-		char* cstr = new char[len + 1];
-		memcpy_s(cstr, len + 1, result + len, len);
-		cstr[len] = '\0';
-		return cstr;
+		return result;
 	}
 }

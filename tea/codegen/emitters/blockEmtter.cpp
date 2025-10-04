@@ -16,11 +16,11 @@ namespace tea {
 			switch (node->type) {
 			case tnode(ReturnNode): {
 				{
-					int nattrs = LLVMGetAttributeCountAtIndex(func, LLVMAttributeFunctionIndex);
+					uint32_t nattrs = LLVMGetAttributeCountAtIndex(func, LLVMAttributeFunctionIndex);
 					LLVMAttributeRef* attrs = new LLVMAttributeRef[nattrs + 1];
 					LLVMGetAttributesAtIndex(func, LLVMAttributeFunctionIndex, attrs);
-					for (int i = 0; i < nattrs; i++) {
-						if (LLVMGetEnumAttributeKind(attrs[i]) == LLVMNoReturnAttribute) {
+					for (uint32_t i = 0; i < nattrs; i++) {
+						if (LLVMGetEnumAttributeKind(attrs[i]) == LLVMNoReturnAttributeKind) {
 							delete[] attrs;
 							if (((ReturnNode*)node.get())->value)
 								TEA_PANIC("@noreturn function '%s' does return. line %d, column %d", LLVMGetValueName(func), node->line, node->column);
@@ -49,11 +49,11 @@ namespace tea {
 				if (!returnInto) {
 					if (type != expected)
 						TEA_PANIC("return value type (%s) is incompatible with function return type (%s). line %d, column %d",
-							llvm2readable(type.llvm), llvm2readable(expected), node->line, node->column);
+							type2readable(type), type2readable(expected), node->line, node->column);
 				} else {
 					if (type != returnInto->first)
 						TEA_PANIC("return value type (%s) is incompatible with function return type (%s). line %d, column %d",
-							llvm2readable(type.llvm), llvm2readable(returnInto->first), node->line, node->column);
+							type2readable(type), type2readable(returnInto->first), node->line, node->column);
 				}
 
 				if (returnInto)
@@ -79,7 +79,7 @@ namespace tea {
 					LLVMTypeKind kind = LLVMGetTypeKind(type.llvm);
 					switch (kind) {
 					case LLVMIntegerTypeKind:
-						pred = LLVMBuildICmp(block, LLVMIntNE, pred, LLVMConstInt(type.llvm, 0, 0), "");
+						pred = LLVMBuildICmp(block, LLVMIntNE, pred, LLVMConstInt(type.llvm, 0, false), "");
 						break;
 					case LLVMFloatTypeKind:
 					case LLVMDoubleTypeKind:
@@ -134,7 +134,7 @@ namespace tea {
 						LLVMTypeKind kind = LLVMGetTypeKind(elseIfType.llvm);
 						switch (kind) {
 						case LLVMIntegerTypeKind:
-							elseIfPred = LLVMBuildICmp(block, LLVMIntNE, elseIfPred, LLVMConstInt(elseIfType.llvm, 0, 0), "");
+							elseIfPred = LLVMBuildICmp(block, LLVMIntNE, elseIfPred, LLVMConstInt(elseIfType.llvm, 0, false), "");
 							break;
 						case LLVMFloatTypeKind:
 						case LLVMDoubleTypeKind:

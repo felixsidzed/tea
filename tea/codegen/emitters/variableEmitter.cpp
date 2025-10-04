@@ -4,7 +4,7 @@
 
 namespace tea {
 	void CodeGen::emitVariable(VariableNode* node) {
-		log("Emitting local '{}' of type {} (initialized = {})", node->name.data, llvm2readable(node->dataType.llvm), node->value != nullptr);
+		log("Emitting local '{}' of type {} (initialized = {})", node->name.data, type2readable(node->dataType), node->value != nullptr);
 
 		LLVMTypeRef expected = node->dataType.llvm;
 
@@ -22,7 +22,7 @@ namespace tea {
 			auto [got, value] = emitExpression(node->value);
 			if (got != expected)
 				TEA_PANIC("variable value type (%s) is incompatible with variable type (%s). line %d, column %d",
-					llvm2readable(expected), llvm2readable(got.llvm), node->line, node->column);
+					type2readable(expected), type2readable(got), node->line, node->column);
 			LLVMBuildStore(block, value, insn);
 		}
 

@@ -32,10 +32,7 @@ namespace tea {
 			Type::convert.push(LLVMInt32Type());
 			Type::convert.push(LLVMDoubleType());
 			Type::convert.push(LLVMPointerType(LLVMInt8Type(), 0));
-			if (TEA_IS64BIT)
-				Type::convert.push(LLVMInt64Type());
-			else
-				Type::convert.push(LLVMInt32Type());
+			Type::convert.push(LLVMInt64Type());
 		}
 	}
 
@@ -57,13 +54,23 @@ namespace tea {
 		tmp.erase(std::remove(tmp.begin(), tmp.end(), '*'), tmp.end());
 		tmp = std::regex_replace(tmp, std::regex("^\\s+|\\s+$"), "");
 
+		if (tmp.find("unsigned") != std::string::npos) {
+			result.sign = false;
+			tmp = std::regex_replace(tmp, std::regex("unsigned"), "");
+		} else if (tmp.find("signed") != std::string::npos) {
+			result.sign = true;
+			tmp = std::regex_replace(tmp, std::regex("signed"), "");
+		}
+
+		tmp = std::regex_replace(tmp, std::regex("^\\s+|\\s+$"), "");
+
 		std::regex re(R"(([a-zA-Z_]+))"); // ([a-zA-Z_]+)(\s*(\[[^\]]*\])*)?
 		std::smatch match;
 		if (!std::regex_match(tmp, match, re))
 			return { result, false };
 
 		const std::string& basename = match[1];
-		const std::string& array = match[2];
+		//const std::string& array = match[2];
 
 		auto it = name2kind.find(basename.c_str());
 		if (!it)
@@ -74,7 +81,6 @@ namespace tea {
 			kind = Type::CHAR;
 
 		LLVMTypeRef llvmType = convert[kind];
-
 		/*if (!array.empty()) {
 			std::regex reDims(R"(\[(\d*)\])");
 			auto dimStart = std::sregex_iterator(array.begin(), array.end(), reDims);

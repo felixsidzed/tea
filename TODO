@@ -1,10 +1,10 @@
 TOOD list (in order):
-#. macros
 #. type deduction
 #. arrays
 #. exception handling
 #. objects
 #. thread local storage
+#. macros				<-- fuckass
 #. cli
 #. linux support
 #. jit

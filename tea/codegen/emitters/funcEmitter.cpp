@@ -16,9 +16,16 @@ namespace tea {
 		LLVMX86StdcallCallConv,
 	};
 
+	LLVMAttributeKind attr2llvm[ATTR__LLVM_COUNT] = {
+		LLVMAlwaysInlineAttributeKind,
+		LLVMNoReturnAttributeKind,
+	};
+
 	void CodeGen::emitFunction(FunctionNode* node) {
-		auto it = std::find(node->attrs.begin(), node->attrs.end(), LLVMAlwaysInlineAttribute);
+		auto it = std::find(node->attrs.begin(), node->attrs.end(), ATTR_INLINE);
 		if (it != node->attrs.end()) {
+			log("Marked function '{}' as inlined. Emission skipped", node->name.data);
+
 			inlineables[node->name] = node;
 			return;
 		}
@@ -51,9 +58,11 @@ namespace tea {
 
 		bool noreturn = false;
 		for (const auto& attr : node->attrs) {
-			LLVMAddAttributeAtIndex(func, LLVMAttributeFunctionIndex, LLVMCreateEnumAttribute(LLVMGetGlobalContext(), attr, 0));
-			if (attr == LLVMNoReturnAttribute)
+			if (attr < ATTR__LLVM_COUNT) {
+			LLVMAddAttributeAtIndex(func, LLVMAttributeFunctionIndex, LLVMCreateEnumAttribute(LLVMGetGlobalContext(), attr2llvm[attr], 0));
+			if (attr == LLVMNoReturnAttributeKind)
 				noreturn = true;
+			}
 		}
 
 		if (!node->prealloc.empty()) {
