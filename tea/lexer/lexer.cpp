@@ -62,10 +62,33 @@ namespace tea {
 
 			} else if (isdigit(c)) {
 				const char* start = pos;
+				bool dot = false;
+
 				while (isdigit(*pos))
 					pos++;
 
-				pushtokv(TOKEN_INT, start);
+				if (*pos == '.' && isdigit(*(pos + 1))) {
+					dot = 1;
+					pos++;
+
+					while (isdigit(*pos))
+						pos++;
+				}
+
+				bool _float = false;
+				if ((*pos == 'f' || *pos == 'F') && dot) {
+					_float = true;
+					pos++;
+				}
+
+				if (dot) {
+					if (_float)
+						pushtokv(TOKEN_FLOAT, start);
+					else
+						pushtokv(TOKEN_DOUBLE, start);
+				}
+				else
+					pushtokv(TOKEN_INT, start);
 				continue;
 
 			} else if (!isalnum(c) && !isspace(c)) {

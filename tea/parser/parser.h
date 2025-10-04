@@ -8,11 +8,6 @@
 #include "lexer/token.h"
 
 namespace tea {
-	enum StorageType : uint8_t {
-		STORAGE_PUBLIC,
-		STORAGE_PRIVATE
-	};
-
 	class Parser {
 	public:
 		Parser();
@@ -34,9 +29,9 @@ namespace tea {
 			FunctionPrototype* curFunc = nullptr;
 		} state;
 
-		void parseBlock(const std::vector<Token>& tokens);
-		void parseFunc(const std::vector<Token>& tokens, enum StorageType storage);
-		std::unique_ptr<ExpressionNode> parseExpression(const std::vector<Token>& tokens);
+		void parseBlock();
+		void parseFunc(enum StorageType storage);
+		std::unique_ptr<ExpressionNode> parseExpression();
 
 		TEA_NORETURN unexpected();
 	};

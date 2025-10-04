@@ -8,6 +8,7 @@ namespace tea {
 
 		TOKEN_INT,
 		TOKEN_FLOAT,
+		TOKEN_DOUBLE,
 
 		TOKEN_IDENTF,
 		TOKEN_KWORD,
@@ -52,8 +53,8 @@ namespace tea {
 		const TEA_TOKENVAL value;
 		int extra;
 
-		unsigned int length;
-		unsigned int pos;
-		unsigned int line;
+		uint32_t length;
+		uint32_t column;
+		uint32_t line;
 	};
 }

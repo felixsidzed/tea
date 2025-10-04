@@ -3,9 +3,10 @@
 #include "tea.h"
 #include "lexer/token.h"
 
-#define pushnode(t,...) { \
-	auto node = std::make_unique<t>(__VA_ARGS__); \
-	node->type = NODE_##t; \
+#define pushnode(T,...) { \
+	auto node = std::make_unique<T>(__VA_ARGS__); \
+	node->type = NODE_##T; \
+	node->line, node->column = t->line, t->column;\
 	tree->push_back(std::move(node)); \
 }
 
@@ -26,14 +27,24 @@
 
 #define advance() { \
 	if ((t++)->type == TOKEN_EOF) \
-		TEA_PANIC("unexpected EOF. line %d, column %d", (--t)->line, t->pos); \
+		TEA_PANIC("unexpected EOF. line %d, column %d", (--t)->line, t->column); \
 }
 #define expect(tt) _expect(t,tt)
 
 namespace tea {
+	static const std::unordered_map<std::string, enum Type> name2type = {
+		{"int", TYPE_INT},
+		{"float", TYPE_FLOAT},
+		{"double", TYPE_DOUBLE},
+		{"char", TYPE_CHAR},
+		{"string", TYPE_STRING},
+		{"void", TYPE_VOID},
+		{"bool", TYPE_BOOL}
+	};
+
 	static inline const std::string& _expect(const Token*& t, enum TokenType expected) {
 		if (t->type != expected)
-			TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value.c_str(), t->line, t->pos);
+			TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value.c_str(), t->line, t->column);
 		advance();
 		return (t - 1)->value;
 	}
@@ -54,60 +65,6 @@ namespace tea {
 		state.funcs.clear();
 		state.curFunc = nullptr;
 
-		parseBlock(tokens);
-
-		return std::move(root);
-	}
-
-	std::unique_ptr<ExpressionNode> Parser::parseExpression(const std::vector<Token>& tokens) {
-		switch (t->type) {
-		case TOKEN_INT: {
-			auto node = std::make_unique<ExpressionNode>(EXPR_INT, t->value);
-			advance();
-			return node;
-		} case TOKEN_FLOAT: {
-			auto node = std::make_unique<ExpressionNode>(EXPR_FLOAT, t->value);
-			advance();
-			return node;
-		} case TOKEN_STRING: {
-			auto node = std::make_unique<ExpressionNode>(EXPR_STRING, t->value);
-			advance();
-			return node;
-		} case TOKEN_IDENTF: {
-			if ((t + 1)->type == TOKEN_RPAR) {
-				std::vector<std::string> scope;
-				std::string callee = t->value;
-				advance();
-				advance();
-
-				std::vector<std::unique_ptr<ExpressionNode>> args;
-				if (t->type != TOKEN_LPAR) {
-					while (true) {
-						args.push_back(parseExpression(tokens));
-						if (t->type == TOKEN_COMMA) {
-							advance();
-							continue;
-						}
-						break;
-					}
-				}
-
-				expect(TOKEN_LPAR);
-				auto node = std::make_unique<CallNode>(scope, callee, std::move(args));
-				return node;
-			} else {
-				auto node = std::make_unique<ExpressionNode>(EXPR_IDENTF, t->value);
-				advance();
-				return node;
-			}
-
-		} default:
-			unexpected();
-		}
-		return nullptr;
-	}
-
-	void Parser::parseBlock(const std::vector<Token>& tokens) {
 		while (t->type != TOKEN_EOF) {
 			switch (t->type) {
 			case TOKEN_KWORD:
@@ -117,7 +74,7 @@ namespace tea {
 					const std::string& name = expect(TOKEN_STRING);
 					auto it = std::find(state.imported.begin(), state.imported.end(), name);
 					if (it != state.imported.end())
-						TEA_PANIC("module re-import. line %d, column %d", t->line, t->pos);
+						TEA_PANIC("module re-import. line %d, column %d", t->line, t->column);
 					state.imported.push_back(name);
 					expect(TOKEN_SEMI);
 					pushnode(UsingNode, name);
@@ -127,8 +84,9 @@ namespace tea {
 					advance();
 					if (t->extra == KWORD_FUNC) {
 						advance();
-						parseFunc(tokens, STORAGE_PUBLIC);
-					} else
+						parseFunc(STORAGE_PUBLIC);
+					}
+					else
 						goto unexpected;
 				} break;
 
@@ -136,22 +94,103 @@ namespace tea {
 					advance();
 					if (t->extra == KWORD_FUNC) {
 						advance();
-						parseFunc(tokens, STORAGE_PRIVATE);
-					} else
+						parseFunc(STORAGE_PRIVATE);
+					}
+					else
 						goto unexpected;
 				} break;
 
+				default:
+				unexpected:
+					unexpected();
+				}
+			}
+		}
+
+		return std::move(root);
+	}
+
+	std::unique_ptr<ExpressionNode> Parser::parseExpression() {
+		switch (t->type) {
+		case TOKEN_INT: {
+			auto node = std::make_unique<ExpressionNode>(EXPR_INT, t->value);
+			advance();
+			return node;
+
+		} case TOKEN_FLOAT: {
+			auto node = std::make_unique<ExpressionNode>(EXPR_FLOAT, t->value);
+			advance();
+			return node;
+
+		} case TOKEN_DOUBLE: {
+			auto node = std::make_unique<ExpressionNode>(EXPR_DOUBLE, t->value);
+			advance();
+			return node;
+
+		} case TOKEN_STRING: {
+			auto node = std::make_unique<ExpressionNode>(EXPR_STRING, t->value);
+			advance();
+			return node;
+
+		} case TOKEN_IDENTF: {
+			std::vector<std::string> scope;
+			std::string value = t->value;
+			advance();
+
+			while (t->type == TOKEN_SCOPE) {
+				advance();
+
+				if (t->type != TOKEN_IDENTF)
+					unexpected();
+				scope.push_back(value);
+				value = t->value;
+				advance();
+			}
+
+			if (t->type == TOKEN_RPAR) {
+				advance();
+				std::vector<std::unique_ptr<ExpressionNode>> args;
+
+				if (t->type != TOKEN_LPAR) {
+					while (true) {
+						args.push_back(parseExpression());
+						if (t->type == TOKEN_COMMA) {
+							advance();
+							continue;
+						}
+						break;
+					}
+				}
+
+				expect(TOKEN_LPAR);
+				return std::make_unique<CallNode>(scope, value, std::move(args));
+			} else
+				return std::make_unique<ExpressionNode>(EXPR_IDENTF, value);
+
+		} default:
+			unexpected();
+		}
+		return nullptr;
+	}
+
+	void Parser::parseBlock() {
+		while (t->type != TOKEN_EOF) {
+			switch (t->type) {
+			case TOKEN_KWORD:
+				switch (t->extra) {
 				case KWORD_END: {
+					if (treeHistory.empty())
+						unexpected();
 					advance();
 					poptree();
-					break;
+					return;
 				}
 
 				case KWORD_RETURN: {
 					advance();
-					pushnode(ReturnNode, parseExpression(tokens));
+					pushnode(ReturnNode, parseExpression());
 					expect(TOKEN_SEMI);
-					return;
+					break;
 				}
 
 				default:
@@ -160,7 +199,7 @@ namespace tea {
 				break;
 
 			case TOKEN_IDENTF: {
-				tree->push_back(parseExpression(tokens));
+				tree->push_back(parseExpression());
 			} break;
 
 			default:
@@ -170,10 +209,10 @@ namespace tea {
 		}
 	}
 
-	void Parser::parseFunc(const std::vector<Token>& tokens, enum StorageType storage) {
+	void Parser::parseFunc(enum StorageType storage) {
 		const std::string& name = expect(TOKEN_IDENTF);
 		if (state.funcs.contains(name))
-			TEA_PANIC("function re-definition. line %d, column %d", t->line, t->pos);
+			TEA_PANIC("function re-definition. line %d, column %d", t->line, t->column);
 		state.funcs[name] = {};
 		state.curFunc = &state.funcs[name];
 		expect(TOKEN_RPAR);
@@ -181,11 +220,11 @@ namespace tea {
 		expect(TOKEN_LPAR);
 		expect(TOKEN_ARROW);
 		const std::string& returnType = expect(TOKEN_IDENTF);
-		pushtree(FunctionNode, storage);
-		parseBlock(tokens);
+		pushtree(FunctionNode, storage, name, name2type.at(returnType));
+		parseBlock();
 	}
 
 	void Parser::unexpected() {
-		TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value.c_str(), t->line, t->pos);
+		TEA_PANIC("unexpected token '%s'. line %d, column %d", t->value.c_str(), t->line, t->column);
 	}
 }

@@ -22,7 +22,7 @@ TEA_NORETURN panic(const char* message, ...) {
 	__debugbreak();
 }
 #else
-noret void panic(const char* message, ...) {
+TEA_NORETURN panic(const char* message, ...) {
 	printf("error -> ");
 	va_list va;
 	va_start(va, message);
