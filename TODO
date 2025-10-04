@@ -1,13 +1,14 @@
 TOOD list (in order):
-#. pointer support
+#. vararg
+#. standard library
 #. variable preallocation
 #. casting
 #. macros
 #. type deduction
 #. arrays
-#. standard library
 #. exception handling
 #. objects
+#. cli
 #. linux support
-#. cli & jit compiler
+#. jit compiler
 #. repl

@@ -23,6 +23,7 @@ namespace tea {
 		std::vector<std::string> imported;
 
 		void parseFuncFull();
+		std::string parseType();
 		void parseFunc(enum StorageType storage);
 		std::unique_ptr<ExpressionNode> parsePrimary();
 		std::unique_ptr<ExpressionNode> parseExpression();

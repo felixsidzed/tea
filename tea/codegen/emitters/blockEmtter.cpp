@@ -22,8 +22,11 @@ namespace tea {
 					for (int i = 0; i < nattrs; i++) {
 						if (LLVMGetEnumAttributeKind(attrs[i]) == LLVMAttrNoReturn) {
 							delete[] attrs;
-							TEA_PANIC("@noreturn function '%s' does return. line %d, column %d", LLVMGetValueName(func), node->line, node->column);
-							TEA_UNREACHABLE();
+							if (((ReturnNode*)node.get())->value)
+								TEA_PANIC("@noreturn function '%s' does return. line %d, column %d", LLVMGetValueName(func), node->line, node->column);
+							else
+								LLVMBuildUnreachable(block);
+							return;
 						}
 					}
 					delete[] attrs;
@@ -46,11 +49,11 @@ namespace tea {
 				if (!returnInto) {
 					if (type != expected)
 						TEA_PANIC("return value type (%s) is incompatible with function return type (%s). line %d, column %d",
-							llvm2readable(type), llvm2readable(expected), node->line, node->column);
+							llvm2readable(type.llvm), llvm2readable(expected), node->line, node->column);
 				} else {
 					if (type != returnInto->first)
 						TEA_PANIC("return value type (%s) is incompatible with function return type (%s). line %d, column %d",
-							llvm2readable(type), llvm2readable(returnInto->first), node->line, node->column);
+							llvm2readable(type.llvm), llvm2readable(returnInto->first), node->line, node->column);
 				}
 
 				if (returnInto)
@@ -73,17 +76,17 @@ namespace tea {
 				auto [type, pred] = emitExpression(ifNode->pred);
 
 				if (type != LLVMInt1Type()) {
-					LLVMTypeKind kind = LLVMGetTypeKind(type);
+					LLVMTypeKind kind = LLVMGetTypeKind(type.llvm);
 					switch (kind) {
 					case LLVMIntegerTypeKind:
-						pred = LLVMBuildICmp(block, LLVMIntNE, pred, LLVMConstInt(type, 0, 0), "");
+						pred = LLVMBuildICmp(block, LLVMIntNE, pred, LLVMConstInt(type.llvm, 0, 0), "");
 						break;
 					case LLVMFloatTypeKind:
 					case LLVMDoubleTypeKind:
-						pred = LLVMBuildFCmp(block, LLVMRealONE, pred, LLVMConstReal(type, 0.0), "");
+						pred = LLVMBuildFCmp(block, LLVMRealONE, pred, LLVMConstReal(type.llvm, 0.0), "");
 						break;
 					default:
-						pred = LLVMBuildICmp(block, LLVMIntNE, pred, LLVMConstNull(type), "");
+						pred = LLVMBuildICmp(block, LLVMIntNE, pred, LLVMConstNull(type.llvm), "");
 						break;
 					}
 				}
@@ -128,17 +131,17 @@ namespace tea {
 
 					auto [elseIfType, elseIfPred] = emitExpression(elseIf->pred);
 					if (elseIfType != LLVMInt1Type()) {
-						LLVMTypeKind kind = LLVMGetTypeKind(elseIfType);
+						LLVMTypeKind kind = LLVMGetTypeKind(elseIfType.llvm);
 						switch (kind) {
 						case LLVMIntegerTypeKind:
-							elseIfPred = LLVMBuildICmp(block, LLVMIntNE, elseIfPred, LLVMConstInt(elseIfType, 0, 0), "");
+							elseIfPred = LLVMBuildICmp(block, LLVMIntNE, elseIfPred, LLVMConstInt(elseIfType.llvm, 0, 0), "");
 							break;
 						case LLVMFloatTypeKind:
 						case LLVMDoubleTypeKind:
-							elseIfPred = LLVMBuildFCmp(block, LLVMRealONE, elseIfPred, LLVMConstReal(elseIfType, 0.0), "");
+							elseIfPred = LLVMBuildFCmp(block, LLVMRealONE, elseIfPred, LLVMConstReal(elseIfType.llvm, 0.0), "");
 							break;
 						default:
-							elseIfPred = LLVMBuildICmp(block, LLVMIntNE, elseIfPred, LLVMConstNull(elseIfType), "");
+							elseIfPred = LLVMBuildICmp(block, LLVMIntNE, elseIfPred, LLVMConstNull(elseIfType.llvm), "");
 							break;
 						}
 					}

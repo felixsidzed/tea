@@ -164,9 +164,9 @@ namespace tea {
 					if (*(pos + 1) == '&') {
 						pushtokex(TOKEN_AND, pos, 2, 0);
 						pos++;
-						break;
-					}
-					goto unexpected;
+					} else
+						pushtok(TOKEN_REF);
+					break;
 
 				case '|':
 					if (*(pos + 1) == '|') {

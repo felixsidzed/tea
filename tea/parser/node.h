@@ -4,89 +4,9 @@
 #include <string>
 #include <memory>
 
-#ifdef _WIN32
-#define DEFAULT_CC CC_FAST
-#else
-#define DEFAULT_CC CC_C
-#endif
-
-#define tnode(T) NODE_##T
+#include "types.h"
 
 namespace tea {
-	enum Type : uint8_t {
-		TYPE_INT,
-		TYPE_FLOAT,
-		TYPE_DOUBLE,
-		TYPE_CHAR,
-		TYPE_STRING,
-		TYPE_VOID,
-		TYPE_BOOL,
-		TYPE_LONG,
-
-		TYPE__COUNT
-	};
-
-	enum NodeType : uint8_t {
-		tnode(UsingNode),
-		tnode(FunctionNode),
-		tnode(ExpressionNode),
-		tnode(ReturnNode),
-		tnode(CallNode),
-		tnode(VariableNode),
-		tnode(FunctionImportNode),
-		tnode(IfNode),
-		tnode(ElseNode),
-		tnode(ElseIfNode),
-		tnode(GlobalVariableNode)
-	};
-
-	enum StorageType : uint8_t {
-		STORAGE_PUBLIC,
-		STORAGE_PRIVATE
-	};
-
-	enum ExpressionType : uint8_t {
-		EXPR_STRING,
-
-		EXPR_INT,
-		EXPR_FLOAT,
-		EXPR_DOUBLE,
-
-		EXPR_IDENTF,
-		EXPR_CALL,
-
-		EXPR_ADD,
-		EXPR_SUB,
-		EXPR_MUL,
-		EXPR_DIV,
-
-		EXPR_EQ,
-		EXPR_NEQ,
-		EXPR_LT,
-		EXPR_GT,
-		EXPR_LE,
-		EXPR_GE,
-
-		EXPR_NOT,
-		EXPR_AND,
-		EXPR_OR,
-	};
-
-	enum CallingConvention : uint8_t {
-		CC_C,
-		CC_FAST,
-		CC_STD,
-
-		CC__COUNT
-	};
-
-	enum Attribute : uint8_t {
-		ATTR_INLINE,
-		ATTR_NORETURN,
-
-		ATTR__COUNT
-	};
-
 	struct Node {
 		enum NodeType type = static_cast<enum NodeType>(0);
 
@@ -112,10 +32,10 @@ namespace tea {
 		enum StorageType storage;
 		enum CallingConvention cc;
 		std::string name;
-		std::vector<std::pair<enum Type, std::string>> args;
-		enum Type returnType;
+		std::vector<std::pair<Type, std::string>> args;
+		Type returnType;
 
-		FunctionNode(enum StorageType storage, enum CallingConvention cc, const std::string& name, const std::vector<std::pair<enum Type, std::string>>& args, enum Type returnType)
+		FunctionNode(enum StorageType storage, enum CallingConvention cc, const std::string& name, const std::vector<std::pair<Type, std::string>>& args, Type& returnType)
 			: storage(storage), cc(cc), name(name), args(args), returnType(returnType) {};
 	};
 
@@ -148,20 +68,20 @@ namespace tea {
 
 	struct VariableNode : Node {
 		std::string name;
-		enum Type dataType;
+		Type dataType;
 		std::unique_ptr<ExpressionNode> value;
 
-		VariableNode(const std::string& name, enum Type dataType, std::unique_ptr<ExpressionNode> value)
+		VariableNode(const std::string& name, Type dataType, std::unique_ptr<ExpressionNode> value)
 			: name(name), dataType(dataType), value(std::move(value)) {}
 	};
 
 	struct FunctionImportNode : Node {
 		enum CallingConvention cc;
 		std::string name;
-		std::vector<std::pair<enum Type, std::string>> args;
-		enum Type returnType;
+		std::vector<std::pair<Type, std::string>> args;
+		Type returnType;
 
-		FunctionImportNode(enum CallingConvention cc, const std::string& name, const std::vector<std::pair<enum Type, std::string>>& args, enum Type returnType)
+		FunctionImportNode(enum CallingConvention cc, const std::string& name, const std::vector<std::pair<Type, std::string>>& args, Type returnType)
 			: cc(cc), name(name), args(args), returnType(returnType) {
 		};
 	};
@@ -194,10 +114,10 @@ namespace tea {
 	struct GlobalVariableNode : Node {
 		enum StorageType storage;
 		std::string name;
-		enum Type dataType;
+		Type dataType;
 		std::unique_ptr<ExpressionNode> value;
 
-		GlobalVariableNode(enum StorageType storage, const std::string& name, enum Type dataType, std::unique_ptr<ExpressionNode> value) :
+		GlobalVariableNode(enum StorageType storage, const std::string& name, Type dataType, std::unique_ptr<ExpressionNode> value) :
 			storage(storage), name(name), dataType(dataType), value(std::move(value)) {};
 	};
 }
