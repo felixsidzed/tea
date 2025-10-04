@@ -8,7 +8,7 @@
 
 namespace tea {
 	struct Node {
-		enum NodeType type = static_cast<enum NodeType>(0);
+		enum NodeType type = (enum NodeType)0;
 
 		uint32_t line = 0;
 		uint32_t column = 0;

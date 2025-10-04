@@ -55,6 +55,7 @@ namespace tea {
 	Parser::Parser() {
 		t = 0;
 		tree = nullptr;
+		fn = nullptr;
 	}
 
 	Tree Parser::parse(const vector<Token>& tokens) {
@@ -280,6 +281,30 @@ namespace tea {
 		}
 		case TOKEN_LPAR: {
 			advance();
+
+			if (t->type == TOKEN_IDENTF) {
+				string typeName = t->value;
+				advance();
+				while (t->type == TOKEN_SCOPE) {
+					advance();
+					if (t->type != TOKEN_IDENTF) unexpected();
+					typeName = t->value;
+					advance();
+				}
+
+				if (t->type == TOKEN_RPAR) {
+					advance();
+					auto operand = parsePrimary();
+					auto node = std::make_unique<ExpressionNode>(EXPR_CAST, typeName, std::move(operand));
+					node->line = t->line; node->column = t->column;
+					return node;
+				} else {
+					auto expr = parseExpression();
+					expect(TOKEN_RPAR);
+					return expr;
+				}
+			}
+
 			auto expr = parseExpression();
 			expect(TOKEN_RPAR);
 			return expr;

@@ -1,10 +1,10 @@
 TOOD list (in order):
-#. casting
 #. macros
 #. type deduction
 #. arrays
 #. exception handling
 #. objects
+#. thread local storage
 #. cli
 #. linux support
 #. jit

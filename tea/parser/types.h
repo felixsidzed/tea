@@ -63,6 +63,7 @@ namespace tea {
 
 		EXPR_REF,
 		EXPR_DEREF,
+		EXPR_CAST
 	};
 
 	enum CallConv : uint8_t {

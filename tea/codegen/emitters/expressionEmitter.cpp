@@ -1,6 +1,7 @@
 #include "../codegen.h"
 
 #include "tea/tea.h"
+#include "tea/codegen/util.h"
 
 namespace tea {
 	std::pair<Type, LLVMValueRef> CodeGen::emitExpression(const std::unique_ptr<ExpressionNode>& node, bool constant, bool* ptr) {
@@ -479,6 +480,19 @@ namespace tea {
 					LLVMGetElementType(type.llvm),
 					LLVMBuildLoad(block, value, "")
 				};
+		} break;
+
+		case EXPR_CAST: {
+			auto [castTo, success1] = Type::get(node->value); // success for my buddies success for my friends // lol alex g
+			if (!success1)
+				TEA_PANIC("unknown type '%s' in cast. line %d, column %d", node->value, node->line, node->column);
+
+			auto [type, val] = emitExpression(node->left);
+			auto [success2, casted] = util::cast(block, castTo.llvm, type.llvm, val); // success is the only thing i understand // harvey - alex g
+			if (!success2)
+				TEA_PANIC("unable to cast '%s' to '%s'. line %d, column %d", llvm2readable(type.llvm), llvm2readable(castTo.llvm), node->line, node->column);
+
+			return { castTo, casted };
 		} break;
 
 		default:
