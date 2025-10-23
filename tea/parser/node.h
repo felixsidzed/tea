@@ -139,4 +139,12 @@ namespace tea {
 
 		WhileLoopNode(std::unique_ptr<ExpressionNode> pred) : pred(std::move(pred)) {};
 	};
+
+	// ExpressionNode::value is used to indicate whether the index is an array index (`array[123]') or an object index (`object.field')
+	struct IndexNode : ExpressionNode {
+		std::unique_ptr<ExpressionNode> val;
+		std::unique_ptr<ExpressionNode> idx;
+
+		IndexNode(std::unique_ptr<ExpressionNode> val, std::unique_ptr<ExpressionNode> idx, bool arr) : val(std::move(val)), idx(std::move(idx)), ExpressionNode(EXPR_INDEX, arr ? "\1" : "\2") {};
+	};
 }

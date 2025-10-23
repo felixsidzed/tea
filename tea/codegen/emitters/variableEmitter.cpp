@@ -34,7 +34,7 @@ namespace tea {
 				thingy = emitExpression(node->value);
 			if (thingy.first != expected)
 				TEA_PANIC("variable initializer type (%s) is incompatible with variable type (%s). line %d, column %d",
-					type2readable(expected), type2readable(thingy.first), node->line, node->column);
+					type2readable(expected).data, type2readable(thingy.first).data, node->line, node->column);
 			LLVMBuildStore(block, thingy.second, insn);
 		}
 

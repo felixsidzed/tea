@@ -12,6 +12,7 @@
 #include <llvm-c/BitReader.h>
 #include <llvm-c/TargetMachine.h>
 #include <llvm-c/Transforms/PassBuilder.h>
+#include <llvm-c/Transforms/PassManagerBuilder.h>
 
 namespace tea {
 	map<LLVMTypeKind, const char*> typeKindName = {
@@ -56,7 +57,7 @@ namespace tea {
 		if (LLVMGetTargetFromTriple(triple.c_str(), &target, &err)) {
 			string _(err);
 			LLVMDisposeMessage(err);
-			TEA_PANIC("Failed to create target machine: %s", _);
+			TEA_PANIC("Failed to create target machine: %s", _.data);
 		}
 
 		LLVMTargetMachineRef machine = LLVMCreateTargetMachine(
@@ -78,6 +79,12 @@ namespace tea {
 		LLVMDisposeMessage(dl);
 
 		emitCode(tree);
+		
+		/*LLVMPassManagerRef pm = LLVMCreatePassManager();
+		LLVMPassManagerBuilderRef pmb = LLVMPassManagerBuilderCreate();
+		LLVMPassManagerBuilderSetOptLevel(pmb, 3);
+		LLVMPassManagerBuilderPopulateModulePassManager(pmb, pm);
+		LLVMRunPassManager(pm, module);*/
 
 		if (verbose) {
 			putchar('\n');
@@ -89,7 +96,7 @@ namespace tea {
 		if (LLVMTargetMachineEmitToFile(machine, module, output, LLVMObjectFile, &err)) {
 			string _(err);
 			LLVMDisposeMessage(err);
-			TEA_PANIC("Failed to emit to file: %s", _);
+			TEA_PANIC("Failed to emit to file: %s", _.data);
 		}
 
 		LLVMDisposeModule(module);
@@ -107,7 +114,7 @@ namespace tea {
 				fs::path path = importLookup / std::string(usingNode->name + ".tea");
 				std::ifstream file(path);
 				if (!file.is_open())
-					TEA_PANIC("failed to import module '" + usingNode->name + "'");
+					TEA_PANIC("failed to import module '%s'", usingNode->name.data);
 
 				try {
 					std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
@@ -130,7 +137,7 @@ namespace tea {
 					log("Imported {} function(s) from module '{}'", importedModule.size(), usingNode->name.data);
 
 				} catch (const std::exception& e) {
-					TEA_PANIC("failed to import module '" + usingNode->name + "': " + e.what());
+					TEA_PANIC("failed to import module '%s': %s", usingNode->name.data, e.what());
 				}
 
 				file.close();
@@ -151,7 +158,7 @@ namespace tea {
 					auto [got, value] = emitExpression(globalVarNode->value, true);
 					if (got != expected)
 						TEA_PANIC("variable value type (%s) is incompatible with variable type (%s). line %d, column %d",
-							type2readable(expected), type2readable(got), globalVarNode->line, globalVarNode->column);
+							type2readable(expected).data, type2readable(got).data, globalVarNode->line, globalVarNode->column);
 
 					LLVMSetInitializer(global, value);
 				} else
@@ -196,6 +203,14 @@ namespace tea {
 				break;
 			}
 			TEA_FALLTHROUGH;
+		}
+
+		case LLVMArrayTypeKind: {
+			result += type2readable(LLVMGetElementType(t));
+			result += '[';
+			result += std::to_string(LLVMGetArrayLength(t)).c_str();
+			result += ']';
+			break;
 		}
 
 		default:

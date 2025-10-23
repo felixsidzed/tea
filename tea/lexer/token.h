@@ -17,6 +17,9 @@ namespace tea {
 
 		TOKEN_LPAR,
 		TOKEN_RPAR,
+		TOKEN_LBRAC,
+		TOKEN_RBRAC,
+
 		TOKEN_SEMI,
 		TOKEN_COMMA,
 		TOKEN_SCOPE,

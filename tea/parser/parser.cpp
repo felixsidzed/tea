@@ -104,7 +104,7 @@ namespace tea {
 						const string& dataType = parseType();
 						auto type = Type::get(dataType);
 						if (!type.second)
-							TEA_PANIC("unknown type '%s'. line %d, column %d", dataType, (t - 1)->line, (t - 1)->column);
+							TEA_PANIC("unknown type '%s'. line %d, column %d", dataType.data, (t - 1)->line, (t - 1)->column);
 
 						std::unique_ptr<ExpressionNode> value = nullptr;
 						if (t->type != TOKEN_SEMI) {
@@ -140,7 +140,7 @@ namespace tea {
 
 					const string& name = expect(TOKEN_IDENTF);
 					auto it = funcs.find(name);
-					if (it != funcs.end())
+					if (it)
 						TEA_PANIC("function re-definition. line %d, column %d", t->line, t->column);
 					funcs.push(name);
 					expect(TOKEN_LPAR);
@@ -160,7 +160,7 @@ namespace tea {
 							const string& typeName = parseType();
 							auto type = Type::get(typeName);
 							if (!type.second)
-								TEA_PANIC("unknown type '%s'. line %d, column %d", typeName, (t - 1)->line, (t - 1)->column);
+								TEA_PANIC("unknown type '%s'. line %d, column %d", typeName.data, (t - 1)->line, (t - 1)->column);
 							const string& argName = expect(TOKEN_IDENTF);
 							args.emplace(type.first, argName);
 						} while (t->type == TOKEN_COMMA && t++);
@@ -171,7 +171,7 @@ namespace tea {
 					const string& returnType = parseType();
 					auto type = Type::get(returnType);
 					if (!type.second)
-						TEA_PANIC("unknown type '%s'. line %d, column %d", returnType, (t - 1)->line, (t - 1)->column);
+						TEA_PANIC("unknown type '%s'. line %d, column %d", returnType.data, (t - 1)->line, (t - 1)->column);
 
 					expect(TOKEN_SEMI);
 					pushnode(FunctionImportNode, cc, name, args, type.first, vararg);
@@ -189,7 +189,7 @@ namespace tea {
 					const string& attrName = expect(TOKEN_IDENTF);
 					auto it = name2attr.find(attrName);
 					if (!it) {
-						TEA_PANIC("'%s' is not a valid attribute. line %d, column %d", attrName, t->line, t->column);
+						TEA_PANIC("'%s' is not a valid attribute. line %d, column %d", attrName.data, t->line, t->column);
 						TEA_UNREACHABLE();
 					}
 
@@ -222,30 +222,38 @@ namespace tea {
 	}
 
 	std::unique_ptr<ExpressionNode> Parser::parsePrimary() {
+		std::unique_ptr<ExpressionNode> node;
+
 		switch (t->type) {
 		case TOKEN_INT: {
-			auto node = std::make_unique<ExpressionNode>(EXPR_INT, t->value);
+			node = std::make_unique<ExpressionNode>(EXPR_INT, t->value);
 			node->line = t->line; node->column = t->column;
 			advance();
-			return node;
+			break;
 		}
 		case TOKEN_FLOAT: {
-			auto node = std::make_unique<ExpressionNode>(EXPR_FLOAT, t->value);
+			node = std::make_unique<ExpressionNode>(EXPR_FLOAT, t->value);
 			node->line = t->line; node->column = t->column;
 			advance();
-			return node;
+			break;
 		}
 		case TOKEN_DOUBLE: {
-			auto node = std::make_unique<ExpressionNode>(EXPR_DOUBLE, t->value);
+			node = std::make_unique<ExpressionNode>(EXPR_DOUBLE, t->value);
 			node->line = t->line; node->column = t->column;
 			advance();
-			return node;
+			break;
 		}
 		case TOKEN_STRING: {
-			auto node = std::make_unique<ExpressionNode>(EXPR_STRING, t->value);
+			node = std::make_unique<ExpressionNode>(EXPR_STRING, t->value);
 			node->line = t->line; node->column = t->column;
 			advance();
-			return node;
+			break;
+		}
+		case TOKEN_CHAR: {
+			node = std::make_unique<ExpressionNode>(EXPR_CHAR, t->value);
+			node->line = t->line; node->column = t->column;
+			advance();
+			break;
 		}
 		case TOKEN_IDENTF: {
 			vector<string> scope;
@@ -258,6 +266,7 @@ namespace tea {
 				value = t->value;
 				advance();
 			}
+
 			if (t->type == TOKEN_LPAR) {
 				advance();
 				vector<std::unique_ptr<ExpressionNode>> args;
@@ -272,77 +281,51 @@ namespace tea {
 					}
 				}
 				expect(TOKEN_RPAR);
-				auto node = std::make_unique<CallNode>(scope, value, std::move(args));
-				node->line = t->line; node->column = t->column;
-				return node;
-			} else {
-				auto node = std::make_unique<ExpressionNode>(EXPR_IDENTF, value);
-				node->line = t->line; node->column = t->column;
-				return node;
-			}
+				node = std::make_unique<CallNode>(scope, value, std::move(args));
+			} else
+				node = std::make_unique<ExpressionNode>(EXPR_IDENTF, value);
+			break;
 		}
 		case TOKEN_LPAR: {
 			advance();
-
-			if (t->type == TOKEN_IDENTF) {
-				string typeName;
-		        bool first = true;
-
-				while (t->type == TOKEN_IDENTF || t->type == TOKEN_SCOPE) {
-					if (!first) typeName += " ";
-					typeName += t->value;
-					advance();
-					first = false;
-				}
-
-				if (t->type == TOKEN_RPAR) {
-					advance();
-					auto operand = parsePrimary();
-					auto node = std::make_unique<ExpressionNode>(EXPR_CAST, typeName, std::move(operand));
-					node->line = t->line; node->column = t->column;
-					return node;
-				} else {
-					auto expr = parseExpression();
-					expect(TOKEN_RPAR);
-					return expr;
-				}
-			}
-
 			auto expr = parseExpression();
 			expect(TOKEN_RPAR);
-			return expr;
+			node = std::move(expr);
+			break;
 		}
 		case TOKEN_NOT: {
 			advance();
 			auto operand = parsePrimary();
-			auto node = std::make_unique<ExpressionNode>(EXPR_NOT, "", std::move(operand));
-			node->line = t->line; node->column = t->column;
-			return node;
+			node = std::make_unique<ExpressionNode>(EXPR_NOT, "", std::move(operand));
+			break;
 		}
 		case TOKEN_REF: {
 			advance();
 			auto operand = parsePrimary();
-			auto node = std::make_unique<ExpressionNode>(EXPR_REF, "", std::move(operand));
-			node->line = t->line; node->column = t->column;
-			return node;
+			node = std::make_unique<ExpressionNode>(EXPR_REF, "", std::move(operand));
+			break;
 		}
 		case TOKEN_MUL: {
 			advance();
 			auto operand = parsePrimary();
-			auto node = std::make_unique<ExpressionNode>(EXPR_DEREF, "", std::move(operand));
-			node->line = t->line; node->column = t->column;
-			return node;
-		}
-		case TOKEN_CHAR: {
-			auto node = std::make_unique<ExpressionNode>(EXPR_CHAR, t->value);
-			node->line = t->line; node->column = t->column;
-			advance();
-			return node;
+			node = std::make_unique<ExpressionNode>(EXPR_DEREF, "", std::move(operand));
+			break;
 		}
 		default:
 			unexpected();
 		}
-		return nullptr;
+
+		node->line = t->line; node->column = t->column;
+
+		while (t->type == TOKEN_LBRAC) {
+			advance();
+			auto indexExpr = parseExpression();
+			expect(TOKEN_RBRAC);
+			node = std::make_unique<IndexNode>(std::move(node), std::move(indexExpr), true);
+			node->line = t->line; node->column = t->column;
+		}
+
+		return node;
 	}
 
 	static inline int getPrecedence(enum TokenType type) {
@@ -456,7 +439,7 @@ namespace tea {
 						const string& dataType = parseType();
 						auto pair = Type::get(dataType);
 						if (!pair.second)
-							TEA_PANIC("unknown type '%s'. line %d, column %d", dataType, (t - 1)->line, (t - 1)->column);
+							TEA_PANIC("unknown type '%s'. line %d, column %d", dataType.data, (t - 1)->line, (t - 1)->column);
 						type = pair.first;
 					}
 
@@ -639,7 +622,7 @@ namespace tea {
 				const string& typeName = parseType();
 				auto type = Type::get(typeName);
 				if (!type.second)
-					TEA_PANIC("unknown type '%s'. line %d, column %d", typeName, (t - 1)->line, (t - 1)->column);
+					TEA_PANIC("unknown type '%s'. line %d, column %d", typeName.data, (t - 1)->line, (t - 1)->column);
 				const string& argName = expect(TOKEN_IDENTF);
 				args.emplace(type.first, argName);
 			} while (t->type == TOKEN_COMMA && t++);
@@ -655,7 +638,7 @@ namespace tea {
 			// could this be an alex g reference 🤔
 			auto [ty, success] = Type::get(returnType);
 			if (!success)
-				TEA_PANIC("unknown type '%s'. line %d, column %d", returnType, (t - 1)->line, (t - 1)->column);
+				TEA_PANIC("unknown type '%s'. line %d, column %d", returnType.data, (t - 1)->line, (t - 1)->column);
 			type = ty;
 		}
 
@@ -700,6 +683,14 @@ namespace tea {
 				typeName += '*';
 				advance();
 			}
+		}
+
+		while (t->type == TOKEN_LBRAC) {
+			advance();
+			typeName += '[';
+			typeName += expect(TOKEN_INT); // TODO: deduct array size
+			expect(TOKEN_RBRAC);
+			typeName += ']';
 		}
 
 		return typeName;

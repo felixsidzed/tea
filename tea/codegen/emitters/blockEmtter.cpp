@@ -83,11 +83,11 @@ namespace tea {
 					if (!returnInto) {
 						if (type != expected)
 							TEA_PANIC("return value type (%s) is incompatible with function return type (%s). line %d, column %d",
-								type2readable(type), type2readable(expected), node->line, node->column);
+								type2readable(type).data, type2readable(expected).data, node->line, node->column);
 					} else {
 						if (type != returnInto->first)
 							TEA_PANIC("return value type (%s) is incompatible with function return type (%s). line %d, column %d",
-								type2readable(type), type2readable(returnInto->first), node->line, node->column);
+								type2readable(type).data, type2readable(returnInto->first).data, node->line, node->column);
 					}
 				}
 

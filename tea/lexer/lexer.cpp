@@ -17,7 +17,7 @@ static const char* keywords[] = {
 	"end",
 	"var",
 	"__stdcall", "__fastcall", "__cdecl", "__auto"
-	//"class", "new", "constructor", "deconstructor",
+	//"class", "new",
 };
 
 static bool isKeyword(const char* word, unsigned int len, int* idx) {
@@ -268,6 +268,14 @@ namespace tea {
 					pushtok(TOKEN_DOT);
 					break;
 
+				case '[':
+					pushtok(TOKEN_LBRAC);
+					break;
+
+				case ']':
+					pushtok(TOKEN_RBRAC);
+					break;
+
 				default:
 					goto unexpected;
 				}
@@ -282,7 +290,7 @@ namespace tea {
 		}
 
 		container.push(Token{ TOKEN_EOF, "", 0, 1, 0, line });
-		return std::move(container);
+		return container;
 	}
 
 }

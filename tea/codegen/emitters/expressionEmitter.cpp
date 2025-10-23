@@ -242,9 +242,11 @@ namespace tea {
 							args[i] = LLVMBuildZExt(block, args[i], expected, "");
 						else
 							args[i] = LLVMBuildTrunc(block, args[i], expected, "");
-					} else
+					} else if (LLVMGetTypeKind(got) == LLVMPointerTypeKind && LLVMGetTypeKind(expected) == LLVMPointerTypeKind)
+						args[i] = LLVMBuildBitCast(block, args[i], expected, "");
+					else
 						TEA_PANIC("argument %d: expected type %s, got %s. line %d, column %d",
-							i + 1, type2readable(expected), type2readable(got), node->line, node->column);
+							i + 1, type2readable(expected).data, type2readable(got).data, node->line, node->column);
 				}
 			}
 
@@ -337,26 +339,57 @@ namespace tea {
 							LLVMTypeOf(local.allocated),
 							local.allocated
 						};
-					} else
+					} else {
+						LLVMValueRef value = nullptr;
+						if (LLVMGetTypeKind(type) == LLVMArrayTypeKind) {
+							LLVMValueRef zero = LLVMConstInt(LLVMInt32Type(), 0, 0);
+							LLVMValueRef idx[] = { zero, zero };
+							value = LLVMBuildInBoundsGEP(block, local.allocated, idx, _countof(idx), "");
+							type = LLVMTypeOf(value);
+						} else
+							value = LLVMBuildLoad(block, local.allocated, "");
+
 						return {
 							type,
-							LLVMBuildLoad(block, local.allocated, "")
+							value
 						};
+					}
 				}
 			}
 			
-			TEA_PANIC("'%s' is not defined. line %d, column %d", node->value, node->line, node->column);
+			TEA_PANIC("'%s' is not defined. line %d, column %d", node->value.data, node->line, node->column);
 			TEA_UNREACHABLE();
 		} break;
 
 		case EXPR_NOT: {
-			auto [exprType, expr] = emitExpression(node->left, constant);
+			auto [type, expr] = emitExpression(node->left, constant);
 
-			if (LLVMGetTypeKind(exprType.llvm) != LLVMIntegerTypeKind)
-				TEA_PANIC("type mismatch in '!' operation. line %d, column %d", node->line, node->column);
+			LLVMValueRef val;
+			switch (LLVMGetTypeKind(type.llvm)) {
+			case LLVMIntegerTypeKind: {
+				LLVMValueRef zero = LLVMConstInt(type.llvm, 0, false);
+				val = LLVMBuildICmp(block, LLVMIntEQ, expr, zero, "");
+				break;
+			}
 
-			LLVMValueRef notVal = LLVMBuildNot(block, expr, "");
-			return { Type::get(Type::BOOL), notVal };
+			case LLVMFloatTypeKind:
+			case LLVMDoubleTypeKind: {
+				LLVMValueRef zero = LLVMConstReal(type.llvm, 0.0);
+				val = LLVMBuildFCmp(block, LLVMRealOEQ, expr, zero, "");
+				break;
+			}
+
+			case LLVMPointerTypeKind: {
+				LLVMValueRef nullPtr = LLVMConstPointerNull(type.llvm);
+				val = LLVMBuildICmp(block, LLVMIntEQ, expr, nullPtr, "");
+				break;
+			}
+
+			default:
+				TEA_PANIC("unsupported type in '!' operation. line %d, column %d", node->line, node->column);
+			}
+
+			return { Type::get(Type::BOOL), val };
 		} break;
 
 		case EXPR_AND: {
@@ -487,14 +520,26 @@ namespace tea {
 		case EXPR_CAST: {
 			auto [castTo, success1] = Type::get(node->value); // success for my buddies success for my friends // lol alex g
 			if (!success1)
-				TEA_PANIC("unknown type '%s' in cast. line %d, column %d", node->value, node->line, node->column);
+				TEA_PANIC("unknown type '%s' in cast. line %d, column %d", node->value.data, node->line, node->column);
 
 			auto [type, val] = emitExpression(node->left);
 			auto [success2, casted] = util::cast(block, castTo, type, val); // success is the only thing i understand // harvey - alex g
 			if (!success2)
-				TEA_PANIC("unable to cast '%s' to '%s'. line %d, column %d", type2readable(type), type2readable(castTo), node->line, node->column);
+				TEA_PANIC("unable to cast '%s' to '%s'. line %d, column %d", type2readable(type).data, type2readable(castTo).data, node->line, node->column);
 
 			return { castTo, casted };
+		} break;
+
+		case EXPR_INDEX: {
+			IndexNode* indexNode = (IndexNode*)node.get();
+			auto [arrType, arr] = emitExpression(indexNode->val);
+			auto [idxType, idx] = emitExpression(indexNode->idx);
+
+			if (ptr) {
+				*ptr = true;
+				return { arrType.llvm, LLVMBuildGEP(block, arr, &idx, 1, "") };
+			} else
+				return { LLVMGetElementType(arrType.llvm), LLVMBuildLoad(block, LLVMBuildGEP(block, arr, &idx, 1, ""), "") };
 		} break;
 
 		default:

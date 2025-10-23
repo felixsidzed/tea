@@ -64,13 +64,13 @@ namespace tea {
 
 		tmp = std::regex_replace(tmp, std::regex("^\\s+|\\s+$"), "");
 
-		std::regex re(R"(([a-zA-Z_]+))"); // ([a-zA-Z_]+)(\s*(\[[^\]]*\])*)?
+		std::regex re(R"(([a-zA-Z_]+)(\s*(\[[^\]]*\])*)?)");
 		std::smatch match;
 		if (!std::regex_match(tmp, match, re))
 			return { result, false };
 
 		const std::string& basename = match[1];
-		//const std::string& array = match[2];
+		const std::string& array = match[2];
 
 		auto it = name2kind.find(basename.c_str());
 		if (!it)
@@ -81,7 +81,7 @@ namespace tea {
 			kind = Type::CHAR;
 
 		LLVMTypeRef llvmType = convert[kind];
-		/*if (!array.empty()) {
+		if (!array.empty()) {
 			std::regex reDims(R"(\[(\d*)\])");
 			auto dimStart = std::sregex_iterator(array.begin(), array.end(), reDims);
 			auto dimsEnd = std::sregex_iterator();
@@ -92,7 +92,7 @@ namespace tea {
 					return { result, false };
 				llvmType = LLVMArrayType(llvmType, std::stoi(dim));
 			}
-		}*/
+		}
 
 		for (int i = 0; i < nptr; i++)
 			llvmType = LLVMPointerType(llvmType, 0);
