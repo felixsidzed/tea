@@ -84,6 +84,8 @@ namespace tea {
 
 		ATTR__LLVM_COUNT,
 
+		ATTR_NONAMESPACE,
+		
 		ATTR__COUNT
 	};
 

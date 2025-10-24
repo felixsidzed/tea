@@ -1,4 +1,25 @@
-public func main() -> int
-	var a: int[2] = [6, 7];
-	return a[0];
+using "io";
+using "string";
+using "except";
+
+public func test() -> void
+	throw("hi im unhandled");
+end
+
+// returns if the exception was handled
+public func handler(string error) -> bool
+	if (string::eq(error, "ts real bad error brochacho")) do
+		io::print("haha error caught!\n");
+		return true;
+	end
+	return false;
+end
+
+public func main()
+	var handled = except::xpcall(test, handler);
+	if (!handled) do
+		io::printf("whoops unhandled error\n");
+	end
+
+	return 0;
 end

@@ -140,15 +140,14 @@ namespace tea {
 					while ((elseIf = elseIf->next.get()))
 						elseIfCount++;
 					elseIfThenBlocks = new LLVMBasicBlockRef[elseIfCount];
-					for (int i = 0; i < elseIfCount; i++) {
+					for (int i = 0; i < elseIfCount; i++)
 						elseIfThenBlocks[i] = LLVMAppendBasicBlock(func, "then");
-					}
 				}
 
 				LLVMBasicBlockRef elseBlock = ifNode->else_ ? LLVMAppendBasicBlock(func, "else") : nullptr;
 				LLVMBasicBlockRef mergeBlock = LLVMAppendBasicBlock(func, "merge");
 
-				LLVMBuildCondBr(block, pred, thenBlock, ifNode->elseIf ? elseIfBlock : elseBlock);
+				LLVMBuildCondBr(block, pred, thenBlock, ifNode->elseIf ? elseIfBlock : (elseBlock ? elseBlock : mergeBlock));
 
 				LLVMPositionBuilderAtEnd(block, thenBlock);
 				emitBlock(ifNode->body, "if.then", nullptr, returnInto);
@@ -158,9 +157,7 @@ namespace tea {
 				ElseIfNode* elseIf = ifNode->elseIf.get();
 				LLVMBasicBlockRef curElseIfBlock = elseIfBlock;
 				for (int i = 0; i < elseIfCount; i++) {
-					LLVMBasicBlockRef nextBlock = elseIf->next
-						? LLVMAppendBasicBlock(func, "elseif")
-						: (ifNode->else_ ? elseBlock : mergeBlock);
+					LLVMBasicBlockRef nextBlock = elseIf->next ? LLVMAppendBasicBlock(func, "elseif") : (ifNode->else_ ? elseBlock : mergeBlock);
 
 					LLVMPositionBuilderAtEnd(block, curElseIfBlock);
 

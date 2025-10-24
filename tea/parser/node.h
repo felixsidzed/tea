@@ -78,6 +78,7 @@ namespace tea {
 	};
 
 	struct FunctionImportNode : Node {
+		vector<enum Attribute> attrs;
 		enum CallConv cc;
 		string name;
 		vector<std::pair<Type, string>> args;

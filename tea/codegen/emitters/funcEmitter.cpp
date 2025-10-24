@@ -67,7 +67,8 @@ namespace tea {
 				LLVMAddAttributeAtIndex(func, LLVMAttributeFunctionIndex, LLVMCreateEnumAttribute(LLVMGetGlobalContext(), attr2llvm[attr], 0));
 				if (attr == LLVMNoReturnAttributeKind)
 					noreturn = true;
-			}
+			} else if (attr == ATTR_NONAMESPACE)
+				hasNoNamespaceFunctions = true;
 		}
 
 		if (!node->prealloc.empty()) {
@@ -89,13 +90,11 @@ namespace tea {
 			emitBlock(node->body, "entry", func);
 
 		if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block))) {
-			if (node->returnType != Type::get(Type::VOID_))
+			if (LLVMGetTypeKind(node->returnType.llvm) != LLVMVoidTypeKind)
 				TEA_PANIC("control reaches end of non-void function");
 			else {
-				if (noreturn)
-					LLVMBuildUnreachable(block);
-				else
-					LLVMBuildRetVoid(block);
+				if (noreturn) LLVMBuildUnreachable(block);
+				else LLVMBuildRetVoid(block);
 			}
 		}
 

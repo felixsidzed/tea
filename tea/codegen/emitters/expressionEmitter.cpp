@@ -176,26 +176,25 @@ namespace tea {
 						argsMap = nullptr;
 						curArgs = oldCurArgs;
 
-						if (!returnValue) {
-							auto pvoid = LLVMPointerType(Type::get(Type::VOID_).llvm, 0);
-							return {
-								returnType,
-								LLVMConstNull(pvoid)
-							};
-						} else {
+						if (!returnValue)
+							return { returnType, LLVMConstNull(LLVMPointerType(LLVMVoidType(), 0)) };
+						else {
 							if (ptr) {
 								*ptr = true;
-								return {
-									LLVMTypeOf(returnValue),
-									returnValue,
-								};
+								return { LLVMTypeOf(returnValue), returnValue, };
 							} else
-								return {
-									returnType,
-									LLVMBuildLoad(block, returnValue, "")
-								};
+								return { returnType, LLVMBuildLoad(block, returnValue, "") };
 						}
 						
+					} else if (hasNoNamespaceFunctions) {
+						for (int i = 0; i < modules.size(); i++) {
+							const auto& [name, mod] = modules.data[i];
+							auto it2 = mod.find(call->value);
+							if (it2) {
+								callee = *it2;
+								break;
+							}
+						}
 					}
 				}
 
@@ -251,10 +250,20 @@ namespace tea {
 			}
 
 			delete[] calleeArgTypes;
-			return {
-				LLVMGetReturnType(ftype),
-				LLVMBuildCall(block, callee, args.data, args.size, "")
-			};
+			std::pair<Type, LLVMValueRef> ret = { LLVMGetReturnType(ftype), LLVMBuildCall(block, callee, args.data, args.size, "") };
+
+			{
+				uint32_t nattrs = LLVMGetAttributeCountAtIndex(callee, LLVMAttributeFunctionIndex);
+				LLVMAttributeRef* attrs = new LLVMAttributeRef[nattrs + 1];
+				LLVMGetAttributesAtIndex(callee, LLVMAttributeFunctionIndex, attrs);
+				for (uint32_t i = 0; i < nattrs; i++) {
+					if (LLVMGetEnumAttributeKind(attrs[i]) == LLVMNoReturnAttributeKind)
+						LLVMBuildUnreachable(block);
+				}
+				delete[] attrs;
+			}
+
+			return ret;
 		}
 
 		case EXPR_IDENTF: {
@@ -281,18 +290,18 @@ namespace tea {
 
 			LLVMValueRef global = LLVMGetNamedGlobal(module, node->value);
 			if (global) {
-				LLVMTypeRef type = LLVMGlobalGetValueType(global);
 				if (ptr) {
 					*ptr = true;
-					return {
-						LLVMTypeOf(global),
-						global
-					};
+					return { LLVMTypeOf(global), global };
 				} else
-					return {
-						type,
-						LLVMBuildLoad(block, global, "")
-					};
+					return { LLVMGlobalGetValueType(global), LLVMBuildLoad(block, global, "") };
+			}
+
+			global = LLVMGetNamedFunction(module, node->value);
+			if (global) {
+				if (ptr)
+					*ptr = true;
+				return { LLVMTypeOf(global), global};
 			}
 
 			uint32_t i = 0;

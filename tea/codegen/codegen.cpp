@@ -8,8 +8,7 @@
 #include "tea/parser/parser.h"
 
 #include <llvm-c/Target.h>
-#include <llvm-c/BitWriter.h>
-#include <llvm-c/BitReader.h>
+#include <llvm-c/Analysis.h>
 #include <llvm-c/TargetMachine.h>
 #include <llvm-c/Transforms/PassBuilder.h>
 #include <llvm-c/Transforms/PassManagerBuilder.h>
@@ -82,15 +81,20 @@ namespace tea {
 		
 		/*LLVMPassManagerRef pm = LLVMCreatePassManager();
 		LLVMPassManagerBuilderRef pmb = LLVMPassManagerBuilderCreate();
-		LLVMPassManagerBuilderSetOptLevel(pmb, 3);
+		LLVMPassManagerBuilderSetOptLevel(pmb, 2);
 		LLVMPassManagerBuilderPopulateModulePassManager(pmb, pm);
 		LLVMRunPassManager(pm, module);*/
 
 		if (verbose) {
 			putchar('\n');
-			char* moduleStr = LLVMPrintModuleToString(module);
-			std::cout << moduleStr << std::endl;
-			LLVMDisposeMessage(moduleStr);
+			LLVMDumpModule(module);
+		}
+
+		LLVMBool hasError = LLVMVerifyModule(module, LLVMReturnStatusAction, &err);
+		if (hasError) {
+			string _(err);
+			LLVMDisposeMessage(err);
+			TEA_PANIC("%s", _.data);
 		}
 
 		if (LLVMTargetMachineEmitToFile(machine, module, output, LLVMObjectFile, &err)) {

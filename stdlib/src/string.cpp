@@ -77,12 +77,12 @@ extern "C" {
 	}
 
 	bool _string__eq(const char* s1, const char* s2) {
-		bool equals = true;
-		while (equals && *s1 && *s2) {
-			equals = *s1 == *s2;
+		while (*s1 && *s2) {
+			if (*s1 != *s2)
+				return false;
 			s1++, s2++;
 		}
-		return equals;
+		return *s1 == *s2;
 	}
 
 	char* _string__cat(int nargs, ...) {

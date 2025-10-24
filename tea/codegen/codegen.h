@@ -38,6 +38,7 @@ namespace tea {
 
 		vector<struct Local> locals;
 		map<string, ImportedModule> modules;
+		bool hasNoNamespaceFunctions = false;
 		vector<std::pair<Type, string>>* curArgs = nullptr;
 
 		vector<LLVMValueRef>* argsMap = nullptr;
