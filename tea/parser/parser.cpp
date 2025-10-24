@@ -311,6 +311,21 @@ namespace tea {
 			node = std::make_unique<ExpressionNode>(EXPR_DEREF, "", std::move(operand));
 			break;
 		}
+		case TOKEN_LBRAC: {
+			advance();
+			vector<std::unique_ptr<ExpressionNode>> init;
+			while (t->type != TOKEN_RBRAC) {
+				init.push(parseExpression());
+				if (t->type != TOKEN_COMMA)
+					break;
+				advance();
+			}
+			if (init.size == 0)
+				TEA_PANIC("cannot create an empty array. line %d, column %d", t->line, t->column);
+			advance();
+			node = std::make_unique<ArrayNode>(std::move(init));
+			break;
+		}
 		default:
 			unexpected();
 		}

@@ -24,7 +24,10 @@ namespace tea {
 			expected = thingy.first.llvm;
 		}
 
-		if (!insn)
+		if (LLVMIsAAllocaInst(thingy.second)) {
+			insn = thingy.second;
+			LLVMSetValueName(insn, node->name);
+		}  else if (!insn)
 			insn = LLVMBuildAlloca(block, expected, node->name);
 
 		log("Emitting local '{}' of type '{}' (initialized = {})", node->name.data, type2readable(node->dataType), node->value != nullptr);

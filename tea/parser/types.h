@@ -65,6 +65,7 @@ namespace tea {
 		EXPR_DEREF,
 		EXPR_CAST,
 
+		EXPR_ARRAY,
 		EXPR_INDEX
 	};
 

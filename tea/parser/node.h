@@ -147,4 +147,10 @@ namespace tea {
 
 		IndexNode(std::unique_ptr<ExpressionNode> val, std::unique_ptr<ExpressionNode> idx, bool arr) : val(std::move(val)), idx(std::move(idx)), ExpressionNode(EXPR_INDEX, arr ? "\1" : "\2") {};
 	};
+
+	struct ArrayNode : ExpressionNode {
+		vector<std::unique_ptr<ExpressionNode>> init;
+
+		ArrayNode(vector<std::unique_ptr<ExpressionNode>> init) : init(std::move(init)), ExpressionNode(EXPR_ARRAY, "") {};
+	};
 }

@@ -542,10 +542,53 @@ namespace tea {
 				return { LLVMGetElementType(arrType.llvm), LLVMBuildLoad(block, LLVMBuildGEP(block, arr, &idx, 1, ""), "") };
 		} break;
 
+		case EXPR_ARRAY: {
+			ArrayNode* arrayNode = (ArrayNode*)node.get();
+			int size = arrayNode->init.size;
+
+			auto [elementType, firstValue] = emitExpression(arrayNode->init[0], constant);
+
+			vector<LLVMValueRef> elements;
+			elements.reserve(size);
+
+			bool constInit = true;
+			if (constInit)
+				elements.push(firstValue);
+
+			for (int i = 1; i < size; i++) {
+				auto [t, v] = emitExpression(arrayNode->init[i]);
+				if (t != elementType)
+					TEA_PANIC("type mismatch in array initializer (expected '%s', got '%s'. line %d, column %d", type2readable(t), type2readable(elementType), node->line, node->column);
+
+				if (LLVMIsAConstant(v))
+					elements.push(v);
+				else
+					constInit = false;
+			}
+
+			LLVMTypeRef arrType = LLVMArrayType(elementType.llvm, size);
+
+			if (constInit)
+				return { arrType, LLVMConstArray(elementType.llvm, elements.data, size) };
+			else {
+				LLVMValueRef arr = LLVMBuildAlloca(block, arrType, "");
+
+				for (int i = 0; i < size; i++) {
+					auto [t, v] = emitExpression(arrayNode->init[i]);
+
+					LLVMValueRef indices[] = { LLVMConstInt(LLVMInt32Type(), 0, 0), LLVMConstInt(LLVMInt32Type(), i, 0) };
+					LLVMValueRef ptr = LLVMBuildInBoundsGEP(block, arr, indices, 2, "");
+					LLVMBuildStore(block, v, ptr);
+				}
+
+				return { arrType, arr };
+			}
+		}
+
 		default:
 		invalid:
 			TEA_PANIC("invalid expression. line %d, column %d", node->line, node->column);
 			TEA_UNREACHABLE();
-		}
+ 		}
 	}
 }
