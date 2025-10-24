@@ -62,6 +62,7 @@ namespace tea {
 		}
 
 		void emitCode(const Tree& tree);
+		void emitForLoop(ForLoopNode* node);
 		void emitFunction(FunctionNode* tree);
 		void emitVariable(VariableNode* node);
 		void emitWhileLoop(WhileLoopNode* node);

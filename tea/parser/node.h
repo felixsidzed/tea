@@ -154,4 +154,14 @@ namespace tea {
 
 		ArrayNode(vector<std::unique_ptr<ExpressionNode>> init) : init(std::move(init)), ExpressionNode(EXPR_ARRAY, "") {};
 	};
+
+	struct ForLoopNode : Node {
+		Tree body;
+
+		vector<VariableNode*> vars;
+		std::unique_ptr<ExpressionNode> pred;
+		std::unique_ptr<AssignmentNode> step;
+
+		ForLoopNode(vector<VariableNode*> vars, std::unique_ptr<ExpressionNode> pred, std::unique_ptr<AssignmentNode> step) : vars(vars), pred(std::move(pred)), step(std::move(step)) {};
+	};
 }

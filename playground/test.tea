@@ -1,24 +1,8 @@
 using "io";
-using "string";
-using "except";
 
-public func test() -> void
-	throw("hi im unhandled");
-end
-
-// returns if the exception was handled
-public func handler(string error) -> bool
-	if (string::eq(error, "ts real bad error brochacho")) do
-		io::print("haha error caught!\n");
-		return true;
-	end
-	return false;
-end
-
-public func main()
-	var handled = except::xpcall(test, handler);
-	if (!handled) do
-		io::printf("whoops unhandled error\n");
+public func main() -> int
+	for (var i = 0; i < 10; i += 1) do
+		io::printf("%d\n", i);
 	end
 
 	return 0;

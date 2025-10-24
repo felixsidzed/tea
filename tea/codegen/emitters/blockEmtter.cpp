@@ -211,6 +211,10 @@ namespace tea {
 				emitWhileLoop((WhileLoopNode*)node.get());
 				break;
 
+			case tnode(ForLoopNode):
+				emitForLoop((ForLoopNode*)node.get());
+				break;
+
 			default:
 				TEA_PANIC("invalid statement. line %d, column %d", node->line, node->column);
 			}

@@ -14,14 +14,18 @@ extern "C" {
 		CONTEXT ctx;
 	} exception_t;
 
-	// TODO: move to 'thread' module when added
-	__declspec(selectany) unsigned long _tls_index;
-
+	static bool initialized = false;
+	static unsigned long _tls_index = 0;
 	static __declspec(thread) exception_t* curExc = nullptr;
 
 	extern void _io__printf(const char* fmt, ...);
 
 	[[noreturn]] void _except__throw(const char* message) {
+		if (!initialized) {
+			_tls_index = TlsAlloc();
+			initialized = true;
+		}
+
 		if (!message) message = "[exception]";
 		if (!curExc) {
 			_io__printf("thread %d -> unhandled exception: %s\n", GetCurrentThreadId(), message);
@@ -34,6 +38,11 @@ extern "C" {
 	}
 
 	const char* _except__pcall(void(*func)()) {
+		if (!initialized) {
+			_tls_index = TlsAlloc();
+			initialized = true;
+		}
+
 		if (!func)
 			return nullptr;
 
@@ -61,6 +70,11 @@ extern "C" {
 	}
 
 	BOOL _except__xpcall(void(*func)(), BOOL(*handler)(const char*)) {
+		if (!initialized) {
+			_tls_index = TlsAlloc();
+			initialized = true;
+		}
+
 		if (!func)
 			return true;
 

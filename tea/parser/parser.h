@@ -25,6 +25,7 @@ namespace tea {
 
 		FunctionNode* fn;
 
+		void parseVariable();
 		void parseFuncFull();
 		bool tryParseAssignment();
 		void parseFunctionImport();

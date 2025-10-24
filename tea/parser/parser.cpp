@@ -399,30 +399,7 @@ namespace tea {
 
 				case KWORD_VAR: {
 					advance();
-					const string& name = expect(TOKEN_IDENTF);
-
-					Type type;
-					std::unique_ptr<ExpressionNode> value = nullptr;
-
-					if (t->type == TOKEN_COLON) {
-						advance();
-						const string& dataType = parseType();
-						auto pair = Type::get(dataType);
-						if (!pair.second)
-							TEA_PANIC("unknown type '%s'. line %d, column %d", dataType.data, (t - 1)->line, (t - 1)->column);
-						type = pair.first;
-					}
-
-					if (t->type == TOKEN_ASSIGN) {
-						advance();
-						value = parseExpression();
-					}
-					expect(TOKEN_SEMI);
-
-					pushnode(VariableNode, name, type, std::move(value));
-
-					auto vn = (VariableNode*)tree->data[tree->size - 1].get();
-					fn->prealloc.insert(vn, nullptr); // TODO: only variables inside loops should be preallocated
+					parseVariable();
 				} break;
 
 				case KWORD_IF: {
@@ -507,6 +484,46 @@ namespace tea {
 					parseBlock();
 				} break;
 
+				case KWORD_FOR: {
+					advance();
+					expect(TOKEN_LPAR);
+					vector<VariableNode*> vars;
+					while (t->extra == KWORD_VAR) {
+						advance();
+						parseVariable();
+						vars.push((VariableNode*)tree->data[tree->size - 1].get());
+					}
+					auto pred = parseExpression();
+					expect(TOKEN_SEMI);
+					
+					auto lhs = parsePrimary();
+					enum TokenType extra = (TokenType)0;
+
+					switch (t->type) {
+					case TOKEN_ASSIGN:
+						break;
+					case TOKEN_ADD:
+					case TOKEN_SUB:
+					case TOKEN_MUL:
+					case TOKEN_DIV:
+						extra = t->type;
+						advance();
+						break;
+					default:
+						unexpected();
+					}
+					expect(TOKEN_ASSIGN);
+					auto step = std::make_unique<AssignmentNode>(std::move(lhs), parseExpression(), extra);
+
+					expect(TOKEN_RPAR);
+					if (t->type != TOKEN_KWORD || t->extra != KWORD_DO)
+						goto unexpected;
+					else
+						advance();
+					pushtree(ForLoopNode, vars, std::move(pred), std::move(step));
+					parseBlock();
+				} break;
+
 				default:
 					goto unexpected;
 				}
@@ -521,10 +538,8 @@ namespace tea {
 			} break;
 
 			case TOKEN_MUL:
-				if (!tryParseAssignment())
-					goto unexpected;
-				else
-					expect(TOKEN_SEMI);
+				if (!tryParseAssignment()) goto unexpected;
+				else expect(TOKEN_SEMI);
 				break;
 
 			case TOKEN_SEMI:
@@ -676,18 +691,18 @@ namespace tea {
 
 		switch (t->type) {
 			case TOKEN_ASSIGN:
-				goto end;
+				break;
 			case TOKEN_ADD:
 			case TOKEN_SUB:
 			case TOKEN_MUL:
 			case TOKEN_DIV:
 				extra = t->type;
 				advance();
-				goto end;
+				break;
 			default:
 				t = oldt;
 				return false;
-		} end:
+		}
 		expect(TOKEN_ASSIGN);
 
 		auto rhs = parseExpression();
@@ -752,5 +767,32 @@ namespace tea {
 
 		expect(TOKEN_SEMI);
 		pushnode(FunctionImportNode, cc, name, args, type.first, vararg);
+	}
+
+	void Parser::parseVariable() {
+		const string& name = expect(TOKEN_IDENTF);
+
+		Type type;
+		std::unique_ptr<ExpressionNode> value = nullptr;
+
+		if (t->type == TOKEN_COLON) {
+			advance();
+			const string& dataType = parseType();
+			auto pair = Type::get(dataType);
+			if (!pair.second)
+				TEA_PANIC("unknown type '%s'. line %d, column %d", dataType.data, (t - 1)->line, (t - 1)->column);
+			type = pair.first;
+		}
+
+		if (t->type == TOKEN_ASSIGN) {
+			advance();
+			value = parseExpression();
+		}
+		expect(TOKEN_SEMI);
+
+		pushnode(VariableNode, name, type, std::move(value));
+
+		auto vn = (VariableNode*)tree->data[tree->size - 1].get();
+		fn->prealloc.insert(vn, nullptr); // TODO: only variables inside loops should be preallocated
 	}
 }
