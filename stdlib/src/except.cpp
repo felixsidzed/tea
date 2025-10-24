@@ -14,17 +14,18 @@ extern "C" {
 		CONTEXT ctx;
 	} exception_t;
 
-	// TODO: make thread local
-	static exception_t* curExc = nullptr;
+	// TODO: move to 'thread' module when added
+	__declspec(selectany) unsigned long _tls_index;
+
+	static __declspec(thread) exception_t* curExc = nullptr;
 
 	extern void _io__printf(const char* fmt, ...);
 
-	int _except__throw(const char* message) {
+	[[noreturn]] void _except__throw(const char* message) {
 		if (!message) message = "[exception]";
 		if (!curExc) {
 			_io__printf("thread %d -> unhandled exception: %s\n", GetCurrentThreadId(), message);
 			ExitThread(1);
-			return 0;
 		}
 
 		curExc->thrown = true;

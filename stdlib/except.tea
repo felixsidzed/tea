@@ -1,5 +1,6 @@
 @noreturn, @nonamespace
 import __cdecl func throw(string message) -> void;
 
+// TODO: maybe add @nonamespace to these aswell
 import __cdecl func pcall(void* f) -> string;
 import __cdecl func xpcall(void* f, void* handler) -> bool;
