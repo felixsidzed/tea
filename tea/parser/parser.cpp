@@ -524,6 +524,16 @@ namespace tea {
 					parseBlock();
 				} break;
 
+				case KWORD_BREAK:
+					advance();
+					pushnode(LoopInterruptNode, true);
+					break;
+
+				case KWORD_CONTINUE:
+					advance();
+					pushnode(LoopInterruptNode, false);
+					break;
+
 				default:
 					goto unexpected;
 				}

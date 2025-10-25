@@ -215,6 +215,19 @@ namespace tea {
 				emitForLoop((ForLoopNode*)node.get());
 				break;
 
+			case tnode(LoopInterruptNode): {
+				bool exit = ((LoopInterruptNode*)node.get())->exit;
+				if (exit) {
+					if (!breakTarget)
+						TEA_PANIC("attempt to 'break' outside of a loop. line %d, column %d", node->line, node->column);
+					LLVMBuildBr(block, breakTarget);
+				} else {
+					if (!continueTarget)
+						TEA_PANIC("attempt to 'continue' outside of a loop. line %d, column %d", node->line, node->column);
+					LLVMBuildBr(block, continueTarget);
+				}
+			} break;
+
 			default:
 				TEA_PANIC("invalid statement. line %d, column %d", node->line, node->column);
 			}

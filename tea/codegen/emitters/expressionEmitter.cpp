@@ -187,8 +187,7 @@ namespace tea {
 						}
 						
 					} else if (hasNoNamespaceFunctions) {
-						for (int i = 0; i < modules.size(); i++) {
-							const auto& [name, mod] = modules.data[i];
+						for (const auto& [name, mod] : modules) {
 							auto it2 = mod.find(call->value);
 							if (it2) {
 								callee = *it2;

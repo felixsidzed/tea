@@ -164,4 +164,10 @@ namespace tea {
 
 		ForLoopNode(vector<VariableNode*> vars, std::unique_ptr<ExpressionNode> pred, std::unique_ptr<AssignmentNode> step) : vars(vars), pred(std::move(pred)), step(std::move(step)) {};
 	};
+
+	struct LoopInterruptNode : Node {
+		bool exit;
+
+		LoopInterruptNode(bool exit) : exit(exit) {};
+	};
 }

@@ -48,6 +48,9 @@ namespace tea {
 		FunctionNode* curFunc = nullptr;
 		map<VariableNode*, LLVMValueRef>* fnPrealloc = nullptr;
 
+		LLVMBasicBlockRef breakTarget = nullptr;
+		LLVMBasicBlockRef continueTarget = nullptr;
+
 		inline void logUnformatted(const std::string& message) {
 			if (!verbose)
 				return;

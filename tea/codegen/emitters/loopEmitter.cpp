@@ -33,7 +33,7 @@ namespace tea {
 
 		emitBlock(node->body, "loop.body", nullptr);
 
-		if (!LLVMGetBasicBlockTerminator(bodyBlock))
+		if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
 			LLVMBuildBr(block, condBlock);
 		LLVMPositionBuilderAtEnd(block, mergeBlock);
 	}
@@ -41,7 +41,13 @@ namespace tea {
 	void CodeGen::emitForLoop(ForLoopNode* node) {
 		LLVMBasicBlockRef condBlock = LLVMAppendBasicBlock(func, "loop.cond");
 		LLVMBasicBlockRef bodyBlock = LLVMAppendBasicBlock(func, "loop.body");
+		LLVMBasicBlockRef stepBlock = LLVMAppendBasicBlock(func, "loop.step");
 		LLVMBasicBlockRef mergeBlock = LLVMAppendBasicBlock(func, "merge");
+
+		LLVMBasicBlockRef oldBreakTarget = breakTarget;
+		LLVMBasicBlockRef oldContinueTarget = continueTarget;
+		breakTarget = mergeBlock;
+		continueTarget = stepBlock;
 
 		for (const auto& var : node->vars) {
 			LLVMValueRef* prealloc = fnPrealloc->find(var);
@@ -55,6 +61,9 @@ namespace tea {
 				});
 		}
 
+		LLVMBuildBr(block, condBlock);
+		LLVMPositionBuilderAtEnd(block, stepBlock);
+		emitAssignment(node->step.get());
 		LLVMBuildBr(block, condBlock);
 		LLVMPositionBuilderAtEnd(block, condBlock);
 
@@ -79,10 +88,12 @@ namespace tea {
 		LLVMPositionBuilderAtEnd(block, bodyBlock);
 
 		emitBlock(node->body, "loop.body", nullptr);
-		emitAssignment(node->step.get());
+		if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
+			LLVMBuildBr(block, stepBlock);
 
-		if (!LLVMGetBasicBlockTerminator(bodyBlock))
-			LLVMBuildBr(block, condBlock);
+		breakTarget = oldBreakTarget;
+		continueTarget = oldContinueTarget;
+
 		LLVMPositionBuilderAtEnd(block, mergeBlock);
 	}
 }
