@@ -1,12 +1,13 @@
 using "io";
+using "sys";
 
 public func main() -> int
-	for (var i = 0; i < 10; i += 1) do
-		if (i == 6) do
-			break;
-		end
-		io::printf("%d\n", i);
-	end
+	var start = sys::time();
+	io::printf("time before: %llu\n", start);
+	sys::sleep(500);
+	var end_ = sys::time();
+	io::printf("time after: %llu\n", end_);
+	io::printf("slept for: %llu ms\n", end_ - start);
 
-	return 0;
+	sys::exit(67);
 end

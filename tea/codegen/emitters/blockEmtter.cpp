@@ -17,6 +17,9 @@ namespace tea {
 		for (const auto& node : root) {
 			switch (node->type) {
 			case tnode(ReturnNode): {
+				if (LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
+					return;
+
 				{
 					uint32_t nattrs = LLVMGetAttributeCountAtIndex(func, LLVMAttributeFunctionIndex);
 					LLVMAttributeRef* attrs = new LLVMAttributeRef[nattrs + 1];

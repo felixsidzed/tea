@@ -45,9 +45,9 @@ namespace tea {
 
 			switch (node->etype) {
 			case EXPR_ADD: {
-				if (ltype == Type::get(Type::INT))
+				if (LLVMGetTypeKind(ltype.llvm) == LLVMIntegerTypeKind)
 					result = LLVMBuildAdd(block, lhs, rhs, "");
-				else if (ltype == Type::get(Type::FLOAT) || rtype == Type::get(Type::DOUBLE))
+				else if (ltype == Type::get(Type::FLOAT) || ltype == Type::get(Type::DOUBLE))
 					result = LLVMBuildFAdd(block, lhs, rhs, "");
 				else {
 					TEA_PANIC("unsupported types for addition. line %d, column %d", node->line, node->column);
@@ -56,9 +56,9 @@ namespace tea {
 			} break;
 
 			case EXPR_SUB: {
-				if (ltype == Type::get(Type::INT))
+				if (LLVMGetTypeKind(ltype.llvm) == LLVMIntegerTypeKind)
 					result = LLVMBuildSub(block, lhs, rhs, "");
-				else if (ltype == Type::get(Type::FLOAT) || rtype == Type::get(Type::DOUBLE))
+				else if (ltype == Type::get(Type::FLOAT) || ltype == Type::get(Type::DOUBLE))
 					result = LLVMBuildFSub(block, lhs, rhs, "");
 				else {
 					TEA_PANIC("unsupported types for subtraction. line %d, column %d", node->line, node->column);
@@ -67,9 +67,9 @@ namespace tea {
 			} break;
 
 			case EXPR_MUL: {
-				if (ltype == Type::get(Type::INT))
+				if (LLVMGetTypeKind(ltype.llvm) == LLVMIntegerTypeKind)
 					result = LLVMBuildMul(block, lhs, rhs, "");
-				else if (ltype == Type::get(Type::FLOAT) || rtype == Type::get(Type::DOUBLE))
+				else if (ltype == Type::get(Type::FLOAT) || ltype == Type::get(Type::DOUBLE))
 					result = LLVMBuildFMul(block, lhs, rhs, "");
 				else {
 					TEA_PANIC("unsupported types for multiplication. line %d, column %d", node->line, node->column);
@@ -78,9 +78,9 @@ namespace tea {
 			} break;
 
 			case EXPR_DIV: {
-				if (ltype == Type::get(Type::INT))
+				if (LLVMGetTypeKind(ltype.llvm) == LLVMIntegerTypeKind)
 					result = LLVMBuildSDiv(block, lhs, rhs, "");
-				else if (ltype == Type::get(Type::FLOAT) || rtype == Type::get(Type::DOUBLE))
+				else if (ltype == Type::get(Type::FLOAT) || ltype == Type::get(Type::DOUBLE))
 					result = LLVMBuildFDiv(block, lhs, rhs, "");
 				else {
 					TEA_PANIC("unsupported types for divison. line %d, column %d", node->line, node->column);
