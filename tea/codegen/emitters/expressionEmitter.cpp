@@ -140,7 +140,8 @@ namespace tea {
 			CallNode* call = (CallNode*)node.get();
 			vector<LLVMValueRef> args;
 			vector<LLVMTypeRef> argTypes;
-			args.reserve(call->args.size);
+			if (self) args.push(self);
+			args.reserve(args.size + call->args.size);
 
 			for (const auto& arg : call->args) {
 				auto [t, v] = emitExpression(arg);
@@ -152,6 +153,14 @@ namespace tea {
 			if (call->scope.size == 0) {
 				// callee is stored in ExpressionNode::value
 				callee = LLVMGetNamedFunction(module, call->value);
+				if (!callee && self) {
+					// TODO: check argment types
+					callee = LLVMGetNamedFunction(module, ".ctor`" + call->value);
+					if (callee) {
+						LLVMBuildCall(block, callee, args.data, args.size, "");
+						return { LLVMGetElementType(LLVMTypeOf(self)), self };
+					}
+				}
 
 				if (!callee) {
 					auto it = inlineables.find(call->value);
@@ -540,14 +549,51 @@ namespace tea {
 
 		case EXPR_INDEX: {
 			IndexNode* indexNode = (IndexNode*)node.get();
-			auto [arrType, arr] = emitExpression(indexNode->val);
-			auto [idxType, idx] = emitExpression(indexNode->idx);
 
-			if (ptr) {
-				*ptr = true;
-				return { arrType.llvm, LLVMBuildGEP(block, arr, &idx, 1, "") };
-			} else
-				return { LLVMGetElementType(arrType.llvm), LLVMBuildLoad(block, LLVMBuildGEP(block, arr, &idx, 1, ""), "") };
+			Type lhsType;
+			LLVMValueRef lhs;
+			if (indexNode->value[0] == 0)
+				std::tie(lhsType, lhs) = emitExpression(indexNode->val);
+			else {
+				bool ptr = false;
+				std::tie(lhsType, lhs) = emitExpression(indexNode->val, false, &ptr);
+			}
+			
+			if (LLVMGetTypeKind(lhsType.llvm) != LLVMPointerTypeKind)
+				TEA_PANIC("cannot index a value of type '%s'", type2readable(lhsType).data, node->line, node->column);
+
+			if (indexNode->value[0] == 0) {
+				auto [idxType, idx] = emitExpression(indexNode->idx);
+				if (ptr) {
+					*ptr = true;
+					return { lhsType.llvm, LLVMBuildGEP(block, lhs, &idx, 1, "") };
+				}
+				else
+					return { LLVMGetElementType(lhsType.llvm), LLVMBuildLoad(block, LLVMBuildGEP(block, lhs, &idx, 1, ""), "") };
+			} else {
+				LLVMTypeRef t = LLVMGetElementType(lhsType.llvm);
+				if (indexNode->value[0] == 2) {
+					t = LLVMGetElementType(t);
+					lhs = LLVMBuildLoad(block, lhs, "");
+				}
+				ObjectNode* obj = objects[t];
+				if (!obj)
+					TEA_PANIC("cannot index a value of type '%s'. line %d, column %d", type2readable(lhsType).data, node->line, node->column);
+
+				int idx = 0;
+				for (const auto& field : obj->fields) {
+					if (field->name == indexNode->idx->value)
+						break;
+					idx++;
+				}
+
+				LLVMValueRef val = LLVMBuildStructGEP(block, lhs, idx, "");
+				if (ptr)
+					*ptr = true;
+				else
+					val = LLVMBuildLoad(block, val, "");
+				return { LLVMTypeOf(val), val };
+			}
 		} break;
 
 		case EXPR_ARRAY: {

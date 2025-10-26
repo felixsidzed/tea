@@ -16,8 +16,8 @@ static const char* keywords[] = {
 	"func", "return",
 	"end",
 	"var",
-	"__stdcall", "__fastcall", "__cdecl", "__auto"
-	//"class", "new",
+	"__stdcall", "__fastcall", "__cdecl", "__auto",
+	"class", //"new",
 };
 
 static bool isKeyword(const char* word, unsigned int len, int* idx) {

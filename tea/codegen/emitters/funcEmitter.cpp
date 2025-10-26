@@ -30,7 +30,7 @@ namespace tea {
 			return;
 		}
 
-		log("Entering function '{} {} func {}(...) ({} arguments)",
+		log("Entering function '{} {} func {}(...)' ({} arguments)",
 			node->storage == STORAGE_PUBLIC ? "public" : "private",
 			ccname[node->cc],
 			node->name.data,

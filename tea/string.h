@@ -28,6 +28,18 @@ namespace tea {
 			}
 		}
 
+		string(const char ch) {
+			if (!ch) {
+				data = new char[1];
+				data[0] = '\0';
+				size = 0;
+			} else {
+				data = new char[2];
+				data[0] = ch;
+				data[1] = '\0';
+			}
+		}
+
 		string(const string& other) {
 			size = other.size;
 			data = new char[size + 1];
@@ -168,6 +180,17 @@ namespace std {
 		auto format(const tea::string& s, std::format_context& ctx) const {
 			std::string_view sv{s.data, s.size};
 			return std::formatter<std::string_view>::format(sv, ctx);
+		}
+	};
+
+	template<>
+	struct hash<tea::string> {
+		size_t operator()(const tea::string& s) const noexcept {
+			const char* data = s.data;
+			size_t h = 1469598103934665603ull;
+			for (uint32_t i = 0; i < s.size; ++i)
+				h = (h ^ (uint8_t)data[i]) * 1099511628211ull;
+			return h;
 		}
 	};
 }

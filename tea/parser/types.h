@@ -29,7 +29,8 @@ namespace tea {
 		tnode(AssignmentNode),
 		tnode(WhileLoopNode),
 		tnode(ForLoopNode),
-		tnode(LoopInterruptNode)
+		tnode(LoopInterruptNode),
+		tnode(ObjectNode)
 	};
 
 	enum StorageType : uint8_t {

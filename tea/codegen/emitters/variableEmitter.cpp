@@ -30,16 +30,27 @@ namespace tea {
 		}  else if (!insn)
 			insn = LLVMBuildAlloca(block, expected, node->name);
 
-		log("Emitting local '{}' of type '{}' (initialized = {})", node->name.data, type2readable(node->dataType), node->value != nullptr);
+		if (LLVMGetTypeKind(expected) == LLVMStructTypeKind) {
+			if (!node->value) {
+				LLVMValueRef ctor = LLVMGetNamedFunction(module, ".ctor`" + string(LLVMGetStructName(expected)));
+				if (ctor)
+					LLVMBuildCall(block, ctor, &insn, 1, "");
+			}
+			self = insn;
+		}
 
+		log("Emitting local '{}' of type '{}' (initialized = {})", node->name.data, type2readable(node->dataType), node->value != nullptr);
 		if (node->value != nullptr) {
 			if (!thingy.second)
 				thingy = emitExpression(node->value);
 			if (thingy.first != expected)
 				TEA_PANIC("variable initializer type (%s) is incompatible with variable type (%s). line %d, column %d",
 					type2readable(expected).data, type2readable(thingy.first).data, node->line, node->column);
-			LLVMBuildStore(block, thingy.second, insn);
+			if (LLVMGetTypeKind(expected) != LLVMStructTypeKind)
+				LLVMBuildStore(block, thingy.second, insn);
 		}
+
+		self = nullptr;
 
 		locals.push({
 			.type = node->dataType,

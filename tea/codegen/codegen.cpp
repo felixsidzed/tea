@@ -113,6 +113,7 @@ namespace tea {
 			case tnode(FunctionNode):
 				emitFunction((FunctionNode*)node.get());
 				break;
+
 			case tnode(UsingNode): {
 				UsingNode* usingNode = (UsingNode*)node.get();
 				fs::path path = importLookup / std::string(usingNode->name + ".tea");
@@ -146,9 +147,11 @@ namespace tea {
 
 				file.close();
 			} break;
+
 			case tnode(FunctionImportNode):
 				emitFunctionImport((FunctionImportNode*)node.get());
 				break;
+
 			case tnode(GlobalVariableNode): {
 				GlobalVariableNode* globalVarNode = (GlobalVariableNode*)node.get();
 
@@ -168,6 +171,11 @@ namespace tea {
 				} else
 					LLVMSetInitializer(global, LLVMConstNull(expected.llvm));
 			} break;
+
+			case tnode(ObjectNode):
+				emitObject((ObjectNode*)node.get());
+				break;
+
 			default:
 				TEA_PANIC("invalid root statement. line %d, column %d", node->line, node->column);
 			}
@@ -184,10 +192,8 @@ namespace tea {
 			nptr++;
 		}
 
-		if (type.constant)
-			result += "const";
-		if (!type.sign)
-			result += "unsigned";
+		if (type.constant) result += "const";
+		if (!type.sign) result += "unsigned";
 
 		LLVMTypeKind kind = LLVMGetTypeKind(t);
 		switch (kind) {
@@ -209,13 +215,16 @@ namespace tea {
 			TEA_FALLTHROUGH;
 		}
 
-		case LLVMArrayTypeKind: {
+		case LLVMArrayTypeKind:
 			result += type2readable(LLVMGetElementType(t));
 			result += '[';
 			result += std::to_string(LLVMGetArrayLength(t)).c_str();
 			result += ']';
 			break;
-		}
+
+		case LLVMStructTypeKind:
+			result = LLVMGetStructName(t);
+			break;
 
 		default:
 			auto it = typeKindName.find(kind);

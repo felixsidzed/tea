@@ -1,13 +1,20 @@
 using "io";
-using "sys";
 
-public func main() -> int
-	var start = sys::time();
-	io::printf("time before: %llu\n", start);
-	sys::sleep(500);
-	var end_ = sys::time();
-	io::printf("time after: %llu\n", end_);
-	io::printf("slept for: %llu ms\n", end_ - start);
+class Test
+	public var a: int;
 
-	sys::exit(67);
+	Test(int x)
+		this->a = x;
+	end
+
+	//public func compute() -> int
+	//	return a + b;
+	//end
+end
+
+public func main()
+	var ts: Test = Test(67);
+	io::printf("Test.a = %d\n", ts.a);
+
+	return 0;
 end

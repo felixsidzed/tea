@@ -14,12 +14,13 @@
 namespace tea {
 	namespace fs = std::filesystem;
 
+	// TODO: reordering verbose/importLookup/objects seems to break field construction, for some reason??
 	class CodeGen {
 	public:
-		bool verbose;
-		fs::path importLookup;
+		fs::path importLookup{};
+		bool verbose = false;
 
-		CodeGen(bool verbose = false, fs::path importLookup = ".") : verbose(verbose), importLookup(importLookup) {}
+		CodeGen(bool verbose = false, const fs::path& importLookup = ".") : verbose(verbose), importLookup(importLookup) {}
 
 		void emit(const Tree& tree, const char* output);
 
@@ -32,24 +33,24 @@ namespace tea {
 			LLVMValueRef allocated;
 		};
 
-		LLVMModuleRef module = nullptr;
-		LLVMValueRef func = nullptr;
-		LLVMBuilderRef block = nullptr;
-
-		vector<struct Local> locals;
-		map<string, ImportedModule> modules;
-		bool hasNoNamespaceFunctions = false;
-		vector<std::pair<Type, string>>* curArgs = nullptr;
-
-		vector<LLVMValueRef>* argsMap = nullptr;
-		map<string, FunctionNode*> inlineables;
-
 		bool fnDeduceRetTy = false;
+		bool hasNoNamespaceFunctions = false;
+
+		LLVMValueRef self = nullptr;
+		LLVMValueRef func = nullptr;
+		LLVMModuleRef module = nullptr;
+		LLVMBuilderRef block = nullptr;
 		FunctionNode* curFunc = nullptr;
+		LLVMBasicBlockRef breakTarget = nullptr;
+		vector<LLVMValueRef>* argsMap = nullptr;
+		LLVMBasicBlockRef continueTarget = nullptr;
+		vector<std::pair<Type, string>>* curArgs = nullptr;
 		map<VariableNode*, LLVMValueRef>* fnPrealloc = nullptr;
 
-		LLVMBasicBlockRef breakTarget = nullptr;
-		LLVMBasicBlockRef continueTarget = nullptr;
+		vector<struct Local> locals{};
+		map<string, ImportedModule> modules{};
+		map<LLVMTypeRef, ObjectNode*> objects{};
+		map<string, FunctionNode*> inlineables{};
 
 		inline void logUnformatted(const std::string& message) {
 			if (!verbose)
@@ -65,6 +66,7 @@ namespace tea {
 		}
 
 		void emitCode(const Tree& tree);
+		void emitObject(ObjectNode* node);
 		void emitForLoop(ForLoopNode* node);
 		void emitFunction(FunctionNode* tree);
 		void emitVariable(VariableNode* node);

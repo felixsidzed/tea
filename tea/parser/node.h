@@ -37,7 +37,7 @@ namespace tea {
 		Type returnType;
 		map<struct VariableNode*, LLVMValueRef> prealloc;
 
-		FunctionNode(enum StorageType storage, enum CallConv cc, const string& name, const vector<std::pair<Type, string>>& args, Type& returnType, bool vararg)
+		FunctionNode(enum StorageType storage, enum CallConv cc, const string& name, const vector<std::pair<Type, string>>& args, const Type& returnType, bool vararg)
 			: storage(storage), cc(cc), name(name), args(args), returnType(returnType), vararg(vararg) {};
 	};
 
@@ -146,7 +146,7 @@ namespace tea {
 		std::unique_ptr<ExpressionNode> val;
 		std::unique_ptr<ExpressionNode> idx;
 
-		IndexNode(std::unique_ptr<ExpressionNode> val, std::unique_ptr<ExpressionNode> idx, bool arr) : val(std::move(val)), idx(std::move(idx)), ExpressionNode(EXPR_INDEX, arr ? "\1" : "\2") {};
+		IndexNode(std::unique_ptr<ExpressionNode> val, std::unique_ptr<ExpressionNode> idx, uint8_t kind) : val(std::move(val)), idx(std::move(idx)), ExpressionNode(EXPR_INDEX, kind) {};
 	};
 
 	struct ArrayNode : ExpressionNode {
@@ -169,5 +169,13 @@ namespace tea {
 		bool exit;
 
 		LoopInterruptNode(bool exit) : exit(exit) {};
+	};
+
+	struct ObjectNode : Node {
+		string name;
+		vector<std::unique_ptr<FunctionNode>> methods;
+		vector<std::unique_ptr<GlobalVariableNode>> fields;
+
+		ObjectNode(const string& name, vector<std::unique_ptr<GlobalVariableNode>> fields, vector<std::unique_ptr<FunctionNode>> methods) : name(name), fields(std::move(fields)), methods(std::move(methods)) {};
 	};
 }

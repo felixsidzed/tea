@@ -123,6 +123,79 @@ namespace tea {
 					parseFunctionImport();
 					break;
 
+				case KWORD_CLASS: {
+					advance();
+					const string& name = expect(TOKEN_IDENTF);
+
+					vector<std::unique_ptr<FunctionNode>> methods;
+					vector<std::unique_ptr<GlobalVariableNode>> fields;
+
+					LLVMTypeRef objTy = LLVMStructCreateNamed(LLVMGetGlobalContext(), name.data);
+					Type::create(name.data, objTy);
+
+					while (true) {
+						while (t->type == TOKEN_NEWLINE) advance();
+						if (t->extra == KWORD_END) {
+							advance();
+							break;
+						}
+
+						if (t->type == TOKEN_IDENTF && t->value == name) {
+							advance();
+							expect(TOKEN_LPAR);
+
+							bool vararg = false;
+							vector<std::pair<Type, string>> args;
+							if (t->type != TOKEN_RPAR) {
+								do {
+									if (t->type == TOKEN_DOT && (t + 1)->type == TOKEN_DOT && (t + 2)->type == TOKEN_DOT) {
+										t += 3;
+										vararg = true;
+										break;
+									}
+
+									const string& typeName = parseType();
+									auto type = Type::get(typeName);
+									if (!type.second)
+										TEA_PANIC("unknown type '%s'. line %d, column %d", typeName.data, (t - 1)->line, (t - 1)->column);
+									const string& argName = expect(TOKEN_IDENTF);
+									args.emplace(type.first, argName);
+								} while (t->type == TOKEN_COMMA && t++);
+							}
+							advance();
+							pushtree(FunctionNode, STORAGE_PUBLIC, CC_AUTO, ".`ctor", args, LLVMPointerType(objTy, 0), vararg);
+							parseBlock();
+							methods.emplace((std::move((std::unique_ptr<FunctionNode>&)tree->data[--tree->size])));
+							while (t->type == TOKEN_NEWLINE) advance();
+							if (t->extra == KWORD_END) {
+								advance();
+								break;
+							}
+						}
+
+						if (t->type != TOKEN_KWORD || (t->extra != KWORD_PUBLIC && t->extra != KWORD_PRIVATE))
+							unexpected();
+
+						enum StorageType storage = t->extra == KWORD_PUBLIC ? STORAGE_PUBLIC : STORAGE_PRIVATE;
+						advance();
+						while (t->type == TOKEN_NEWLINE) advance();
+
+						if (t->type != TOKEN_KWORD)
+							unexpected();
+
+						if (t->extra == KWORD_VAR) {
+							advance();
+							parseVariable();
+							VariableNode* field = (VariableNode*)tree->data[tree->size - 1].get();
+							fields.emplace(std::make_unique<GlobalVariableNode>(storage, field->name, field->dataType, std::move(field->value)));
+							tree->pop();
+						} else
+							unexpected();
+					}
+
+					pushnode(ObjectNode, name, std::move(fields), std::move(methods));
+				} break;
+
 				default:
 					unexpected();
 				} break;
@@ -237,8 +310,15 @@ namespace tea {
 				}
 				expect(TOKEN_RPAR);
 				node = std::make_unique<CallNode>(scope, value, std::move(args));
-			} else
+			} else {
 				node = std::make_unique<ExpressionNode>(EXPR_IDENTF, value);
+				while (t->type == TOKEN_DOT || t->type == TOKEN_ARROW) {
+					uint8_t kind = 1 + (t->type == TOKEN_ARROW);
+					advance();
+					auto indexExpr = std::make_unique<ExpressionNode>(EXPR_IDENTF, expect(TOKEN_IDENTF));
+					node = std::make_unique<IndexNode>(std::move(node), std::move(indexExpr), kind);
+				}
+			}
 			break;
 		}
 		case TOKEN_LPAR: {
@@ -291,8 +371,7 @@ namespace tea {
 			advance();
 			auto indexExpr = parseExpression();
 			expect(TOKEN_RBRAC);
-			node = std::make_unique<IndexNode>(std::move(node), std::move(indexExpr), true);
-			node->line = t->line; node->column = t->column;
+			node = std::make_unique<IndexNode>(std::move(node), std::move(indexExpr), 0);
 		}
 
 		return node;
@@ -477,7 +556,7 @@ namespace tea {
 					pushtree(WhileLoopNode, std::move(pred));
 					
 					if (t->type != TOKEN_KWORD || t->extra != KWORD_DO)
-						goto unexpected;
+						unexpected();
 					else
 						advance();
 
@@ -517,7 +596,7 @@ namespace tea {
 
 					expect(TOKEN_RPAR);
 					if (t->type != TOKEN_KWORD || t->extra != KWORD_DO)
-						goto unexpected;
+						unexpected();
 					else
 						advance();
 					pushtree(ForLoopNode, vars, std::move(pred), std::move(step));
@@ -535,7 +614,7 @@ namespace tea {
 					break;
 
 				default:
-					goto unexpected;
+					unexpected();
 				}
 			} break;
 
@@ -548,7 +627,7 @@ namespace tea {
 			} break;
 
 			case TOKEN_MUL:
-				if (!tryParseAssignment()) goto unexpected;
+				if (!tryParseAssignment()) unexpected();
 				else expect(TOKEN_SEMI);
 				break;
 
@@ -558,7 +637,6 @@ namespace tea {
 				break;
 
 			default:
-			unexpected:
 				unexpected();
 			}
 		}
@@ -607,9 +685,7 @@ namespace tea {
 		if (t->type != TOKEN_RPAR) {
 			do {
 				if (t->type == TOKEN_DOT && (t + 1)->type == TOKEN_DOT && (t + 2)->type == TOKEN_DOT) {
-					advance();
-					advance();
-					advance();
+					t += 3;
 					vararg = true;
 					break;
 				}
@@ -622,8 +698,7 @@ namespace tea {
 				args.emplace(type.first, argName);
 			} while (t->type == TOKEN_COMMA && t++);
 		}
-
-		expect(TOKEN_RPAR);
+		advance();
 
 		Type type;
 		if (t->type == TOKEN_ARROW) {
@@ -803,6 +878,7 @@ namespace tea {
 		pushnode(VariableNode, name, type, std::move(value));
 
 		auto vn = (VariableNode*)tree->data[tree->size - 1].get();
-		fn->prealloc.insert(vn, nullptr); // TODO: only variables inside loops should be preallocated
+		if (fn)
+			fn->prealloc.insert(vn, nullptr); // TODO: only variables inside loops should be preallocated
 	}
 }

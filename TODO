@@ -1,5 +1,5 @@
 TOOD list (in order):
-#. objects
+#. objects -> methods, deconstructor, virtual methods
 #. thread local storage
 #. macros				<-- fuckass
 #. cli
