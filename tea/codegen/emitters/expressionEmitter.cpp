@@ -37,7 +37,7 @@ namespace tea {
 				}
 			}
 
-			if (ltype != rtype)
+			if (LLVMGetTypeKind(ltype.llvm) != LLVMGetTypeKind(rtype.llvm) && !(LLVMGetTypeKind(ltype.llvm) == LLVMPointerTypeKind && LLVMGetTypeKind(rtype.llvm) == LLVMIntegerTypeKind))
 				TEA_PANIC("type mismatch in expression. line %d, column %d", node->line, node->column);
 
 			LLVMValueRef result;
@@ -47,6 +47,8 @@ namespace tea {
 					result = LLVMBuildAdd(block, lhs, rhs, "");
 				else if (ltype == Type::get(Type::FLOAT) || ltype == Type::get(Type::DOUBLE))
 					result = LLVMBuildFAdd(block, lhs, rhs, "");
+				else if (LLVMGetTypeKind(ltype.llvm) == LLVMPointerTypeKind)
+					result = LLVMBuildGEP(block, lhs, &rhs, 1, "");
 				else {
 					TEA_PANIC("unsupported types for addition. line %d, column %d", node->line, node->column);
 					TEA_UNREACHABLE();
@@ -58,6 +60,8 @@ namespace tea {
 					result = LLVMBuildSub(block, lhs, rhs, "");
 				else if (ltype == Type::get(Type::FLOAT) || ltype == Type::get(Type::DOUBLE))
 					result = LLVMBuildFSub(block, lhs, rhs, "");
+				else if (LLVMGetTypeKind(ltype.llvm) == LLVMPointerTypeKind)
+					result = LLVMBuildGEP(block, lhs, &rhs, 1, "");
 				else {
 					TEA_PANIC("unsupported types for subtraction. line %d, column %d", node->line, node->column);
 					TEA_UNREACHABLE();
@@ -327,7 +331,10 @@ namespace tea {
 
 				bool first = true;
 				char* context;
-				char* tok = strtok_s(node->value.data, "::", &context);
+				char* tmp = new char[node->value.size + 1];
+				memcpy_s(tmp, node->value.size + 1, node->value.data, node->value.size);
+				tmp[node->value.size] = '\0';
+				char* tok = strtok_s(tmp, "::", &context); // bumass function modifies the passed buffer
 				while (tok != nullptr) {
 					char* next = strtok_s(nullptr, "::", &context);
 
@@ -340,6 +347,8 @@ namespace tea {
 								*ptr = true;
 							return { LLVMTypeOf(*it), *it };
 						}
+						else
+							TEA_PANIC("'%s' is not a valid member of module '%s'. line %d, column %d", next, tok, node->line, node->column); // next has junk after the actual context
 						first = false;
 					}
 
@@ -541,7 +550,7 @@ namespace tea {
 				int idx = 0;
 				bool found = false;
 				for (const auto& field : obj->fields) {
-					if (field->storage == STORAGE_PUBLIC && field->name == indexNode->right->value) {
+					if ((inClassContext || field->storage == STORAGE_PUBLIC) && field->name == indexNode->right->value) {
 						found = true;
 						break;
 					}

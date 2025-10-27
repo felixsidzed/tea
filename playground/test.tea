@@ -1,23 +1,33 @@
 using "io";
+using "memory";
+using "string";
 
 class Test
-	public var a: int;
-	private var b: int;
+	private var data: string;
 
-	Test(int x)
-		a = x;
-		b = 41;
+	Test(string data)
+		this->data = data;
 	end
 
-	public func compute() -> int
-		return a - b;
+	~Test()
+		io::print("deconstructor called\n");
+		memory::free(data);
+	end
+
+	public func size() -> int
+		return string::len(data);
 	end
 end
 
 public func main()
-	var ts: Test = Test(67);
-	io::printf("result = %d\n", ts.compute());
-	var x: func(int)(Test*) = ts.compute;
+	var ptr: string = memory::alloc(4);
+	*ptr = 'a';
+	*(ptr + 1) = 'b';
+	*(ptr + 2) = 'c';
+	*(ptr + 3) = '\0';
+
+	var ts: Test = Test(ptr);
+	io::printf("length = %d\n", ts.size());
 
 	return 0;
 end

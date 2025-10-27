@@ -44,15 +44,16 @@ namespace tea {
 			if (!thingy.second) {
 				thingy = emitExpression(node->value);
 
-				char* context;
-				if (LLVMIsACallInst(thingy.second) && strcmp(strtok_s((char*)LLVMGetCalledValue(thingy.second), "`", &context), ".ctor")) {
-					thingy.first = LLVMGetAllocatedType(insn);
+				if (LLVMIsACallInst(thingy.second) && ".ctor`" + string(LLVMGetStructName(node->dataType.llvm)) == LLVMGetValueName(LLVMGetCalledValue(thingy.second))) {
+					thingy.first = node->dataType.llvm;
 					thingy.second = insn;
 				}
 			}
 			if (thingy.first != expected)
 				TEA_PANIC("variable initializer type (%s) is incompatible with variable type (%s). line %d, column %d",
 					type2readable(expected).data, type2readable(thingy.first).data, node->line, node->column);
+			if (thingy.second != insn)
+				LLVMBuildStore(block, thingy.second, insn);
 		}
 
 		self = nullptr;

@@ -72,7 +72,7 @@ namespace tea {
 #endif
 
 namespace tea {
-	void compile(const std::string& src, const char* output, const std::string& importLookup, bool is64Bit, bool verbose) {
+	void compile(const std::string& src, const string& output, const vector<const char*>& importLookup, bool is64Bit, bool verbose, uint8_t optimization) {
 		TEA_IS64BIT = is64Bit;
 		Type::convert.clear();
 
@@ -82,7 +82,7 @@ namespace tea {
 		const auto& root = parser.parse(tokens);
 
 		auto codegen = std::make_unique<tea::CodeGen>(verbose, importLookup);
-		codegen->emit(root, output);
+		codegen->emit(root, output, optimization);
 	}
 }
 

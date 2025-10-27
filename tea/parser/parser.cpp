@@ -27,10 +27,7 @@
 	treeHistory.pop(); \
 }
 
-#define advance() { \
-	if ((t++)->type == TOKEN_EOF) \
-		TEA_PANIC("unexpected EOF. line %d, column %d", (--t)->line, t->column); \
-}
+#define advance() t++
 #define expect(tt) _expect(t,tt)
 
 namespace tea {
@@ -140,30 +137,41 @@ namespace tea {
 							break;
 						}
 
+						bool dtor = false;
+						if (t->type == TOKEN_TILDA) {
+							dtor = true;
+							advance();
+						}
+							
 						if (t->type == TOKEN_IDENTF && t->value == name) {
 							advance();
 							expect(TOKEN_LPAR);
 
 							bool vararg = false;
 							vector<std::pair<Type, string>> args;
-							if (t->type != TOKEN_RPAR) {
-								do {
-									if (t->type == TOKEN_DOT && (t + 1)->type == TOKEN_DOT && (t + 2)->type == TOKEN_DOT) {
-										t += 3;
-										vararg = true;
-										break;
-									}
+							if (!dtor) {
+								if (t->type != TOKEN_RPAR) {
+									do {
+										if (t->type == TOKEN_DOT && (t + 1)->type == TOKEN_DOT && (t + 2)->type == TOKEN_DOT) {
+											t += 3;
+											vararg = true;
+											break;
+										}
 
-									const string& typeName = parseType();
-									auto type = Type::get(typeName);
-									if (!type.second)
-										TEA_PANIC("unknown type '%s'. line %d, column %d", typeName.data, (t - 1)->line, (t - 1)->column);
-									const string& argName = expect(TOKEN_IDENTF);
-									args.emplace(type.first, argName);
-								} while (t->type == TOKEN_COMMA && t++);
+										const string& typeName = parseType();
+										auto type = Type::get(typeName);
+										if (!type.second)
+											TEA_PANIC("unknown type '%s'. line %d, column %d", typeName.data, (t - 1)->line, (t - 1)->column);
+										const string& argName = expect(TOKEN_IDENTF);
+										args.emplace(type.first, argName);
+									} while (t->type == TOKEN_COMMA && t++);
+								}
 							}
 							advance();
-							pushtree(FunctionNode, STORAGE_PUBLIC, CC_AUTO, ".`ctor", args, LLVMPointerType(objTy, 0), vararg);
+							if (!dtor) {
+								pushtree(FunctionNode, STORAGE_PRIVATE, CC_AUTO, ".`ctor", args, LLVMPointerType(objTy, 0), vararg);
+							} else
+								pushtree(FunctionNode, STORAGE_PRIVATE, CC_AUTO, ".`dtor", args, LLVMVoidType(), vararg);
 							parseBlock();
 							methods.emplace((std::move((std::unique_ptr<FunctionNode>&)tree->data[--tree->size])));
 							while (t->type == TOKEN_NEWLINE) advance();
@@ -171,6 +179,10 @@ namespace tea {
 								advance();
 								break;
 							}
+							continue;
+						} else if (dtor) {
+							t--;
+							unexpected();
 						}
 
 						if (t->type != TOKEN_KWORD || (t->extra != KWORD_PUBLIC && t->extra != KWORD_PRIVATE))
@@ -299,21 +311,28 @@ namespace tea {
 			node = std::make_unique<ExpressionNode>(EXPR_IDENTF, value);
 			break;
 		}
+		case TOKEN_LPAR: {
+			advance();
+			auto expr = parseExpression();
+			expect(TOKEN_RPAR);
+			node = std::move(expr);
+			break;
+		}
 		case TOKEN_NOT: {
 			advance();
-			auto operand = parsePrimary();
+			auto operand = parseExpression();
 			node = std::make_unique<ExpressionNode>(EXPR_NOT, "", std::move(operand));
 			break;
 		}
 		case TOKEN_REF: {
 			advance();
-			auto operand = parsePrimary();
+			auto operand = parseExpression();
 			node = std::make_unique<ExpressionNode>(EXPR_REF, "", std::move(operand));
 			break;
 		}
 		case TOKEN_MUL: {
 			advance();
-			auto operand = parsePrimary();
+			auto operand = parseExpression();
 			node = std::make_unique<ExpressionNode>(EXPR_DEREF, "", std::move(operand));
 			break;
 		}

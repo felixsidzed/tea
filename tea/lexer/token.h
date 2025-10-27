@@ -35,6 +35,7 @@ namespace tea {
 
 		TOKEN_ARROW,
 		TOKEN_REF,
+		TOKEN_TILDA,
 
 		TOKEN_EQ,
 		TOKEN_NEQ,

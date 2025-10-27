@@ -22,7 +22,7 @@ namespace tea {
 		{LLVMIntegerTypeKind, "long"},
 	};
 
-	void CodeGen::emit(const Tree& tree, const char* output) {
+	void CodeGen::emit(const Tree& tree, const char* output, uint8_t optimization) {
 		LLVMInitializeNativeTarget();
 		LLVMInitializeNativeAsmPrinter();
 
@@ -79,11 +79,13 @@ namespace tea {
 
 		emitCode(tree);
 		
-		/*LLVMPassManagerRef pm = LLVMCreatePassManager();
-		LLVMPassManagerBuilderRef pmb = LLVMPassManagerBuilderCreate();
-		LLVMPassManagerBuilderSetOptLevel(pmb, 2);
-		LLVMPassManagerBuilderPopulateModulePassManager(pmb, pm);
-		LLVMRunPassManager(pm, module);*/
+		if (optimization > 0) {
+			LLVMPassManagerRef pm = LLVMCreatePassManager();
+			LLVMPassManagerBuilderRef pmb = LLVMPassManagerBuilderCreate();
+			LLVMPassManagerBuilderSetOptLevel(pmb, optimization);
+			LLVMPassManagerBuilderPopulateModulePassManager(pmb, pm);
+			LLVMRunPassManager(pm, module);
+		}
 
 		if (verbose) {
 			putchar('\n');
@@ -116,16 +118,24 @@ namespace tea {
 
 			case tnode(UsingNode): {
 				UsingNode* usingNode = (UsingNode*)node.get();
-				fs::path path = importLookup / std::string(usingNode->name + ".tea");
-				std::ifstream file(path);
-				if (!file.is_open())
-					TEA_PANIC("failed to import module '%s'", usingNode->name.data);
 
+				fs::path path;
+				std::ifstream file;
+				for (const auto& lookup : importLookup) {
+					path = std::string(usingNode->name + ".tea");
+					file.open(fs::path(lookup) / path);
+					if (file.is_open())
+						goto cont;
+				}
+				if (!file.is_open())
+					TEA_PANIC("failed to import module '%s': failed to open file", usingNode->name.data);
+				
+			cont:
 				try {
 					std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
 					Parser parser;
-					Tree tree = parser.parse(Lexer::tokenize(content));
+					Tree tree = parser.parse(Lexer::tokenize({ content.data(), (uint32_t)content.size()}));
 
 					ImportedModule importedModule;
 					for (const auto& node_ : tree) {

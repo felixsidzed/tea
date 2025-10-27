@@ -94,17 +94,9 @@ namespace tea {
 
 			} else if (!isalnum(c) && !isspace(c)) {
 				switch (c) {
-				case '(':
-					pushtok(TOKEN_LPAR);
-					break;
-
-				case ')':
-					pushtok(TOKEN_RPAR);
-					break;
-
-				case ';':
-					pushtok(TOKEN_SEMI);
-					break;
+				case '(': pushtok(TOKEN_LPAR); break;
+				case ')': pushtok(TOKEN_RPAR); break;
+				case ';': pushtok(TOKEN_SEMI); break;
 
 				case '-':
 					if (*(pos + 1) == '>') {
@@ -113,13 +105,8 @@ namespace tea {
 					} else pushtok(TOKEN_SUB);
 					break
 						;
-				case '+':
-					pushtok(TOKEN_ADD);
-					break;
-
-				case '*':
-					pushtok(TOKEN_MUL);
-					break;
+				case '+': pushtok(TOKEN_ADD); break;
+				case '*': pushtok(TOKEN_MUL); break;
 
 				case '/':
 					if (*(pos + 1) == '/') {
@@ -130,9 +117,7 @@ namespace tea {
 						pushtok(TOKEN_DIV);
 					break;
 
-				case '@':
-					pushtok(TOKEN_ATTR);
-					break;
+				case '@': pushtok(TOKEN_ATTR); break;
 
 				case '=':
 					if (*(pos + 1) == '=') {
@@ -241,6 +226,8 @@ namespace tea {
 						case '\\': value = '\\'; break;
 						case '\'': value = '\''; break;
 						case '\"': value = '\"'; break; 
+						// TODO: \number
+						case '0': value = '\0'; break;
 						default:
 							TEA_PANIC("invalid escape sequence in character literal: \\%c. line %d, column %d", *pos, line, col);
 						}
@@ -258,23 +245,11 @@ namespace tea {
 
 					container.push(Token{ TOKEN_CHAR, { &value }, 0, col, line });
 				} break;
-
-
-				case ',':
-					pushtok(TOKEN_COMMA);
-					break;
-
-				case '.':
-					pushtok(TOKEN_DOT);
-					break;
-
-				case '[':
-					pushtok(TOKEN_LBRAC);
-					break;
-
-				case ']':
-					pushtok(TOKEN_RBRAC);
-					break;
+				case ',': pushtok(TOKEN_COMMA); break;
+				case '.': pushtok(TOKEN_DOT); break;
+				case '[': pushtok(TOKEN_LBRAC); break;
+				case ']': pushtok(TOKEN_RBRAC); break;
+				case '~': pushtok(TOKEN_TILDA); break;
 
 				default:
 					goto unexpected;

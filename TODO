@@ -1,8 +1,7 @@
 TOOD list (in order):
-#. objects -> deconstructor, virtual methods
+#. objects -> virtual methods
 #. thread local storage
 #. macros				<-- fuckass
-#. cli
 #. linux support
 #. jit
 #. repl

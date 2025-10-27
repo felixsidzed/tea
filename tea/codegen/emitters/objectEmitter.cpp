@@ -40,6 +40,10 @@ namespace tea {
 		LLVMAppendBasicBlock(ctor, "entry");
 		LLVMSetValueName(LLVMGetParam(ctor, 0), "this");
 
+		LLVMValueRef dtor = LLVMAddFunction(module, ".dtor`" + node->name, LLVMFunctionType(LLVMVoidType(), &pstruct, 1, false));
+		LLVMAppendBasicBlock(dtor, "entry");
+		LLVMSetValueName(LLVMGetParam(dtor, 0), "this");
+
 		auto createMethodContext = [this, node, pstruct](LLVMValueRef func, FunctionNode* method, vector<std::pair<Type, string>>& args) {
 			if (!block || LLVMGetBasicBlockParent(LLVMGetInsertBlock(block)) != func)
 				LLVMPositionBuilderAtEnd(block, LLVMAppendBasicBlock(func, "entry"));
@@ -67,7 +71,9 @@ namespace tea {
 			curArgs = nullptr;
 			locals.clear();
 		};
-		
+
+		block = LLVMCreateBuilder();
+		inClassContext = true;
 		for (const auto& method : node->methods) {
 			if (method->name == ".`ctor") {
 				vector<std::pair<Type, string>> args;
@@ -90,7 +96,26 @@ namespace tea {
 				delMethodContext();
 				if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
 					LLVMBuildRetVoid(block);
-				LLVMDisposeBuilder(block);
+			} else if (method->name == ".`dtor") {
+				vector<std::pair<Type, string>> args;
+				LLVMPositionBuilderAtEnd(block, LLVMGetLastBasicBlock(dtor));
+				createMethodContext(dtor, method.get(), args);
+				if (!method->prealloc.empty()) {
+					LLVMPositionBuilderAtEnd(block, LLVMGetEntryBasicBlock(func));
+
+					for (auto& [paNode, prealloc] : method->prealloc)
+						if (paNode->dataType.llvm)
+							prealloc = LLVMBuildAlloca(block, paNode->dataType.llvm, "prealloc." + paNode->name);
+
+					fnPrealloc = &method->prealloc;
+					emitBlock(method->body, "entry", nullptr);
+					fnPrealloc = nullptr;
+				}
+				else
+					emitBlock(method->body, "entry", nullptr);
+				delMethodContext();
+				if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
+					LLVMBuildRetVoid(block);
 			} else {
 				vector<LLVMTypeRef> argTypes;
 				argTypes.emplace(pstruct);
@@ -149,8 +174,9 @@ namespace tea {
 						else LLVMBuildRetVoid(block);
 					}
 				}
-				LLVMDisposeBuilder(block);
 			}
 		}
+		LLVMDisposeBuilder(block);
+		inClassContext = false;
 	}
 }

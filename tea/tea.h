@@ -1,6 +1,9 @@
 #pragma once
 
-#include <string>
+#include <cstring>
+
+#include "string.h"
+#include "vector.h"
 
 struct Configuration {
 	void(*panic)(const char* message, ...);
@@ -10,7 +13,7 @@ struct Configuration {
 namespace tea {
 	extern Configuration configuration;
 
-	extern void compile(const std::string& src, const char* output, const std::string& importLookup = ".", bool is64Bit = true, bool verbose = false);
+	extern void compile(const std::string& src, const string& output, const vector<const char*>& importLookup = {"."}, bool is64Bit = true, bool verbose = false, uint8_t optimization = 2);
 }
 
 #if defined(__clang__) && defined(__has_warning)

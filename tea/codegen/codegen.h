@@ -14,15 +14,14 @@
 namespace tea {
 	namespace fs = std::filesystem;
 
-	// TODO: reordering verbose/importLookup/objects seems to break field construction, for some reason??
 	class CodeGen {
 	public:
-		fs::path importLookup{};
+		vector<const char*> importLookup;
 		bool verbose = false;
 
-		CodeGen(bool verbose = false, const fs::path& importLookup = ".") : verbose(verbose), importLookup(importLookup) {}
+		CodeGen(bool verbose = false, const vector<const char*>& importLookup = {"."}) : verbose(verbose), importLookup(importLookup) {}
 
-		void emit(const Tree& tree, const char* output);
+		void emit(const Tree& tree, const char* output, uint8_t optimization = 2);
 
 	private:
 		typedef map<string, LLVMValueRef> ImportedModule;
@@ -33,6 +32,7 @@ namespace tea {
 			LLVMValueRef allocated;
 		};
 
+		bool inClassContext = false;
 		bool fnDeduceRetTy = false;
 		bool hasNoNamespaceFunctions = false;
 

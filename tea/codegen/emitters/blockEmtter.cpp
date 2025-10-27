@@ -14,6 +14,16 @@ namespace tea {
 			LLVMPositionBuilderAtEnd(block, _); 
 		}
 
+		auto releaseAll = [this]() {
+			for (const auto& local : locals) {
+				if (LLVMIsAAllocaInst(local.allocated) && LLVMGetTypeKind(LLVMGetAllocatedType(local.allocated)) == LLVMStructTypeKind) {
+					LLVMValueRef dtor = LLVMGetNamedFunction(module, string(".dtor`") + LLVMGetStructName(LLVMGetAllocatedType(local.allocated)));
+					if (dtor)
+						LLVMBuildCall(block, dtor, (LLVMValueRef*)&local.allocated, 1, "");
+				}
+			}
+		};
+
 		for (const auto& node : root) {
 			switch (node->type) {
 			case tnode(ReturnNode): {
@@ -94,6 +104,7 @@ namespace tea {
 					}
 				}
 
+				releaseAll();
 				if (returnInto)
 					LLVMBuildStore(block, value, returnInto->second);
 				else
@@ -223,10 +234,12 @@ namespace tea {
 				if (exit) {
 					if (!breakTarget)
 						TEA_PANIC("attempt to 'break' outside of a loop. line %d, column %d", node->line, node->column);
+					releaseAll();
 					LLVMBuildBr(block, breakTarget);
 				} else {
 					if (!continueTarget)
 						TEA_PANIC("attempt to 'continue' outside of a loop. line %d, column %d", node->line, node->column);
+					releaseAll();
 					LLVMBuildBr(block, continueTarget);
 				}
 			} break;
@@ -236,6 +249,9 @@ namespace tea {
 			}
 		}
 
+		log("Leaving block '{}:{}', ({} local(s))", LLVMGetValueName(LLVMGetBasicBlockParent(LLVMGetInsertBlock(block))), name, locals.size - oldLocals.size);
+		if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
+			releaseAll();
 		locals = oldLocals;
 	}
 }
