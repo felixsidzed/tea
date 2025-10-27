@@ -53,13 +53,12 @@ namespace tea {
 
 			locals.clear();
 			int i = 0;
-			for (const auto& field : node->fields) {
+			for (const auto& field : node->fields)
 				locals.push({
 					.type = field->dataType,
 					.name = field->name,
 					.allocated = LLVMBuildStructGEP(block, LLVMGetParam(func, 0), i++, "")
 				});
-			}
 		};
 
 		auto delMethodContext = [this]() {
@@ -75,10 +74,81 @@ namespace tea {
 				block = LLVMCreateBuilder();
 				LLVMPositionBuilderAtEnd(block, LLVMGetLastBasicBlock(ctor));
 				createMethodContext(ctor, method.get(), args);
-				emitBlock(method->body, method->name.data, nullptr);
+				if (!method->prealloc.empty()) {
+					LLVMPositionBuilderAtEnd(block, LLVMGetEntryBasicBlock(func));
+
+					for (auto& [paNode, prealloc] : method->prealloc) {
+						if (paNode->dataType.llvm)
+							prealloc = LLVMBuildAlloca(block, paNode->dataType.llvm, "prealloc." + paNode->name);
+					}
+
+					fnPrealloc = &method->prealloc;
+					emitBlock(method->body, "entry", nullptr);
+					fnPrealloc = nullptr;
+				} else
+					emitBlock(method->body, "entry", nullptr);
 				delMethodContext();
 				if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block)))
 					LLVMBuildRetVoid(block);
+				LLVMDisposeBuilder(block);
+			} else {
+				vector<LLVMTypeRef> argTypes;
+				argTypes.emplace(pstruct);
+				for (const auto& arg : method->args)
+					argTypes.emplace(arg.first.llvm);
+				LLVMValueRef fn = LLVMAddFunction(module, method->name + "`" + node->name, LLVMFunctionType(method->returnType.llvm, argTypes.data, argTypes.size, method->vararg));
+				if (method->cc != CC_AUTO)
+					LLVMSetFunctionCallConv(func, cc2llvm[method->cc]);
+
+				if (method->storage == STORAGE_PRIVATE)
+					LLVMSetLinkage(func, LLVMPrivateLinkage);
+
+				int i = 0;
+				for (const auto& arg : method->args)
+					LLVMSetValueName(LLVMGetParam(func, i++), arg.second);
+
+				bool noreturn = false;
+				for (const auto& attr : method->attrs) {
+					if (attr < ATTR__LLVM_COUNT) {
+						LLVMAddAttributeAtIndex(func, LLVMAttributeFunctionIndex, LLVMCreateEnumAttribute(LLVMGetGlobalContext(), attr2llvm[attr], 0));
+						if (attr == LLVMNoReturnAttributeKind)
+							noreturn = true;
+					}
+					else if (attr == ATTR_NONAMESPACE)
+						hasNoNamespaceFunctions = true;
+				}
+
+				vector<std::pair<Type, string>> args;
+				block = LLVMCreateBuilder();
+				LLVMPositionBuilderAtEnd(block, LLVMAppendBasicBlock(fn, "entry"));
+				createMethodContext(fn, method.get(), args);
+				if (!method->prealloc.empty()) {
+					{
+						LLVMBasicBlockRef _ = LLVMAppendBasicBlock(func, "entry");
+						block = LLVMCreateBuilder();
+						LLVMPositionBuilderAtEnd(block, _);
+					}
+
+					for (auto& [paNode, prealloc] : method->prealloc) {
+						if (paNode->dataType.llvm)
+							prealloc = LLVMBuildAlloca(block, paNode->dataType.llvm, "prealloc." + paNode->name);
+					}
+
+					fnPrealloc = &method->prealloc;
+					emitBlock(method->body, "entry", nullptr);
+					fnPrealloc = nullptr;
+				}
+				else
+					emitBlock(method->body, "entry", nullptr);
+				delMethodContext();
+				if (!LLVMGetBasicBlockTerminator(LLVMGetInsertBlock(block))) {
+					if (LLVMGetTypeKind(method->returnType.llvm) != LLVMVoidTypeKind)
+						TEA_PANIC("control reaches end of non-void function");
+					else {
+						if (noreturn) LLVMBuildUnreachable(block);
+						else LLVMBuildRetVoid(block);
+					}
+				}
 				LLVMDisposeBuilder(block);
 			}
 		}

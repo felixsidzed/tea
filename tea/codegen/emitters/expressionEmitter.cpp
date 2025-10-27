@@ -15,17 +15,16 @@ namespace tea {
 				if (!LLVMIsConstant(rhs))
 					TEA_PANIC("value is not a constant expression. line %d, column %d", node->right->line, node->right->column);
 
-				if (ltype == Type::get(Type::INT).llvm) {
+				if (LLVMGetTypeKind(ltype.llvm) == LLVMIntegerTypeKind) {
 					uint64_t lval = LLVMConstIntGetSExtValue(lhs);
 					uint64_t rval = LLVMConstIntGetSExtValue(rhs);
 					switch (node->etype) {
-					case EXPR_ADD: return { ltype, LLVMConstInt(Type::get(Type::INT).llvm, lval + rval, ltype.sign) };
-					case EXPR_SUB: return { ltype, LLVMConstInt(Type::get(Type::INT).llvm, lval - rval, ltype.sign) };
-					case EXPR_MUL: return { ltype, LLVMConstInt(Type::get(Type::INT).llvm, lval * rval, ltype.sign) };
-					case EXPR_DIV: return { ltype, LLVMConstInt(Type::get(Type::INT).llvm, lval / rval, ltype.sign) };
+					case EXPR_ADD: return { ltype, LLVMConstInt(ltype.llvm, lval + rval, ltype.sign) };
+					case EXPR_SUB: return { ltype, LLVMConstInt(ltype.llvm, lval - rval, ltype.sign) };
+					case EXPR_MUL: return { ltype, LLVMConstInt(ltype.llvm, lval * rval, ltype.sign) };
+					case EXPR_DIV: return { ltype, LLVMConstInt(ltype.llvm, lval / rval, ltype.sign) };
 					}
-				}
-				else if (ltype == Type::get(Type::FLOAT) || ltype == Type::get(Type::DOUBLE)) {
+				} else if (ltype == LLVMFloatType() || ltype == LLVMDoubleType()) {
 					LLVMBool _;
 					double lval = LLVMConstRealGetDouble(lhs, &_);
 					double rval = LLVMConstRealGetDouble(rhs, &_);
@@ -42,7 +41,6 @@ namespace tea {
 				TEA_PANIC("type mismatch in expression. line %d, column %d", node->line, node->column);
 
 			LLVMValueRef result;
-
 			switch (node->etype) {
 			case EXPR_ADD: {
 				if (LLVMGetTypeKind(ltype.llvm) == LLVMIntegerTypeKind)
@@ -129,7 +127,7 @@ namespace tea {
 		case EXPR_CHAR: {
 			return {
 				Type::get(Type::CHAR),
-				LLVMConstInt(Type::get(Type::CHAR).llvm, node->value[0], true)
+				LLVMConstInt(LLVMInt8Type(), node->value[0], true)
 			};
 		}
 
@@ -138,10 +136,15 @@ namespace tea {
 				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
 
 			CallNode* call = (CallNode*)node.get();
+
 			vector<LLVMValueRef> args;
 			vector<LLVMTypeRef> argTypes;
-			if (self) args.push(self);
+			if (self) {
+				args.push(self);
+				argTypes.push(LLVMTypeOf(self));
+			}
 			args.reserve(args.size + call->args.size);
+			argTypes.reserve(args.size);
 
 			for (const auto& arg : call->args) {
 				auto [t, v] = emitExpression(arg);
@@ -149,95 +152,32 @@ namespace tea {
 				args.push(v);
 			}
 
-			LLVMValueRef callee = nullptr;
-			if (call->scope.size == 0) {
-				// callee is stored in ExpressionNode::value
-				callee = LLVMGetNamedFunction(module, call->value);
-				if (!callee && self) {
-					// TODO: check argment types
-					callee = LLVMGetNamedFunction(module, ".ctor`" + call->value);
-					if (callee) {
-						LLVMBuildCall(block, callee, args.data, args.size, "");
-						return { LLVMGetElementType(LLVMTypeOf(self)), self };
-					}
+			// TODO: improve
+			LLVMValueRef prevSelf = self;
+			auto [calleeType, callee] = emitExpression(call->callee);
+			if (!prevSelf && self) {
+				vector<LLVMTypeRef> tmp1;
+				vector<LLVMValueRef> tmp2;
+				tmp2.push(self);
+				tmp1.push(LLVMTypeOf(self));
+				for (uint32_t i = 0; i < args.size; i++) {
+					tmp1.push(argTypes[i]);
+					tmp2.push(args[i]);
 				}
-
-				if (!callee) {
-					auto it = inlineables.find(call->value);
-					if (it) { // TODO: improve
-						FunctionNode* funcNode = *it;
-
-						LLVMTypeRef returnType = funcNode->returnType.llvm;
-						if (!returnType)
-							TEA_PANIC("can't inline '%s' because the return type is unknown", funcNode->name.data);
-						LLVMValueRef returnValue = nullptr;
-						if (LLVMGetTypeKind(returnType) != LLVMVoidTypeKind)
-							returnValue = LLVMBuildAlloca(block, returnType, ""); // TODO: force this to be in rax
-
-						vector<std::pair<Type, string>>* oldCurArgs = curArgs;
-
-						argsMap = &args;
-						curArgs = &funcNode->args;
-
-						std::pair<LLVMTypeRef, LLVMValueRef> returnInto = { returnType, returnValue };
-						emitBlock(funcNode->body, ".`inlinedfunction", nullptr, &returnInto);
-
-						argsMap = nullptr;
-						curArgs = oldCurArgs;
-
-						if (!returnValue)
-							return { returnType, LLVMConstNull(LLVMPointerType(LLVMVoidType(), 0)) };
-						else {
-							if (ptr) {
-								*ptr = true;
-								return { LLVMTypeOf(returnValue), returnValue, };
-							} else
-								return { returnType, LLVMBuildLoad(block, returnValue, "") };
-						}
-						
-					} else if (hasNoNamespaceFunctions) {
-						for (const auto& [name, mod] : modules) {
-							auto it2 = mod.find(call->value);
-							if (it2) {
-								callee = *it2;
-								break;
-							}
-						}
-					}
-				}
-
-			} else if (call->scope.size == 1) {
-				const string& scope = call->scope[0];
-				auto it = modules.find(scope);
-				if (it) {
-					auto& imported = *it;
-					auto it2 = imported.find(call->value);
-					if (it2)
-						callee = *it2;
-				}
-			} else
-				TEA_PANIC("deep scopes are not yet implemented. line &d, column %d", node->line, node->column);
-
-			if (!callee) {
-				std::string fqn;
-				if (!call->scope.empty()) {
-					for (const auto& s : call->scope) {
-						fqn.append(s);
-						fqn.append(2, ':');
-					}
-				}
-				fqn += call->value;
-
-				TEA_PANIC("call to undefined function '%s'. line %d, column %d", fqn.c_str(), node->line, node->column);
+				args = tmp2;
+				argTypes = tmp1;
 			}
+			if (LLVMGetTypeKind(calleeType.llvm) != LLVMPointerTypeKind || LLVMGetTypeKind(LLVMGetElementType(calleeType.llvm)) != LLVMFunctionTypeKind)
+				TEA_PANIC("cannot call a value of type '%s'. line %d, column %d", type2readable(calleeType).data, node->line, node->column);
 
-			LLVMTypeRef ftype = LLVMGlobalGetValueType(callee);
+			LLVMTypeRef ftype = LLVMGetElementType(calleeType.llvm);
 			uint32_t nargs = LLVMCountParamTypes(ftype);
+
+			if ((LLVMIsFunctionVarArg(ftype) && nargs > args.size) || (!LLVMIsFunctionVarArg(ftype) && nargs != args.size))
+				TEA_PANIC("argument count mismatch. expected atleast %d, got %d. line %d, column %d", nargs, args.size, node->line, node->column);
+
 			LLVMTypeRef* calleeArgTypes = new LLVMTypeRef[nargs + 1];
 			LLVMGetParamTypes(ftype, calleeArgTypes);
-
-			if ((!LLVMIsFunctionVarArg(ftype) && nargs != argTypes.size) || (LLVMIsFunctionVarArg(ftype) && nargs > argTypes.size))
-				TEA_PANIC("argument count mismatch. expected %d, got %d. line %d, column %d", nargs, argTypes.size, node->line, node->column);
 
 			for (uint32_t i = 0; i < nargs; i++) {
 				LLVMTypeRef got = argTypes[i];
@@ -275,105 +215,138 @@ namespace tea {
 		}
 
 		case EXPR_IDENTF: {
-			if (node->value == "true") {
-				return {
-					Type::get(Type::BOOL),
-					LLVMConstInt(Type::get(Type::BOOL).llvm, true, false)
-				};
-			} else if (node->value == "false") {
-				return {
-					Type::get(Type::BOOL),
-					LLVMConstInt(Type::get(Type::BOOL).llvm, false, false)
-				};
-			} else if (node->value == "null") {
-				auto pvoid = LLVMPointerType(Type::get(Type::VOID_).llvm, 0);
-				return {
-					pvoid,
-					LLVMConstNull(pvoid)
-				};
-			}
+			if (!strchr(node->value, ':')) {
+				if (node->value == "true") {
+					return {
+						Type::get(Type::BOOL),
+						LLVMConstInt(LLVMInt1Type(), true, false)
+					};
+				} else if (node->value == "false") {
+					return {
+						Type::get(Type::BOOL),
+						LLVMConstInt(LLVMInt1Type(), false, false)
+					};
+				} else if (node->value == "null") {
+					LLVMTypeRef pvoid = LLVMPointerType(LLVMVoidType(), 0);
+					return {
+						pvoid,
+						LLVMConstNull(pvoid)
+					};
+				}
 
-			if (constant)
-				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
+				if (constant)
+					TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
 
-			LLVMValueRef global = LLVMGetNamedGlobal(module, node->value);
-			if (global) {
-				if (ptr) {
-					*ptr = true;
-					return { LLVMTypeOf(global), global };
-				} else
-					return { LLVMGlobalGetValueType(global), LLVMBuildLoad(block, global, "") };
-			}
+				LLVMValueRef global = LLVMGetNamedGlobal(module, node->value);
+				if (global) {
+					if (ptr) {
+						*ptr = true;
+						return { LLVMTypeOf(global), global };
+					} else
+						return { LLVMGlobalGetValueType(global), LLVMBuildLoad(block, global, "") };
+				}
 
-			global = LLVMGetNamedFunction(module, node->value);
-			if (global) {
-				if (ptr)
-					*ptr = true;
-				return { LLVMTypeOf(global), global};
-			}
+				global = LLVMGetNamedFunction(module, node->value);
+				if (global) {
+					if (ptr)
+						*ptr = true;
+					return { LLVMTypeOf(global), global};
+				} else {
+					global = LLVMGetNamedFunction(module, ".ctor`" + node->value);
+					if (global)
+						return { LLVMTypeOf(global), global };
+				}
 
-			uint32_t i = 0;
-			for (const auto& arg : *curArgs) {
-				if (arg.second == node->value) {
-					if (i < LLVMCountParams(func)) {
-						LLVMValueRef fnArg = LLVMGetParam(func, i);
-						if (fnArg) {
-							LLVMTypeRef type = LLVMTypeOf(fnArg);
+				uint32_t i = 0;
+				for (const auto& arg : *curArgs) {
+					if (arg.second == node->value) {
+						if (i < LLVMCountParams(func)) {
+							LLVMValueRef fnArg = LLVMGetParam(func, i);
+							if (fnArg) {
+								LLVMTypeRef type = LLVMTypeOf(fnArg);
+								if (ptr) {
+									*ptr = true;
+									LLVMValueRef addr = LLVMBuildAlloca(block, type, "");
+									LLVMBuildStore(block, fnArg, addr);
+									return { LLVMTypeOf(addr), addr };
+								}
+								else
+									return { type, fnArg };
+							}
+						}
+
+						if (argsMap) {
+							LLVMValueRef mapped = argsMap->operator[](i);
+							LLVMTypeRef type = LLVMTypeOf(mapped);
 							if (ptr) {
 								*ptr = true;
 								LLVMValueRef addr = LLVMBuildAlloca(block, type, "");
-								LLVMBuildStore(block, fnArg, addr);
+								LLVMBuildStore(block, mapped, addr);
 								return { LLVMTypeOf(addr), addr };
 							}
-							else
-								return { type, fnArg };
+							else {
+								return { type, mapped };
+							}
 						}
 					}
+					i++;
+				}
 
-					if (argsMap) {
-						LLVMValueRef mapped = argsMap->operator[](i);
-						LLVMTypeRef type = LLVMTypeOf(mapped);
+				for (const auto& local : locals) {
+					if (local.name == node->value) {
+						LLVMTypeRef type = local.type.llvm;
 						if (ptr) {
 							*ptr = true;
-							LLVMValueRef addr = LLVMBuildAlloca(block, type, "");
-							LLVMBuildStore(block, mapped, addr);
-							return { LLVMTypeOf(addr), addr };
-						}
-						else {
-							return { type, mapped };
+							return { LLVMTypeOf(local.allocated), local.allocated };
+						} else {
+							LLVMValueRef value = nullptr;
+							if (LLVMGetTypeKind(type) == LLVMArrayTypeKind) {
+								LLVMValueRef zero = LLVMConstInt(LLVMInt32Type(), 0, 0);
+								LLVMValueRef idx[] = { zero, zero };
+								value = LLVMBuildInBoundsGEP(block, local.allocated, idx, _countof(idx), "");
+								type = LLVMTypeOf(value);
+							} else
+								value = LLVMBuildLoad(block, local.allocated, "");
+
+							return { type, value };
 						}
 					}
 				}
-				i++;
-			}
+			} else {
+				if (constant)
+					TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
 
-			for (const auto& local : locals) {
-				if (local.name == node->value) {
-					LLVMTypeRef type = local.type.llvm;
+				LLVMValueRef global = LLVMGetNamedGlobal(module, node->value);
+				if (global) {
 					if (ptr) {
 						*ptr = true;
-						return {
-							LLVMTypeOf(local.allocated),
-							local.allocated
-						};
-					} else {
-						LLVMValueRef value = nullptr;
-						if (LLVMGetTypeKind(type) == LLVMArrayTypeKind) {
-							LLVMValueRef zero = LLVMConstInt(LLVMInt32Type(), 0, 0);
-							LLVMValueRef idx[] = { zero, zero };
-							value = LLVMBuildInBoundsGEP(block, local.allocated, idx, _countof(idx), "");
-							type = LLVMTypeOf(value);
-						} else
-							value = LLVMBuildLoad(block, local.allocated, "");
+						return { LLVMTypeOf(global), global };
+					} else
+						return { LLVMGlobalGetValueType(global), LLVMBuildLoad(block, global, "") };
+				}
 
-						return {
-							type,
-							value
-						};
+				bool first = true;
+				char* context;
+				char* tok = strtok_s(node->value.data, "::", &context);
+				while (tok != nullptr) {
+					char* next = strtok_s(nullptr, "::", &context);
+
+					if (!first)
+						TEA_PANIC("deep scopes are not yet implemented. line %d, column %d", node->line, node->column);
+					else {
+						ImportedModule& mod = modules[tok];
+						if (auto* it = mod.find(next)) {
+							if (ptr)
+								*ptr = true;
+							return { LLVMTypeOf(*it), *it };
+						}
+						first = false;
 					}
+
+					tok = strtok_s(nullptr, "::", &context);
 				}
 			}
-			
+
 			TEA_PANIC("'%s' is not defined. line %d, column %d", node->value.data, node->line, node->column);
 			TEA_UNREACHABLE();
 		} break;
@@ -507,10 +480,7 @@ namespace tea {
 			if (!ptr)
 				TEA_PANIC("value cannot be referenced. line %d, column %d", node->line, node->column);
 
-			return {
-				LLVMIsAGlobalValue(value) ? LLVMGlobalGetValueType(value) : LLVMTypeOf(value),
-				value
-			};
+			return { LLVMIsAGlobalValue(value) ? LLVMGlobalGetValueType(value) : LLVMTypeOf(value), value };
 		} break;
 
 		case EXPR_DEREF: {
@@ -523,15 +493,9 @@ namespace tea {
 
 			if (ptr) {
 				*ptr = true;
-				return {
-					type.llvm,
-					value
-				};
+				return { type.llvm, value };
 			} else
-				return {
-					LLVMGetElementType(type.llvm),
-					LLVMBuildLoad(block, value, "")
-				};
+				return { LLVMGetElementType(type.llvm), LLVMBuildLoad(block, value, "") };
 		} break;
 
 		case EXPR_CAST: {
@@ -552,47 +516,56 @@ namespace tea {
 
 			Type lhsType;
 			LLVMValueRef lhs;
-			if (indexNode->value[0] == 0)
-				std::tie(lhsType, lhs) = emitExpression(indexNode->val);
-			else {
+			if (indexNode->value[0] == 1) {
 				bool ptr = false;
-				std::tie(lhsType, lhs) = emitExpression(indexNode->val, false, &ptr);
-			}
+				std::tie(lhsType, lhs) = emitExpression(indexNode->left, false, &ptr);
+			} else
+				std::tie(lhsType, lhs) = emitExpression(indexNode->left);
 			
 			if (LLVMGetTypeKind(lhsType.llvm) != LLVMPointerTypeKind)
 				TEA_PANIC("cannot index a value of type '%s'", type2readable(lhsType).data, node->line, node->column);
 
 			if (indexNode->value[0] == 0) {
-				auto [idxType, idx] = emitExpression(indexNode->idx);
+				auto [idxType, idx] = emitExpression(indexNode->right);
 				if (ptr) {
 					*ptr = true;
 					return { lhsType.llvm, LLVMBuildGEP(block, lhs, &idx, 1, "") };
-				}
-				else
+				} else
 					return { LLVMGetElementType(lhsType.llvm), LLVMBuildLoad(block, LLVMBuildGEP(block, lhs, &idx, 1, ""), "") };
 			} else {
 				LLVMTypeRef t = LLVMGetElementType(lhsType.llvm);
-				if (indexNode->value[0] == 2) {
-					t = LLVMGetElementType(t);
-					lhs = LLVMBuildLoad(block, lhs, "");
-				}
 				ObjectNode* obj = objects[t];
 				if (!obj)
 					TEA_PANIC("cannot index a value of type '%s'. line %d, column %d", type2readable(lhsType).data, node->line, node->column);
 
 				int idx = 0;
+				bool found = false;
 				for (const auto& field : obj->fields) {
-					if (field->name == indexNode->idx->value)
+					if (field->storage == STORAGE_PUBLIC && field->name == indexNode->right->value) {
+						found = true;
 						break;
+					}
 					idx++;
 				}
 
-				LLVMValueRef val = LLVMBuildStructGEP(block, lhs, idx, "");
-				if (ptr)
-					*ptr = true;
-				else
-					val = LLVMBuildLoad(block, val, "");
-				return { LLVMTypeOf(val), val };
+				if (found) {
+					LLVMValueRef val = LLVMBuildStructGEP(block, lhs, idx, "");
+					if (ptr)
+						*ptr = true;
+					else
+						val = LLVMBuildLoad(block, val, "");
+					return { LLVMTypeOf(val), val };
+				} else {
+					LLVMValueRef val = nullptr;
+					for (const auto& method : obj->methods)
+						if (method->name == indexNode->right->value)
+							val = LLVMGetNamedFunction(module, indexNode->right->value + "`" + LLVMGetStructName(t));
+					if (!val)
+						TEA_PANIC("'%s' is not a valid member of object '%s'. line %d, column %d", indexNode->right->value.data, type2readable(t).data, node->line, node->column);
+					if (LLVMGetTypeKind(LLVMTypeOf(val)) == LLVMPointerTypeKind && LLVMGetTypeKind(LLVMGetElementType(LLVMTypeOf(val))) == LLVMFunctionTypeKind)
+						self = lhs; // 99% chance this is a method call
+					return { LLVMTypeOf(val), val };
+				}
 			}
 		} break;
 
@@ -643,6 +616,6 @@ namespace tea {
 		invalid:
 			TEA_PANIC("invalid expression. line %d, column %d", node->line, node->column);
 			TEA_UNREACHABLE();
- 		}
+		}
 	}
 }

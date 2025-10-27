@@ -2,19 +2,22 @@ using "io";
 
 class Test
 	public var a: int;
+	private var b: int;
 
 	Test(int x)
-		this->a = x;
+		a = x;
+		b = 41;
 	end
 
-	//public func compute() -> int
-	//	return a + b;
-	//end
+	public func compute() -> int
+		return a - b;
+	end
 end
 
 public func main()
 	var ts: Test = Test(67);
-	io::printf("Test.a = %d\n", ts.a);
+	io::printf("result = %d\n", ts.compute());
+	var x: func(int)(Test*) = ts.compute;
 
 	return 0;
 end

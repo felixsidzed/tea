@@ -41,13 +41,18 @@ namespace tea {
 
 		log("Emitting local '{}' of type '{}' (initialized = {})", node->name.data, type2readable(node->dataType), node->value != nullptr);
 		if (node->value != nullptr) {
-			if (!thingy.second)
+			if (!thingy.second) {
 				thingy = emitExpression(node->value);
+
+				char* context;
+				if (LLVMIsACallInst(thingy.second) && strcmp(strtok_s((char*)LLVMGetCalledValue(thingy.second), "`", &context), ".ctor")) {
+					thingy.first = LLVMGetAllocatedType(insn);
+					thingy.second = insn;
+				}
+			}
 			if (thingy.first != expected)
 				TEA_PANIC("variable initializer type (%s) is incompatible with variable type (%s). line %d, column %d",
 					type2readable(expected).data, type2readable(thingy.first).data, node->line, node->column);
-			if (LLVMGetTypeKind(expected) != LLVMStructTypeKind)
-				LLVMBuildStore(block, thingy.second, insn);
 		}
 
 		self = nullptr;

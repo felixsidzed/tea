@@ -2,7 +2,7 @@
 
 #include "tea/tea.h"
 
-#define pushtokex(t,v,l,e) container.push(Token{(t),{(v),unsigned(l)},e,unsigned(l),col,line})
+#define pushtokex(t,v,l,e) container.push(Token{(t),{(v),unsigned(l)},e,col,line})
 #define pushtokv(t,v) pushtokex(t,v,pos-(v),0)
 #define pushtok(t) pushtokex(t,pos,1,0)
 
@@ -223,7 +223,7 @@ namespace tea {
 						pos++;
 					}
 
-					container.push(Token{ TOKEN_STRING, { buffer.c_str(), uint32_t(pos - start) - escaped }, 0, uint32_t(pos - start) - escaped, col, line });
+					container.push(Token{ TOKEN_STRING, { buffer.c_str(), uint32_t(pos - start) - escaped }, 0, col, line });
 				} break;
 
 				case '\'': {
@@ -256,7 +256,7 @@ namespace tea {
 					if (*pos != '\'')
 						TEA_PANIC("multi-character literal or missing closing quote. line %d, column %d", line, col);
 
-					container.push(Token{ TOKEN_CHAR, { &value }, 0, uint32_t(pos - start), col, line });
+					container.push(Token{ TOKEN_CHAR, { &value }, 0, col, line });
 				} break;
 
 
@@ -289,7 +289,7 @@ namespace tea {
 			col++;
 		}
 
-		container.push(Token{ TOKEN_EOF, "", 0, 1, 0, line });
+		container.push(Token{ TOKEN_EOF, "", 0, 0, line });
 		return container;
 	}
 

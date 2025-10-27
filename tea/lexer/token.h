@@ -71,7 +71,6 @@ namespace tea {
 		const string value;
 		int extra;
 
-		uint32_t length;
 		uint32_t column;
 		uint32_t line;
 	};

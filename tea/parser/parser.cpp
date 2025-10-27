@@ -189,6 +189,10 @@ namespace tea {
 							VariableNode* field = (VariableNode*)tree->data[tree->size - 1].get();
 							fields.emplace(std::make_unique<GlobalVariableNode>(storage, field->name, field->dataType, std::move(field->value)));
 							tree->pop();
+						} else if (t->extra == KWORD_FUNC || isCC((enum KeywordType)t->extra)) {
+							t--;
+							parseFuncFull();
+							methods.emplace(std::move((std::unique_ptr<FunctionNode>&)tree->data[--tree->size]));
 						} else
 							unexpected();
 					}
@@ -279,53 +283,20 @@ namespace tea {
 		}
 		case TOKEN_CHAR: {
 			node = std::make_unique<ExpressionNode>(EXPR_CHAR, t->value);
-			node->line = t->line; node->column = t->column;
 			advance();
 			break;
 		}
 		case TOKEN_IDENTF: {
-			vector<string> scope;
 			string value = t->value;
 			advance();
 			while (t->type == TOKEN_SCOPE) {
 				advance();
 				if (t->type != TOKEN_IDENTF) unexpected();
-				scope.push(value);
-				value = t->value;
+				value += "::";
+				value += t->value;
 				advance();
 			}
-
-			if (t->type == TOKEN_LPAR) {
-				advance();
-				vector<std::unique_ptr<ExpressionNode>> args;
-				if (t->type != TOKEN_RPAR) {
-					while (true) {
-						args.push(parseExpression());
-						if (t->type == TOKEN_COMMA) {
-							advance();
-							continue;
-						}
-						break;
-					}
-				}
-				expect(TOKEN_RPAR);
-				node = std::make_unique<CallNode>(scope, value, std::move(args));
-			} else {
-				node = std::make_unique<ExpressionNode>(EXPR_IDENTF, value);
-				while (t->type == TOKEN_DOT || t->type == TOKEN_ARROW) {
-					uint8_t kind = 1 + (t->type == TOKEN_ARROW);
-					advance();
-					auto indexExpr = std::make_unique<ExpressionNode>(EXPR_IDENTF, expect(TOKEN_IDENTF));
-					node = std::make_unique<IndexNode>(std::move(node), std::move(indexExpr), kind);
-				}
-			}
-			break;
-		}
-		case TOKEN_LPAR: {
-			advance();
-			auto expr = parseExpression();
-			expect(TOKEN_RPAR);
-			node = std::move(expr);
+			node = std::make_unique<ExpressionNode>(EXPR_IDENTF, value);
 			break;
 		}
 		case TOKEN_NOT: {
@@ -367,11 +338,42 @@ namespace tea {
 
 		node->line = t->line; node->column = t->column;
 
-		while (t->type == TOKEN_LBRAC) {
-			advance();
-			auto indexExpr = parseExpression();
-			expect(TOKEN_RBRAC);
-			node = std::make_unique<IndexNode>(std::move(node), std::move(indexExpr), 0);
+		while (true) {
+			if (t->type == TOKEN_LPAR) {
+				advance();
+				vector<std::unique_ptr<ExpressionNode>> args;
+				if (t->type != TOKEN_RPAR) {
+					while (true) {
+						args.push(parseExpression());
+						if (t->type == TOKEN_COMMA) {
+							advance();
+							continue;
+						}
+						break;
+					}
+				}
+				expect(TOKEN_RPAR);
+				node = std::make_unique<CallNode>(std::move(node), std::move(args));
+				continue;
+			}
+
+			else if (t->type == TOKEN_LBRAC) {
+				advance();
+				auto indexExpr = parseExpression();
+				expect(TOKEN_RBRAC);
+				node = std::make_unique<IndexNode>(std::move(node), std::move(indexExpr), 0);
+				continue;
+			}
+
+			else if (t->type == TOKEN_DOT || t->type == TOKEN_ARROW) {
+				uint8_t kind = 1 + (t->type == TOKEN_ARROW);
+				advance();
+				auto member = std::make_unique<ExpressionNode>(EXPR_IDENTF, expect(TOKEN_IDENTF));
+				node = std::make_unique<IndexNode>(std::move(node), std::move(member), kind);
+				continue;
+			}
+
+			else break;
 		}
 
 		return node;
@@ -725,10 +727,15 @@ namespace tea {
 
 	string Parser::parseType(bool ignoreNl) {
 		string typeName;
-		string first = expect(TOKEN_IDENTF);
+		string first;
+		if (t->type == TOKEN_IDENTF || t->type == TOKEN_KWORD)
+			first = t->value;
+		else
+			unexpected();
+		advance();
 
 		if (first == "const") {
-			typeName += "const ";
+			typeName = "const ";
 			string next = expect(TOKEN_IDENTF);
 			if (next == "signed" || next == "unsigned") {
 				typeName += next;
@@ -737,7 +744,7 @@ namespace tea {
 			} else
 				typeName += next;
 		} else if (first == "signed" || first == "unsigned") {
-			typeName += first;
+			typeName = first;
 			typeName += ' ';
 			string next = expect(TOKEN_IDENTF);
 			if (next == "const") {
@@ -745,6 +752,27 @@ namespace tea {
 				typeName += expect(TOKEN_IDENTF);
 			} else
 				typeName += next;
+		} else if (first == "func") {
+			typeName = "func(";
+			expect(TOKEN_LPAR);
+			typeName += parseType();
+			typeName += ")(";
+			expect(TOKEN_RPAR);
+			expect(TOKEN_LPAR);
+			while (t->type != TOKEN_RPAR) {
+				typeName += parseType();
+				if (t->type == TOKEN_COMMA) {
+					advance();
+					typeName += ", ";
+				}
+				if (t->type == TOKEN_DOT && (t + 1)->type == TOKEN_DOT && (t + 2)->type == TOKEN_DOT) {
+					t += 3;
+					typeName += "...";
+					break;
+				}
+			}
+			typeName += ')';
+			advance();
 		} else
 			typeName += first;
 
@@ -758,7 +786,7 @@ namespace tea {
 		while (t->type == TOKEN_LBRAC) {
 			advance();
 			typeName += '[';
-			typeName += expect(TOKEN_INT); // TODO: deduct array size
+			typeName += expect(TOKEN_INT); // TODO: array size deduction
 			expect(TOKEN_RBRAC);
 			typeName += ']';
 		}

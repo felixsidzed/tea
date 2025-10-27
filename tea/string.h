@@ -37,6 +37,7 @@ namespace tea {
 				data = new char[2];
 				data[0] = ch;
 				data[1] = '\0';
+				size = 1;
 			}
 		}
 

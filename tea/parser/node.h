@@ -7,6 +7,84 @@
 #include "tea/parser/types.h"
 
 namespace tea {
+	enum NodeType : uint8_t {
+		tnode(UsingNode),
+		tnode(FunctionNode),
+		tnode(ExpressionNode),
+		tnode(ReturnNode),
+		tnode(CallNode),
+		tnode(VariableNode),
+		tnode(FunctionImportNode),
+		tnode(IfNode),
+		tnode(ElseNode),
+		tnode(ElseIfNode),
+		tnode(GlobalVariableNode),
+		tnode(AssignmentNode),
+		tnode(WhileLoopNode),
+		tnode(ForLoopNode),
+		tnode(LoopInterruptNode),
+		tnode(ObjectNode),
+	};
+
+	enum StorageType : uint8_t {
+		STORAGE_PUBLIC,
+		STORAGE_PRIVATE
+	};
+
+	enum ExpressionType : uint8_t {
+		EXPR_STRING,
+		EXPR_CHAR,
+		EXPR_INT,
+		EXPR_FLOAT,
+		EXPR_DOUBLE,
+
+		EXPR_IDENTF,
+		EXPR_CALL,
+
+		EXPR_ADD,
+		EXPR_SUB,
+		EXPR_MUL,
+		EXPR_DIV,
+
+		EXPR_EQ,
+		EXPR_NEQ,
+		EXPR_LT,
+		EXPR_GT,
+		EXPR_LE,
+		EXPR_GE,
+
+		EXPR_NOT,
+		EXPR_AND,
+		EXPR_OR,
+
+		EXPR_REF,
+		EXPR_DEREF,
+		EXPR_CAST,
+
+		EXPR_ARRAY,
+		EXPR_INDEX
+	};
+
+	enum CallConv : uint8_t {
+		CC_C,
+		CC_STD,
+		CC_FAST,
+		CC_AUTO,
+
+		CC__COUNT
+	};
+
+	enum Attribute : uint8_t {
+		ATTR_INLINE,
+		ATTR_NORETURN,
+
+		ATTR__LLVM_COUNT,
+
+		ATTR_NONAMESPACE,
+
+		ATTR__COUNT
+	};
+
 	struct Node {
 		enum NodeType type = (enum NodeType)0;
 
@@ -31,9 +109,9 @@ namespace tea {
 		vector<enum Attribute> attrs;
 		enum StorageType storage;
 		enum CallConv cc;
+		bool vararg;
 		string name;
 		vector<std::pair<Type, string>> args;
-		bool vararg;
 		Type returnType;
 		map<struct VariableNode*, LLVMValueRef> prealloc;
 
@@ -60,12 +138,10 @@ namespace tea {
 	};
 
 	struct CallNode : ExpressionNode {
-		vector<string> scope;
-		// callee is stored in ExpressionNode::value
+		std::unique_ptr<ExpressionNode> callee;
 		vector<std::unique_ptr<ExpressionNode>> args;
 
-		CallNode(const vector<string>& scope, const string& callee, vector<std::unique_ptr<ExpressionNode>>&& args) :
-			scope(scope), args(std::move(args)), ExpressionNode(EXPR_CALL, callee) {}
+		CallNode(std::unique_ptr<ExpressionNode> callee, vector<std::unique_ptr<ExpressionNode>>&& args) : args(std::move(args)), callee(std::move(callee)), ExpressionNode(EXPR_CALL, "") { }
 	};
 
 	struct VariableNode : Node {
@@ -80,10 +156,10 @@ namespace tea {
 	struct FunctionImportNode : Node {
 		vector<enum Attribute> attrs;
 		enum CallConv cc;
+		bool vararg;
 		string name;
 		vector<std::pair<Type, string>> args;
 		Type returnType;
-		bool vararg;
 
 		FunctionImportNode(enum CallConv cc, const string& name, const vector<std::pair<Type, string>>& args, Type returnType, bool vararg)
 			: cc(cc), name(name), args(args), returnType(returnType), vararg(vararg) {
@@ -141,12 +217,9 @@ namespace tea {
 		WhileLoopNode(std::unique_ptr<ExpressionNode> pred) : pred(std::move(pred)) {};
 	};
 
-	// ExpressionNode::value is used to indicate whether the index is an array index (`array[123]') or an object index (`object.field')
+	// ExpressionNode::value is used to indicate whether the index is an array index (`array[123]') or an object index (`object.field' / `object->field')
 	struct IndexNode : ExpressionNode {
-		std::unique_ptr<ExpressionNode> val;
-		std::unique_ptr<ExpressionNode> idx;
-
-		IndexNode(std::unique_ptr<ExpressionNode> val, std::unique_ptr<ExpressionNode> idx, uint8_t kind) : val(std::move(val)), idx(std::move(idx)), ExpressionNode(EXPR_INDEX, kind) {};
+		IndexNode(std::unique_ptr<ExpressionNode> val, std::unique_ptr<ExpressionNode> idx, uint8_t kind) : ExpressionNode(EXPR_INDEX, kind, std::move(val), std::move(idx)) {};
 	};
 
 	struct ArrayNode : ExpressionNode {

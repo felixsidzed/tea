@@ -216,7 +216,7 @@ namespace tea {
 		}
 
 		case LLVMArrayTypeKind:
-			result += type2readable(LLVMGetElementType(t));
+			result = type2readable(LLVMGetElementType(t));
 			result += '[';
 			result += std::to_string(LLVMGetArrayLength(t)).c_str();
 			result += ']';
@@ -225,6 +225,24 @@ namespace tea {
 		case LLVMStructTypeKind:
 			result = LLVMGetStructName(t);
 			break;
+
+		case LLVMFunctionTypeKind: {
+			result += "func(";
+			result += type2readable(LLVMGetReturnType(t));
+			result += ")(";
+
+			uint32_t nargs = LLVMCountParamTypes(t);
+			LLVMTypeRef* calleeArgTypes = new LLVMTypeRef[nargs + 1];
+			LLVMGetParamTypes(t, calleeArgTypes);
+
+			for (uint32_t i = 0; i < nargs;) {
+				result += type2readable(calleeArgTypes[i]);
+				if (++i == nargs)
+					result += ')';
+				else
+					result += ", ";
+			}
+		} break;
 
 		default:
 			auto it = typeKindName.find(kind);

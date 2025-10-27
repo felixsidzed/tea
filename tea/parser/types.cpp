@@ -1,6 +1,7 @@
 #include "types.h"
 
 #include <regex>
+#include <sstream>
 
 #include "tea/tea.h"
 
@@ -47,6 +48,46 @@ namespace tea {
 		result.constant = tmp.find("const") != std::string::npos;
 		tmp = std::regex_replace(tmp, std::regex("const"), "");
 		tmp = std::regex_replace(tmp, std::regex("^\\s+|\\s+$"), "");
+
+		std::regex funcRe(R"(func\s*\(\s*([^)]+)\s*\)\s*\(\s*([^\)]*)\s*\))");
+		std::smatch funcMatch;
+		if (std::regex_match(tmp, funcMatch, funcRe)) {
+			std::string argsStr = funcMatch[2];
+			std::string retTypeStr = funcMatch[1];
+
+			auto [retType, okRet] = Type::get({ retTypeStr.c_str(), (uint32_t)retTypeStr.size() });
+			if (!okRet)
+				return { result, false };
+
+			vector<LLVMTypeRef> argTypes;
+			bool vararg = false;
+
+			if (!argsStr.empty()) {
+				std::stringstream ss(argsStr);
+				std::string arg;
+				while (std::getline(ss, arg, ',')) {
+					arg = std::regex_replace(arg, std::regex("^\\s+|\\s+$"), "");
+					if (arg == "...") {
+						vararg = true;
+						continue;
+					}
+					auto [argType, okArg] = Type::get({ arg.c_str(), (uint32_t)arg.size() });
+					if (!okArg)
+						return { result, false };
+					argTypes.push(argType.llvm);
+				}
+			}
+
+			result.llvm = LLVMPointerType(LLVMFunctionType(retType.llvm, argTypes.empty() ? nullptr : argTypes.data, argTypes.size, vararg), 0);
+			int nptr = 0;
+			for (char c : tmp)
+				if (c == '*') nptr++;
+			tmp.erase(std::remove(tmp.begin(), tmp.end(), '*'), tmp.end());
+			tmp = std::regex_replace(tmp, std::regex("^\\s+|\\s+$"), "");
+			while (--nptr)
+				result.llvm = LLVMPointerType(result.llvm, 0);
+			return { result, true };
+		}
 
 		int nptr = 0;
 		for (char c : tmp)
