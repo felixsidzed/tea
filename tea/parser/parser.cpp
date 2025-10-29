@@ -34,7 +34,8 @@ namespace tea {
 	map<string, enum Attribute> name2attr = {
 		{"inline", ATTR_INLINE},
 		{"noreturn", ATTR_NORETURN},
-		{"nonamespace", ATTR_NONAMESPACE}
+		{"nonamespace", ATTR_NONAMESPACE},
+		{"threadlocal", ATTR_THREADLOCAL}
 	};
 
 	static inline const char* _expect(const Token*& t, enum TokenType expected) {
@@ -243,11 +244,43 @@ namespace tea {
 
 				if (t->extra == KWORD_IMPORT) {
 					parseFunctionImport();
-					((FunctionImportNode*)tree->operator[](tree->size - 1).get())->attrs = attrs;
-				} else {
-					parseFuncFull();
-					((FunctionNode*)tree->operator[](tree->size - 1).get())->attrs = attrs;
-				}
+					((FunctionImportNode*)tree->data[tree->size - 1].get())->attrs = attrs;
+				} else if (t->extra == KWORD_PUBLIC || t->extra == KWORD_PRIVATE) {
+					if ((t + 1)->extra == KWORD_FUNC) {
+						parseFuncFull();
+						((FunctionNode*)tree->data[tree->size - 1].get())->attrs = attrs;
+					} else if ((t + 1)->extra == KWORD_VAR) {
+						enum StorageType storage;
+						if (t->extra == KWORD_PUBLIC)
+							storage = STORAGE_PUBLIC;
+						else if (t->extra == KWORD_PRIVATE)
+							storage = STORAGE_PRIVATE;
+						else
+							unexpected();
+						t++;
+						advance();
+
+						const string& name = expect(TOKEN_IDENTF);
+						expect(TOKEN_COLON);
+
+						const string& dataType = parseType();
+						auto type = Type::get(dataType);
+						if (!type.second)
+							TEA_PANIC("unknown type '%s'. line %d, column %d", dataType.data, (t - 1)->line, (t - 1)->column);
+
+						std::unique_ptr<ExpressionNode> value = nullptr;
+						if (t->type != TOKEN_SEMI) {
+							expect(TOKEN_ASSIGN);
+							value = parseExpression();
+						}
+						expect(TOKEN_SEMI);
+
+						pushnode(GlobalVariableNode, storage, name, type.first, std::move(value));
+						((GlobalVariableNode*)tree->data[tree->size - 1].get())->attrs = attrs;
+					} else
+						unexpected();
+				} else
+					unexpected();
 			} break;
 
 			case TOKEN_NEWLINE:

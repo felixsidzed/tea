@@ -7,6 +7,7 @@ extern "C" {
 #ifdef _WIN32
 	#define WIN32_LEAN_AND_MEAN
 	#include <Windows.h>
+	#include <winternl.h>
 
 	void* _thread__spawn(void* f) {
 		DWORD tid;
@@ -38,6 +39,29 @@ extern "C" {
 	[[noreturn]] void _thread__exit(int exitCode) {
 		ExitThread(exitCode);
 	}
+
+	extern "C" {
+#pragma section(".tls$AAA", read, write)
+		__declspec(allocate(".tls$AAA")) char _tls_start;
+#pragma section(".tls$ZZZ", read, write)
+		__declspec(allocate(".tls$ZZZ")) char _tls_end;
+	}
+
+	ULONG _tls_index = 0;
+	
+	#pragma const_seg(".rdata$T")
+	extern "C" const IMAGE_TLS_DIRECTORY _tls_used = {
+		(ULONG_PTR)&_tls_start, (ULONG_PTR)&_tls_end,
+		(ULONG_PTR)&_tls_index,
+		0,
+	};
+	#pragma const_seg()
+
+	#ifdef _WIN64
+		#pragma comment(linker, "/include:_tls_used")
+	#else 
+		#pragma comment(linker, "/include:__tls_used")
+	#endif
 
 #else
 #error "teastd is not yet available on non-windows machines"

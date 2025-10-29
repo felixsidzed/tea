@@ -1,7 +1,6 @@
 TOOD list (in order):
-#. objects -> virtual methods
-#. thread local storage
 #. macros				<-- fuckass
 #. linux support
 #. jit
 #. repl
+#. object inheritance etc

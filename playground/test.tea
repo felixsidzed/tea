@@ -1,33 +1,19 @@
 using "io";
-using "memory";
-using "string";
+using "thread";
 
-class Test
-	private var data: string;
+@threadlocal
+public var brootal: int = 67;
 
-	Test(string data)
-		this->data = data;
-	end
-
-	~Test()
-		io::print("deconstructor called\n");
-		memory::free(data);
-	end
-
-	public func size() -> int
-		return string::len(data);
-	end
+private func fn() -> void
+	io::printf("brootal in other thread before = %d\n", brootal);
+	brootal = 41;
+	io::printf("brootal in other thread after = %d\n", brootal);
 end
 
-public func main()
-	var ptr: string = memory::alloc(4);
-	*ptr = 'a';
-	*(ptr + 1) = 'b';
-	*(ptr + 2) = 'c';
-	*(ptr + 3) = '\0';
-
-	var ts: Test = Test(ptr);
-	io::printf("length = %d\n", ts.size());
+public func main() -> int
+	io::printf("brootal before = %d\n", brootal);
+	thread::join(thread::spawn(fn));
+	io::printf("brootal after = %d\n", brootal);
 
 	return 0;
 end

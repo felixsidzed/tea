@@ -168,6 +168,12 @@ namespace tea {
 				Type& expected = globalVarNode->dataType;
 				LLVMValueRef global = LLVMAddGlobal(module, expected.llvm, globalVarNode->name);
 
+				if (auto* it = globalVarNode->attrs.find(ATTR_THREADLOCAL)) {
+					LLVMSetThreadLocal(global, true);
+					LLVMSetThreadLocalMode(global, LLVMLocalExecTLSModel);
+					LLVMSetSection(global, ".tls$B");
+				}
+
 				if (globalVarNode->storage == STORAGE_PRIVATE)
 					LLVMSetLinkage(global, LLVMLinkerPrivateLinkage);
 

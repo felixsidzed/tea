@@ -16,6 +16,12 @@ extern "C" {
 		return HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, size);
 	}
 
+	void* _memory__copy(char* dest, const char* src, unsigned n) {
+		while (n-- > 0)
+			*dest++ = *src++;
+		return dest;
+	}
+
 #else
 #error "teastd is not yet available on non-windows machines"
 #endif

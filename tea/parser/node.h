@@ -81,6 +81,7 @@ namespace tea {
 		ATTR__LLVM_COUNT,
 
 		ATTR_NONAMESPACE,
+		ATTR_THREADLOCAL,
 
 		ATTR__COUNT
 	};
@@ -192,6 +193,7 @@ namespace tea {
 	};
 
 	struct GlobalVariableNode : Node {
+		vector<enum Attribute> attrs;
 		enum StorageType storage;
 		string name;
 		Type dataType;
