@@ -11,19 +11,17 @@
 namespace tea {
 	class Parser {
 	public:
-		Parser();
-
 		Tree parse(const vector<Token>& tokens);
 	private:
-		Tree* tree;
+		Tree* tree = nullptr;
 		vector<Tree*> treeHistory;
 
-		const Token* t;
+		const Token* t = nullptr;
 
 		vector<string> funcs;
 		vector<string> imported;
 
-		FunctionNode* fn;
+		FunctionNode* fn = nullptr;
 
 		void parseVariable();
 		void parseFuncFull();

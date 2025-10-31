@@ -76,12 +76,12 @@ namespace tea {
 		TEA_IS64BIT = is64Bit;
 		Type::convert.clear();
 
-		const auto& tokens = tea::Lexer::tokenize(src);
+		const auto& tokens = Lexer::tokenize(src);
 
-		tea::Parser parser;
+		Parser parser;
 		const auto& root = parser.parse(tokens);
 
-		auto codegen = std::make_unique<tea::CodeGen>(verbose, importLookup);
+		auto codegen = std::make_unique<CodeGen>(verbose, importLookup);
 		codegen->emit(root, output, optimization);
 	}
 }

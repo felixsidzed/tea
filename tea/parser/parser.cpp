@@ -51,14 +51,8 @@ namespace tea {
 		return tt == KWORD_FASTCC || tt == KWORD_STDCC || tt == KWORD_CCC || tt == KWORD_AUTOCC;
 	}
 
-	Parser::Parser() {
-		t = 0;
-		fn = nullptr;
-		tree = nullptr;
-	}
-
 	Tree Parser::parse(const vector<Token>& tokens) {
-		Type::get("void"); // initializes types
+		Type::get("void"); // initialize types
 
 		t = tokens.data;
 
@@ -66,8 +60,8 @@ namespace tea {
 		tree = &root;
 		treeHistory = { &root };
 
-		imported.clear();
 		funcs.clear();
+		imported.clear();
 
 		while (t->type != TOKEN_EOF) {
 			switch (t->type) {

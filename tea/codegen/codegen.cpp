@@ -135,7 +135,7 @@ namespace tea {
 					std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
 					Parser parser;
-					Tree tree = parser.parse(Lexer::tokenize({ content.data(), (uint32_t)content.size()}));
+					Tree tree = parser.parse(Lexer::tokenize(content));
 
 					ImportedModule importedModule;
 					for (const auto& node_ : tree) {
