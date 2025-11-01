@@ -52,6 +52,9 @@ namespace tea {
 	}
 
 	Tree Parser::parse(const vector<Token>& tokens) {
+		if (tokens.size == 0)
+			return Tree();
+
 		Type::get("void"); // initialize types
 
 		t = tokens.data;
@@ -659,6 +662,12 @@ namespace tea {
 				case KWORD_CONTINUE:
 					advance();
 					pushnode(LoopInterruptNode, false);
+					break;
+
+				case KWORD_DO:
+					advance();
+					pushtree(BlockNode);
+					parseBlock();
 					break;
 
 				default:

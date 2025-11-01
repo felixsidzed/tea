@@ -1,0 +1,36 @@
+// 13. Objects
+
+// Import the 'io' module
+using "io";
+
+// Define a simple class
+class Player
+	public health: int; // public field
+
+	// Constructor
+	Player(int hp)
+		health = hp;
+		// Although not recommended, you can also use `this->field' to access class fields
+	end
+
+	// Method to take damage
+	public func damage(int amount) -> void
+		health -= amount;
+	end
+end
+
+// Entry point
+public func main() -> int
+	// Create a Player object with 100 HP
+	var p: Player = Player(100);
+
+	// Call method using -> operator
+	p.damage(25);
+	io::printf("health = %d\n", p.health);
+
+	// Arrow operator (equivalent to `(*obj).field')
+	var ptr: Player* = &p;
+	io::printf("health = %d\n", ptr->health);
+
+	return 0;
+end

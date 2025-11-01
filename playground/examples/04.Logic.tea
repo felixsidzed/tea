@@ -1,0 +1,42 @@
+// 04. Logic
+
+// Import the 'io' module
+using "io";
+
+// Define our entry point
+public func main() -> int
+	// Declare `a', `b', `c'
+	var a: int = 10;
+	var b: int = 3;
+	
+	// Comparisons
+	io::printf("a == b? %d\n", a == b);
+	io::printf("a > b? %d\n", a > b);
+	io::printf("a <= b? %d\n", a <= b);
+
+	// Logical operators
+	// AND
+	// A     B        C
+	// false false -> false
+	// false true  -> false
+	// true false  -> false
+	// true true   -> true
+	
+	// OR
+	// A     B        C
+	// false false -> false
+	// false true  -> true
+	// true false  -> true
+	// true true   -> true
+
+	// NOT
+	// A        C
+	// false -> true
+	// true  -> false
+
+	io::printf("Logical AND (true && false): %d\n", (true && false));
+	io::printf("Logical OR (true || false): %d\n", (true || false));
+	io::printf("Logical NOT (!true): %d\n", !true);
+
+	return 0;
+end

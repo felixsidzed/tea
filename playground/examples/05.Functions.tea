@@ -1,0 +1,20 @@
+// 05. Functions
+
+// Import the 'io' module
+using "io";
+
+// Standard function declaration
+public func add(int a, int b) -> int
+	return a + b;
+end
+
+// Function declaration with a specific calling convention (e.g. `__fastcall')
+public __fastcall func subtract(int a, int b) -> int
+	return a - b;
+end
+
+// Function declaration with a deduced return type (not recommeneded)
+public func say_hello()
+	io::printf("Hello, World!\n");
+	return 67; // Return type is deduced as 'int'
+end

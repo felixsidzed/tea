@@ -244,6 +244,10 @@ namespace tea {
 				}
 			} break;
 
+			case tnode(BlockNode): {
+				emitBlock(((BlockNode*)node.get())->body, "block", nullptr);
+			} break;
+
 			default:
 				TEA_PANIC("invalid statement. line %d, column %d", node->line, node->column);
 			}

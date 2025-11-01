@@ -1,0 +1,31 @@
+// 03. Expressions
+
+// Import the 'io' module
+using "io";
+
+// Define our entry point
+public func main() -> int
+	// Declare `a', `b', `c'
+	var a: int = 10;
+	var b: int = 3;
+	var c: int;
+
+	// Basic arithmetic expressions
+	c = a + b;
+	io::printf("a + b = %d\n", c);
+
+	c = a - b;
+	io::printf("a - b = %d\n", c);
+
+	c = a * b;
+	io::printf("a * b = %d\n", c);
+
+	c = a / b;
+	io::printf("a / b = %d\n", c);
+
+	// Parenthesized expressions
+	c = (a + b) * 2;
+	io::printf("(a + b) * 2 = %d\n", c);
+
+	return 0;
+end

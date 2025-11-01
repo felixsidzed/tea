@@ -24,6 +24,7 @@ namespace tea {
 		tnode(ForLoopNode),
 		tnode(LoopInterruptNode),
 		tnode(ObjectNode),
+		tnode(BlockNode)
 	};
 
 	enum StorageType : uint8_t {
@@ -252,5 +253,11 @@ namespace tea {
 		vector<std::unique_ptr<GlobalVariableNode>> fields;
 
 		ObjectNode(const string& name, vector<std::unique_ptr<GlobalVariableNode>> fields, vector<std::unique_ptr<FunctionNode>> methods) : name(name), fields(std::move(fields)), methods(std::move(methods)) {};
+	};
+
+	struct BlockNode : Node {
+		Tree body;
+
+		BlockNode() {}
 	};
 }

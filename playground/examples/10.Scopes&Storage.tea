@@ -1,0 +1,24 @@
+// 10. Scopes & Storage
+
+// Import the 'io' module
+using "io";
+
+// Define our entry point
+public func main() -> int
+	var x: int = 6;
+
+	// Declare a block
+	do
+		var y: int = 7; // Only accessible in the block's scope
+		io::printf("x = %d\n", x);
+		io::printf("y = %d\n", y);
+	end
+
+	io::printf("x = %d\n", x);
+	io::printf("y = %d\n", y); // Errors because `y' is out of scope
+
+	return 0;
+end
+
+// `public' -> visible to other modules
+// `private' -> visible only within this module (anonymous)

@@ -1,0 +1,34 @@
+// 09. Assignments
+
+// Import the 'io' module
+using "io";
+
+// Define our entry point
+public func main() -> int
+	// Declare variables
+	var x: int = 5;
+	var y: int = 2;
+	var z: int;
+
+	// Standard assignment
+	z = x;
+	io::printf("z = %d\n", z);
+
+	// Addition assignment
+	z += y; // z = z + y
+	io::printf("z += y -> %d\n", z);
+
+	// Subtraction assignment
+	z -= 1; // z = z - 1
+	io::printf("z -= 1 -> %d\n", z);
+
+	// Multiplication assignment
+	z *= 3; // z = z * 3
+	io::printf("z *= 3 -> %d\n", z);
+
+	// Division assignment
+	z /= 2; // z = z / 2
+	io::printf("z /= 2 -> %d\n", z);
+
+	return 0;
+end

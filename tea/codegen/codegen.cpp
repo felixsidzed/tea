@@ -99,11 +99,8 @@ namespace tea {
 			TEA_PANIC("%s", _.data);
 		}
 
-		if (LLVMTargetMachineEmitToFile(machine, module, output, LLVMObjectFile, &err)) {
-			string _(err);
-			LLVMDisposeMessage(err);
-			TEA_PANIC("Failed to emit to file: %s", _.data);
-		}
+		if (LLVMTargetMachineEmitToFile(machine, module, output, LLVMObjectFile, &err))
+			TEA_PANIC("Failed to emit to file: %s", err);
 
 		LLVMDisposeModule(module);
 		LLVMDisposeTargetMachine(machine);
