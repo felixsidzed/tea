@@ -1,13 +1,5 @@
-#. LLVMBuildGlobalString
-#. LLVMBuildBitCast
-#. LLVMBuildNot
-#. LLVMBuildAnd
-#. LLVMBuildOr
-#. LLVMBuildAdd
-#. LLVMBuildSub
-#. LLVMBuildMul
-#. LLVMBuildSDiv
-#. LLVMBuildCmp
-#. LLVMBuildBr
-#. LLVMSetFunctionCallConv
-#. LLVMBuildCall
+LLVMSetVolatile
+LLVMBuildICmp
+LLVMBuildStructGEP
+LLVMBuildCondBr
+LLVMStructSetBody

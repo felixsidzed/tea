@@ -9,6 +9,10 @@
 
 int main() {
 	try {
+#ifdef _DEBUG
+		clock_t start = clock();
+#endif
+
 		const tea::vector<tea::frontend::Token>& tokens = tea::frontend::lex(R"(
 public func main() -> int
 	return 0;
@@ -27,17 +31,22 @@ end
 			return 1;
 		}
 
-		auto module = std::make_unique<tea::mir::Module>("[module]");
-		tea::mir::Function* func = module->addFunction("main", tea::Type::Function(tea::Type::Int()));
-
 		tea::mir::Builder builder;
-		builder.insertInto(func->appendBlock("entry"));
-		
-		auto x = builder.alloca_(tea::Type::Int(), "");
-		builder.store(x, tea::mir::ConstantNumber::get(67, 32));
-		builder.ret(builder.load(x, ""));
+		auto module = std::make_unique<tea::mir::Module>("[module]");
+
+		tea::mir::Function* foo = module->addFunction("foo", tea::Type::Function(tea::Type::Int(), tea::vector<tea::Type*>{ tea::Type::Int() }));
+		builder.insertInto(foo->appendBlock("entry"));
+		builder.ret(tea::mir::ConstantNumber::get(67, 32));
+
+		tea::mir::Function* main = module->addFunction("main", tea::Type::Function(tea::Type::Int()));
+		builder.insertInto(main->appendBlock("entry"));
+		builder.ret(builder.call(foo, nullptr, 0, "result"));
 
 		tea::mir::dump(module.get());
+		
+#ifdef _DEBUG
+		printf("Compilation took %ldms\n", clock() - start);
+#endif
 	} catch (const std::exception& e) {
 		std::cout << e.what() << std::endl;
 		return 1;

@@ -18,7 +18,7 @@ namespace tea::mir {
 		Add, Sub, Mul, Div, Mod,
 
 		// Bitwise operations
-		And, Or, Xor, Shl, Shr,
+		Not, And, Or, Xor, Shl, Shr,
 
 		// Comparison
 		ICmp, FCmp,
@@ -32,11 +32,8 @@ namespace tea::mir {
 		// Functions
 		Call,
 
-		// Casts
-		Bitcast, IntToFloat, FloatToInt, PtrToInt, IntToPtr,
-
 		// Miscellaneous
-		Nop
+		Nop, Cast, Unreachable
 	};
 
 	enum class FCmpPredicate { OEQ, ONEQ, OGT, OGE, OLT, OLE, TRUE, FALSE };
@@ -67,10 +64,18 @@ namespace tea::mir {
 		Private
 	};
 
+	enum class ConstantKind {
+		Number,
+		String,
+		Array
+	};
+
 	struct SourceLoc { uint32_t line, column; };
 
 	class Value {
 	protected:
+		friend void dump(const tea::mir::Value* value);
+
 		uint32_t subclassData = 0;
 
 	public:
@@ -93,7 +98,8 @@ namespace tea::mir {
 		Value result;
 		SourceLoc loc;
 
-		Instruction() : op(OpCode::Nop), icmpPred(ICmpPredicate::EQ), result(ValueKind::Null, nullptr), loc{ .line = 0,.column = 0 } {
+		Instruction()
+			: op(OpCode::Nop), icmpPred(ICmpPredicate::EQ), result(ValueKind::Null, nullptr), loc{ .line = 0,.column = 0 } {
 		}
 	};
 
@@ -107,7 +113,12 @@ namespace tea::mir {
 		tea::vector<Instruction> body;
 
 	public:
+		Function* parent = nullptr;
 		const char* name = nullptr;
+
+		BasicBlock(const char* name, Function* parent)
+			: name(name), parent(parent) {
+		}
 	};
 
 	class ConstantNumber : public Value {
@@ -118,9 +129,11 @@ namespace tea::mir {
 
 	public:
 		ConstantNumber(tea::Type* type, uint64_t i) : Value(ValueKind::Constant, type), value{ .i = i } {
+			subclassData = (uint32_t)ConstantKind::Number;
 		};
 
 		ConstantNumber(tea::Type* type, double f) : Value(ValueKind::Constant, type), value{ .f = f } {
+			subclassData = (uint32_t)ConstantKind::Number;
 		};
 
 		uint8_t getBitwidth() {
@@ -172,8 +185,7 @@ namespace tea::mir {
 			uint8_t bits = getBitwidth();
 			uint64_t val = value.i;
 			if (bits < 64) {
-				uint64_t sign = 1ull << (bits - 1);
-				if (val & sign)
+				if (val & (1ull << (bits - 1)))
 					val |= (~0ull << bits);
 				else
 					val &= ((1ull << bits) - 1);
@@ -184,6 +196,29 @@ namespace tea::mir {
 		static ConstantNumber* get(uint64_t value, uint8_t bitwidth, bool sign = true, Context* ctx = nullptr);
 	};
 
+	class ConstantString : public Value {
+	public:
+		tea::string value;
+
+		ConstantString(const tea::string& value) : Value(ValueKind::Constant, Type::Array(Type::Char(true), (uint32_t)value.length(), true)), value(value) {
+			subclassData = (uint32_t)ConstantKind::String;
+		}
+
+		static ConstantString* get(const tea::string& value, Context* ctx = nullptr);
+	};
+
+	class ConstantArray : public Value {
+	public:
+		tea::vector<Value*> values;
+
+		ConstantArray(Type* elementType, Value** values, uint32_t n)
+			: Value(ValueKind::Constant, Type::Array(elementType, n, true)), values(values, n) {
+			subclassData = (uint32_t)ConstantKind::Array;
+		}
+
+		static ConstantArray* get(Type* elementType, Value** values, uint32_t n, Context* ctx = nullptr);
+	};
+
 	class Function : public Value {
 		friend class Module;
 		friend class Builder;
@@ -191,11 +226,15 @@ namespace tea::mir {
 
 		Scope scope;
 		StorageClass storage;
-		tea::vector<BasicBlock> body;
+		tea::vector<BasicBlock> blocks;
 		tea::vector<std::unique_ptr<Value>> params;
 	
 	public:
-		Function(StorageClass storage, tea::FunctionType* type) : Value(ValueKind::Function, type), storage(storage) {};
+		Module* parent = nullptr;
+
+		Function(StorageClass storage, tea::FunctionType* type, Module* parent)
+			: Value(ValueKind::Function, type), storage(storage), parent(parent) {
+		};
 
 		void clearAttributes() { subclassData = 0; };
 		void addAttribute(FunctionAttribute attr) { subclassData |= (uint32_t)attr; };
@@ -205,12 +244,16 @@ namespace tea::mir {
 		BasicBlock* appendBlock(const tea::string& name);
 
 		Value* getParam(uint32_t i) { return params[i].get(); }
+		BasicBlock* getBlock(uint32_t i) { return &blocks[i]; }
 	};
 
 	class Global : public Value {
 	public:
 		Value* initializer = nullptr;
 		StorageClass storage = StorageClass::Public;
+
+		Global(Type* type, StorageClass storage, Value* initializer = nullptr) : Value(ValueKind::Global, type), storage(storage), initializer(initializer) {
+		}
 
 		void clearAttributes() { subclassData = 0; };
 		void addAttribute(GlobalAttribute attr) { subclassData |= (uint32_t)attr; };
@@ -231,6 +274,7 @@ namespace tea::mir {
 		}
 
 		Function* addFunction(const tea::string& name, tea::FunctionType* ftype);
+		Global* addGlobal(const tea::string& name, Type* type, Value* initializer);
 	};
 
 	class Builder {
@@ -243,9 +287,19 @@ namespace tea::mir {
 		void insertInto(BasicBlock* block) { this->block = block; }
 		
 		Instruction* ret(Value* val);
-		Value* alloca_(Type* type, const char* name);
-		Instruction* store(Value* ptr, Value* val);
 		Value* load(Value* ptr, const char* name);
+		Instruction* store(Value* ptr, Value* val);
+		Value* globalString(const tea::string& str);
+		Value* alloca_(Type* type, const char* name);
+		Value* cast(Value* ptr, Type* targetType, const char* name);
+		Value* binop(OpCode op, Value* lhs, Value* rhs, const char* name);
+		Value* arithm(OpCode op, Value* lhs, Value* rhs, const char* name);
+		Instruction* unreachable();
+		Value* gep(Value* ptr, Value* idx, const char* name);
+		Value* gep(Value* ptr, Value** indicies, uint32_t n, const char* name);
+		Instruction* br(BasicBlock* block, bool change = true);
+		Value* call(Value* func, Value* arg, const char* name);
+		Value* call(Value* func, Value** args, uint32_t n, const char* name);
 	};
 
 } // namespace tea::mir

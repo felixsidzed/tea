@@ -169,6 +169,23 @@ namespace tea {
 			data = newData;
 		}
 
+		template <typename... Args>
+		T* emplace_front(Args&&... args) {
+			grow();
+
+			if (size > 0) {
+				for (uint32_t i = size; i > 0; i--) {
+					new (&data[i]) T(std::move(data[i - 1]));
+					data[i - 1].~T();
+				}
+			}
+
+			new (&data[0]) T(std::forward<Args>(args)...);
+			size++;
+
+			return &data[0];
+		}
+
 	private:
 		void grow() {
 			if (size + 1 <= capacity)

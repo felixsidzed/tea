@@ -114,6 +114,11 @@ namespace tea {
 		return ctx->getType<FunctionType>(returnType, params, vararg);
 	}
 
+	ArrayType* Type::Array(Type* elementType, uint32_t size, bool constant, mir::Context* ctx) {
+		if (!ctx) ctx = mir::getGlobalContext();
+		return ctx->getType<ArrayType>(elementType, size, constant);
+	}
+
 	tea::string Type::str() {
 		tea::string result;
 
@@ -151,7 +156,7 @@ namespace tea {
 			result += "string";
 			break;
 		default:
-			result += "unknown";
+			result += "unk";
 			break;
 		}
 
@@ -165,6 +170,34 @@ namespace tea {
 		if (constant)
 			result += " const";
 		return result;
+	}
+
+	tea::string FunctionType::str() {
+		tea::string result = "func(";
+
+		if (returnType) {
+			result += returnType->str().data();
+			result += ')'; result += '(';
+		} else
+			result += "void)(";
+
+		for (uint32_t i = 0; i < params.size; ++i) {
+			if (i > 0) result += ", ";
+			result += params[i]->str().data();
+		}
+
+		if (vararg) {
+			if (params.size > 0)
+				result += ", ";
+			result += "...";
+		}
+
+		result += ')';
+		return result;
+	}
+
+	tea::string ArrayType::str() {
+		return elementType->str() + "[" + std::to_string(size).c_str() + "]";
 	}
 
 } // namespace tea

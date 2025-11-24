@@ -14,14 +14,15 @@ namespace tea {
 		Void, Bool, Char, Short, Float, Int, Double, Long, String,
 
 		// Complex
-		Pointer, Function,
+		Pointer, Function, Array,
 
 		// User-defined
 		Class
 	};
 
-	struct FunctionType;
+	struct ArrayType;
 	struct PointerType;
+	struct FunctionType;
 
 	struct Type {
 		TypeKind kind;
@@ -56,20 +57,35 @@ namespace tea {
 		static FunctionType* Function(Type* returnType, bool vararg = false, mir::Context* ctx = nullptr) {
 			return Type::Function(returnType, {}, vararg, ctx);
 		}
+		static ArrayType* Array(Type* elementType, uint32_t size, bool constant = false, mir::Context* ctx = nullptr);
 
 		bool isNumeric() {
 			return kind == TypeKind::Bool || kind == TypeKind::Char || kind == TypeKind::Short || kind == TypeKind::Int || kind == TypeKind::Long;
+		}
+		
+		bool isIndexable() {
+			return kind == TypeKind::Array || kind == TypeKind::Pointer;
+		}
+
+		Type* getElementType() {
+			switch (kind) {
+			case TypeKind::Array:
+			case TypeKind::Pointer:
+				return *(Type**)((char*)this + sizeof(Type));
+			default:
+				return nullptr;
+			}
 		}
 	};
 
 	struct PointerType : Type {
 		Type* pointee;
 
-		tea::string str() override;
-
 		PointerType(Type* pointee, bool constant = false)
 			: Type(TypeKind::Pointer, constant), pointee(pointee) {
 		}
+
+		tea::string str() override;
 	};
 
 	struct FunctionType : Type {
@@ -80,6 +96,19 @@ namespace tea {
 		FunctionType(Type* returnType, const tea::vector<Type*>& params, bool vararg = false)
 			: Type(TypeKind::Function, false), returnType(returnType), params(params), vararg(vararg) {
 		}
+
+		tea::string str() override;
+	};
+
+	struct ArrayType : Type {
+		Type* elementType;
+		uint32_t size;
+
+		ArrayType(Type* elementType, uint32_t size, bool constant = false)
+			: Type(TypeKind::Array, constant), elementType(elementType), size(size) {
+		}
+
+		tea::string str() override;
 	};
 
 } // namespace tea

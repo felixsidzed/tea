@@ -9,9 +9,15 @@
 
 namespace tea::mir {
 	class Context {
+		friend class ConstantArray;
 		friend class ConstantNumber;
+		friend class ConstantString;
 
 		tea::vector<std::unique_ptr<tea::Type>> types;
+
+		tea::map<size_t, std::unique_ptr<ConstantArray>> arrConst;
+		tea::map<tea::string, std::unique_ptr<ConstantString>> strConst;
+
 		tea::map<uint8_t, std::unique_ptr<ConstantNumber>> num0Const;
 		tea::map<uint8_t, std::unique_ptr<ConstantNumber>> num1Const;
 		tea::map<uint64_t, std::unique_ptr<ConstantNumber>> numConst;
