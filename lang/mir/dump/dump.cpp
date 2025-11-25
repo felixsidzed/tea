@@ -2,17 +2,38 @@
 
 namespace tea::mir {
 
+	// note: this table should only be used by the instruction dumper
+	// NULL entries are handled separately so they have no reason to be here
 	static const char* opcodeName[] = {
 		"add", "sub", "mul", "div", "mod",
 		"not", "and", "or", "xor", "shl", "shr",
-		"icmp", "fcmp",
+		NULL, NULL,
 		"load", "store", NULL, NULL,
 		NULL, NULL, "ret", "phi",
 		NULL,
 		"nop", NULL, "unreachable"
 	};
 
+	static const char* icmpPredName[] = {
+		"eq", "neq",
+		"sgt", "ugt", "sge", "uge",
+		"slt", "ult", "sle", "ule"
+	};
+
+	static const char* fcmpPredName[] = {
+		"oeq", "oneq",
+		"ogt", "oge", "olt", "ole",
+		"true", "false"
+	};
+
 	void dump(const tea::mir::Module* module) {
+		printf(
+			"// Source: %s\n// Data layout: \"%c-%u\"\n\n",
+			module->source.data(),
+			module->dl.endian == (uint8_t)std::endian::big ? 'E' : 'e',
+			module->dl.maxNativeBytes
+		);
+
 		for (const auto& g : module->body) {
 			switch (g->kind) {
 			case ValueKind::Function:
@@ -100,7 +121,7 @@ namespace tea::mir {
 		} break;
 
 		case OpCode::Br:
-			printf("br %s", ((BasicBlock*)insn->operands[0])->name);
+			printf("br %%\"%s\"", ((BasicBlock*)insn->operands[0])->name);
 			break;
 
 		case OpCode::Call: {
@@ -121,6 +142,26 @@ namespace tea::mir {
 			}
 			putchar(')');
 		} break;
+
+		case OpCode::ICmp:
+			printf("%%\"%s\" = icmp %s ", insn->result.name, icmpPredName[(uint32_t)(uintptr_t)insn->operands[0]]);
+			dump(insn->operands[1]);
+			putchar(','); putchar(' ');
+			dump(insn->operands[2]);
+			break;
+
+		case OpCode::FCmp:
+			printf("%%\"%s\" = fcmp %s ", insn->result.name, fcmpPredName[(uint32_t)(uintptr_t)insn->operands[0]]);
+			dump(insn->operands[1]);
+			putchar(','); putchar(' ');
+			dump(insn->operands[2]);
+			break;
+
+		case OpCode::CondBr:
+			fputs("cbr ", stdout);
+			dump(insn->operands[0]);
+			printf(", %%\"%s\", %%\"%s\"", ((BasicBlock*)insn->operands[1])->name, ((BasicBlock*)insn->operands[2])->name);
+			break;
 
 		default:
 		_default:
@@ -209,6 +250,19 @@ namespace tea::mir {
 			printf("%s %s", value->type->str().data(), value->name);
 			break;
 		}
+	}
+
+	void dump(const tea::StructType* ty) {
+		fputs("struct { ", stdout);
+		if (ty->body.size > 0) {
+			fputs(ty->body[0]->str().data(), stdout);
+
+			for (uint32_t i = 1; i < ty->body.size; i++) {
+				putchar(','); putchar(' ');
+				fputs(ty->body[i]->str().data(), stdout);
+			}
+		}
+		printf(" } %s", ty->name);
 	}
 
 } // namespace tea::mir

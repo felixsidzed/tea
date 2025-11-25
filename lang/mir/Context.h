@@ -9,11 +9,14 @@
 
 namespace tea::mir {
 	class Context {
+		friend struct Type;
+
 		friend class ConstantArray;
 		friend class ConstantNumber;
 		friend class ConstantString;
 
 		tea::vector<std::unique_ptr<tea::Type>> types;
+		tea::map<size_t, std::unique_ptr<tea::StructType>> structTypes;
 
 		tea::map<size_t, std::unique_ptr<ConstantArray>> arrConst;
 		tea::map<tea::string, std::unique_ptr<ConstantString>> strConst;

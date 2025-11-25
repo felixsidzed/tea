@@ -161,10 +161,57 @@ namespace tea::mir {
 		if (retType->kind != TypeKind::Void) {
 			insn->result.type = retType;
 			insn->result.kind = ValueKind::Instruction;
-			insn->result.name = name;
+			insn->result.name = block->scope.add(name);
 		}
 
 		return &insn->result;
+	}
+
+	Value* Builder::icmp(ICmpPredicate pred, Value* lhs, Value* rhs, const char* name) {
+		if (!lhs->type->isNumeric() || !rhs->type->isNumeric())
+			return nullptr;
+
+		Instruction* insn = block->body.emplace();
+		insn->op = OpCode::ICmp;
+		insn->operands.emplace((Value*)pred); // whatever pays the bills // i dont see yo c++ casts doing ts :rofl::sob::sob::sunglasses:
+		insn->operands.emplace(lhs);
+		insn->operands.emplace(rhs);
+
+		insn->result.type = Type::Bool();
+		insn->result.kind = ValueKind::Instruction;
+		insn->result.name = block->scope.add(name);
+
+		return &insn->result;
+	}
+
+	Value* Builder::fcmp(FCmpPredicate pred, Value* lhs, Value* rhs, const char* name) {
+		if (!lhs->type->isFloat() || !rhs->type->isFloat())
+			return nullptr;
+
+		Instruction* insn = block->body.emplace();
+		insn->op = OpCode::FCmp;
+		insn->operands.emplace((Value*)pred);
+		insn->operands.emplace(lhs);
+		insn->operands.emplace(rhs);
+
+		insn->result.type = Type::Bool();
+		insn->result.kind = ValueKind::Instruction;
+		insn->result.name = block->scope.add(name);
+
+		return &insn->result;
+	}
+
+	Instruction* Builder::cbr(Value* pred, BasicBlock* truthy, BasicBlock* falsy) {
+		if (pred->type->kind != TypeKind::Bool)
+			return nullptr;
+
+		Instruction* insn = block->body.emplace();
+		insn->op = OpCode::CondBr;
+		insn->operands.emplace(pred);
+		insn->operands.emplace((Value*)truthy);
+		insn->operands.emplace((Value*)falsy);
+
+		return insn;
 	}
 
 } // namespace tea::mir

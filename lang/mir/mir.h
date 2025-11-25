@@ -90,16 +90,12 @@ namespace tea::mir {
 
 	struct Instruction {
 		OpCode op;
-		union {
-			ICmpPredicate icmpPred;
-			FCmpPredicate fcmpPred;
-		};
 		tea::vector<Value*> operands;
 		Value result;
 		SourceLoc loc;
 
 		Instruction()
-			: op(OpCode::Nop), icmpPred(ICmpPredicate::EQ), result(ValueKind::Null, nullptr), loc{ .line = 0,.column = 0 } {
+			: op(OpCode::Nop), result(ValueKind::Null, nullptr), loc{ .line = 0,.column = 0 } {
 		}
 	};
 
@@ -179,7 +175,7 @@ namespace tea::mir {
 		}
 
 		int64_t getSInteger() {
-			if (type->kind == TypeKind::Float || type->kind == TypeKind::Double)
+			if (type->isFloat())
 				return 0;
 
 			uint8_t bits = getBitwidth();
@@ -194,6 +190,9 @@ namespace tea::mir {
 		}
 
 		static ConstantNumber* get(uint64_t value, uint8_t bitwidth, bool sign = true, Context* ctx = nullptr);
+
+		template<typename T, typename = typename std::enable_if<std::is_same<T, double>::value>::type>
+		static ConstantNumber* get(double value, uint8_t bitwidth, bool sign = true, Context* ctx = nullptr);
 	};
 
 	class ConstantString : public Value {
@@ -261,6 +260,12 @@ namespace tea::mir {
 		void removeAttribute(GlobalAttribute attr) { subclassData &= ~(uint32_t)attr; };
 	};
 
+	struct DataLayout {
+		// std::endian
+		uint8_t endian = (uint8_t)std::endian::native;
+		uint8_t maxNativeBytes = sizeof(void*);
+	};
+
 	class Module {
 		friend void dump(const Module* module);
 
@@ -269,12 +274,15 @@ namespace tea::mir {
 
 	public:
 		const tea::string source;
+		DataLayout dl;
 
 		Module(const tea::string& source) : source(source) {
 		}
 
 		Function* addFunction(const tea::string& name, tea::FunctionType* ftype);
 		Global* addGlobal(const tea::string& name, Type* type, Value* initializer);
+
+		uint32_t getSize(const tea::Type* type);
 	};
 
 	class Builder {
@@ -300,6 +308,9 @@ namespace tea::mir {
 		Instruction* br(BasicBlock* block, bool change = true);
 		Value* call(Value* func, Value* arg, const char* name);
 		Value* call(Value* func, Value** args, uint32_t n, const char* name);
+		Value* icmp(ICmpPredicate pred, Value* lhs, Value* rhs, const char* name);
+		Value* fcmp(FCmpPredicate pred, Value* lhs, Value* rhs, const char* name);
+		Instruction* cbr(Value* pred, BasicBlock* truthy, BasicBlock* falsy);
 	};
 
 } // namespace tea::mir

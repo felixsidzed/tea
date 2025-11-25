@@ -26,4 +26,10 @@ namespace tea::mir {
 	/// </summary>
 	/// <param name="value">The value to dump</param>
 	void dump(const tea::mir::Value* value);
+
+	/// <summary>
+	/// Dump the provided struct to stdout
+	/// </summary>
+	/// <param name="ty">The struct to dump</param>
+	void dump(const struct tea::StructType* ty);
 }

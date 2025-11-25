@@ -1,5 +1,2 @@
 LLVMSetVolatile
-LLVMBuildICmp
 LLVMBuildStructGEP
-LLVMBuildCondBr
-LLVMStructSetBody

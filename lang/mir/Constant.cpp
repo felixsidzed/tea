@@ -41,6 +41,41 @@ namespace tea::mir {
 		}
 	}
 
+	template<typename T, typename>
+	ConstantNumber* ConstantNumber::get(double fval, uint8_t width, bool sign, Context* ctx) {
+		if (!ctx) ctx = getGlobalContext();
+
+		Type* type = nullptr;
+		switch (width) {
+		case 32:
+			type = Type::Float(false, sign, ctx);
+			break;
+		case 64:
+			type = Type::Double(false, sign, ctx);
+			break;
+		default:
+			return nullptr;
+		}
+
+		uint64_t val = *(uint64_t*)&fval;
+
+		std::unique_ptr<ConstantNumber>* entry = nullptr;
+		if (val == 0 || val == 1) {
+			auto& map = val == 0 ? ctx->num0Const : ctx->num1Const;
+			auto& entry = map[width];
+			if (!entry)
+				entry.reset(new ConstantNumber(type, val));
+			return entry.get();
+		} else {
+			auto& entry = ctx->numConst[val];
+			if (!entry)
+				entry.reset(new ConstantNumber(type, val));
+			return entry.get();
+		}
+	}
+
+	template ConstantNumber* ConstantNumber::get<double>(double, uint8_t, bool, Context*);
+
 	ConstantString* ConstantString::get(const tea::string& val, Context* ctx) {
 		if (!ctx) ctx = getGlobalContext();
 
