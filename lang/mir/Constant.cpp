@@ -98,4 +98,17 @@ namespace tea::mir {
 		return entry.get();
 	}
 
+	ConstantPointer* ConstantPointer::get(Type* pointee, uintptr_t value, Context* ctx) {
+		if (!ctx) ctx = getGlobalContext();
+
+		uint64_t h = 1469598103934665603uLL;
+		h = (h ^ (uintptr_t)pointee) * 1099511628211uLL;
+		h = (h ^ value) * 1099511628211uLL;
+
+		auto& entry = ctx->ptrConst[h];
+		if (!entry)
+			entry.reset(new ConstantPointer(pointee, value));
+		return entry.get();
+	}
+
 } // namespace tea::mir

@@ -1,9 +1,9 @@
 #include "dump.h"
 
+// TODO: omit this in release builds in favor of more verbose logging
+
 namespace tea::mir {
 
-	// note: this table should only be used by the instruction dumper
-	// NULL entries are handled separately so they have no reason to be here
 	static const char* opcodeName[] = {
 		"add", "sub", "mul", "div", "mod",
 		"not", "and", "or", "xor", "shl", "shr",
@@ -26,13 +26,17 @@ namespace tea::mir {
 		"true", "false"
 	};
 
+	
 	void dump(const tea::mir::Module* module) {
 		printf(
-			"// Source: %s\n// Data layout: \"%c-%u\"\n\n",
+			"// Source: %s\n// Data layout: \"%c-%u\"\n",
 			module->source.data(),
 			module->dl.endian == (uint8_t)std::endian::big ? 'E' : 'e',
 			module->dl.maxNativeBytes
 		);
+		if (!module->triple.empty())
+			printf("// Triple: \"%s\"\n", module->triple.data());
+		putchar('\n');
 
 		for (const auto& g : module->body) {
 			switch (g->kind) {
@@ -93,9 +97,8 @@ namespace tea::mir {
 			break;
 
 		case OpCode::Cast:
-			printf("%%\"%s\" = cast ", insn->result.name);
+			printf("%%\"%s\" = cast %s, ", insn->result.name, insn->result.type->str().data());
 			dump(insn->operands[0]);
-			printf(", %s", insn->result.type->str().data());
 			break;
 
 		case OpCode::Ret:
@@ -105,20 +108,15 @@ namespace tea::mir {
 				fputs("ret void", stdout);
 			break;
 
-		case OpCode::GetElementPtr: {
-			printf("%%\"%s\" = gep ", insn->result.name);
+		case OpCode::GetElementPtr:
+			printf("%%\"%s\" = gep %s ", insn->result.name, insn->result.type->str().data());
 
-			// TODO: genuinely
-			Type* oldType = insn->operands[0]->type;
-			insn->operands[0]->type = insn->result.type;
 			dump(insn->operands[0]);
-			insn->operands[0]->type = oldType;
-
 			for (uint32_t i = 1; i < insn->operands.size; i++) {
 				putchar(','); putchar(' ');
 				dump(insn->operands[i]);
 			}
-		} break;
+			break;
 
 		case OpCode::Br:
 			printf("br %%\"%s\"", ((BasicBlock*)insn->operands[0])->name);
@@ -144,17 +142,17 @@ namespace tea::mir {
 		} break;
 
 		case OpCode::ICmp:
-			printf("%%\"%s\" = icmp %s ", insn->result.name, icmpPredName[(uint32_t)(uintptr_t)insn->operands[0]]);
-			dump(insn->operands[1]);
+			printf("%%\"%s\" = icmp %s ", insn->result.name, icmpPredName[insn->extra]);
+			dump(insn->operands[0]);
 			putchar(','); putchar(' ');
-			dump(insn->operands[2]);
+			dump(insn->operands[1]);
 			break;
 
 		case OpCode::FCmp:
-			printf("%%\"%s\" = fcmp %s ", insn->result.name, fcmpPredName[(uint32_t)(uintptr_t)insn->operands[0]]);
-			dump(insn->operands[1]);
+			printf("%%\"%s\" = fcmp %s ", insn->result.name, fcmpPredName[insn->extra]);
+			dump(insn->operands[0]);
 			putchar(','); putchar(' ');
-			dump(insn->operands[2]);
+			dump(insn->operands[1]);
 			break;
 
 		case OpCode::CondBr:
@@ -167,6 +165,8 @@ namespace tea::mir {
 		_default:
 			if (insn->result.kind != ValueKind::Null)
 				printf("%%\"%s\" = ", insn->result.name);
+			if ((insn->op == OpCode::Store || insn->op == OpCode::Load) && insn->extra & 1)
+				fputs("volatile ", stdout);
 			printf("%s ", opcodeName[(uint32_t)insn->op]);
 		
 			if (insn->operands.size > 0) {
@@ -229,6 +229,12 @@ namespace tea::mir {
 					}
 				}
 				putchar(']');
+			} break;
+
+			case ConstantKind::Pointer: {
+				ConstantPointer* ptr = (ConstantPointer*)value;
+
+				printf("(%s)0x%llX", ptr->type->str().data(), ptr->value);
 			} break;
 
 			default:

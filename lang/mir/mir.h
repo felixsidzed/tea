@@ -36,8 +36,8 @@ namespace tea::mir {
 		Nop, Cast, Unreachable
 	};
 
-	enum class FCmpPredicate { OEQ, ONEQ, OGT, OGE, OLT, OLE, TRUE, FALSE };
-	enum class ICmpPredicate { EQ, NEQ, SGT, UGT, SGE, UGE, SLT, ULT, SLE, ULE };
+	enum class FCmpPredicate : uint32_t { OEQ, ONEQ, OGT, OGE, OLT, OLE, TRUE, FALSE };
+	enum class ICmpPredicate : uint32_t { EQ, NEQ, SGT, UGT, SGE, UGE, SLT, ULT, SLE, ULE };
 
 	enum class ValueKind {
 		Function,
@@ -67,7 +67,8 @@ namespace tea::mir {
 	enum class ConstantKind {
 		Number,
 		String,
-		Array
+		Array,
+		Pointer
 	};
 
 	struct SourceLoc { uint32_t line, column; };
@@ -90,6 +91,7 @@ namespace tea::mir {
 
 	struct Instruction {
 		OpCode op;
+		uint32_t extra;
 		tea::vector<Value*> operands;
 		Value result;
 		SourceLoc loc;
@@ -114,6 +116,22 @@ namespace tea::mir {
 
 		BasicBlock(const char* name, Function* parent)
 			: name(name), parent(parent) {
+		}
+
+		Instruction* getTerminator() {
+			if (body.empty())
+				return nullptr;
+
+			Instruction* insn = body.end() - 1;
+			switch (insn->op) {
+			case OpCode::Br:
+			case OpCode::Ret:
+			case OpCode::CondBr:
+			case OpCode::Unreachable:
+				return insn;
+			default:
+				return nullptr;
+			}
 		}
 	};
 
@@ -218,6 +236,17 @@ namespace tea::mir {
 		static ConstantArray* get(Type* elementType, Value** values, uint32_t n, Context* ctx = nullptr);
 	};
 
+	class ConstantPointer : public Value {
+	public:
+		uintptr_t value;
+
+		ConstantPointer(tea::Type* pointee, uintptr_t value) : Value(ValueKind::Constant, Type::Pointer(pointee, true)), value(value) {
+			subclassData = (uint32_t)ConstantKind::Pointer;
+		}
+
+		static ConstantPointer* get(tea::Type* pointee, uintptr_t value, Context* ctx = nullptr);
+	};
+
 	class Function : public Value {
 		friend class Module;
 		friend class Builder;
@@ -273,14 +302,19 @@ namespace tea::mir {
 		tea::vector<std::unique_ptr<Value>> body;
 
 	public:
-		const tea::string source;
+		tea::string source;
 		DataLayout dl;
+		// TODO: maybe make this a struct of enums ykwim
+		tea::string triple;
 
 		Module(const tea::string& source) : source(source) {
 		}
 
 		Function* addFunction(const tea::string& name, tea::FunctionType* ftype);
 		Global* addGlobal(const tea::string& name, Type* type, Value* initializer);
+
+		Global* getNamedGlobal(const tea::string& name);
+		Function* getNamedFunction(const tea::string& name);
 
 		uint32_t getSize(const tea::Type* type);
 	};
@@ -292,25 +326,26 @@ namespace tea::mir {
 		Builder() {
 		};
 
+		BasicBlock* getInsertBlock() { return block; }
 		void insertInto(BasicBlock* block) { this->block = block; }
-		
+
+		Instruction* unreachable();
 		Instruction* ret(Value* val);
-		Value* load(Value* ptr, const char* name);
-		Instruction* store(Value* ptr, Value* val);
 		Value* globalString(const tea::string& str);
 		Value* alloca_(Type* type, const char* name);
+		Value* gep(Value* ptr, Value* idx, const char* name);
+		Value* call(Value* func, Value* arg, const char* name);
+		Instruction* br(BasicBlock* block, bool change = true);
 		Value* cast(Value* ptr, Type* targetType, const char* name);
+		Value* load(Value* ptr, const char* name, bool volat = false);
+		Instruction* store(Value* ptr, Value* val, bool volat = false);
 		Value* binop(OpCode op, Value* lhs, Value* rhs, const char* name);
 		Value* arithm(OpCode op, Value* lhs, Value* rhs, const char* name);
-		Instruction* unreachable();
-		Value* gep(Value* ptr, Value* idx, const char* name);
-		Value* gep(Value* ptr, Value** indicies, uint32_t n, const char* name);
-		Instruction* br(BasicBlock* block, bool change = true);
-		Value* call(Value* func, Value* arg, const char* name);
+		Instruction* cbr(Value* pred, BasicBlock* truthy, BasicBlock* falsy);
 		Value* call(Value* func, Value** args, uint32_t n, const char* name);
+		Value* gep(Value* ptr, Value** indicies, uint32_t n, const char* name);
 		Value* icmp(ICmpPredicate pred, Value* lhs, Value* rhs, const char* name);
 		Value* fcmp(FCmpPredicate pred, Value* lhs, Value* rhs, const char* name);
-		Instruction* cbr(Value* pred, BasicBlock* truthy, BasicBlock* falsy);
 	};
 
 } // namespace tea::mir

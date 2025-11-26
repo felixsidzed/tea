@@ -23,7 +23,7 @@ namespace tea::mir {
 		return &insn->result;
 	}
 
-	Instruction* Builder::store(Value* ptr, Value* val) {
+	Instruction* Builder::store(Value* ptr, Value* val, bool volat) {
 		Instruction* insn = block->body.emplace();
 		insn->op = OpCode::Store;
 		insn->operands.emplace(ptr);
@@ -32,7 +32,7 @@ namespace tea::mir {
 		return insn;
 	}
 
-	Value* Builder::load(Value* ptr, const char* name) {
+	Value* Builder::load(Value* ptr, const char* name, bool volat) {
 		Instruction* insn = block->body.emplace();
 		insn->op = OpCode::Load;
 		insn->operands.emplace(ptr);
@@ -106,11 +106,32 @@ namespace tea::mir {
 	}
 
 	Value* Builder::gep(Value* ptr, Value* idx, const char* name) {
+		if (
+			idx->kind == ValueKind::Constant &&
+			idx->type->isNumeric() &&
+			ptr->type->kind == TypeKind::Pointer &&
+			((PointerType*)ptr->type)->pointee->kind == TypeKind::Struct
+		) {
+			Instruction* insn = block->body.emplace();
+			insn->op = OpCode::GetElementPtr;
+			insn->operands.emplace(ptr);
+			insn->operands.emplace(ConstantNumber::get(0, 32));
+			insn->operands.emplace(idx);
+
+			StructType* st = (StructType*)(((PointerType*)ptr->type)->pointee);
+
+			insn->result.type = Type::Pointer(st->body[(uint32_t)((ConstantNumber*)idx)->getInteger()], false);
+			insn->result.kind = ValueKind::Instruction;
+			insn->result.name = block->scope.add(name);
+
+			return &insn->result;
+		}
+
 		return gep(ptr, &idx, 1, name);
 	}
 
 	Value* Builder::gep(Value* ptr, Value** indicies, uint32_t n, const char* name) {
-		if (!ptr->type->isIndexable() || !indicies || !n)
+		if (!ptr->type->isIndexable() || !indicies || !n || !name)
 			return nullptr;
 
 		Instruction* insn = block->body.emplace();
@@ -173,9 +194,9 @@ namespace tea::mir {
 
 		Instruction* insn = block->body.emplace();
 		insn->op = OpCode::ICmp;
-		insn->operands.emplace((Value*)pred); // whatever pays the bills // i dont see yo c++ casts doing ts :rofl::sob::sob::sunglasses:
 		insn->operands.emplace(lhs);
 		insn->operands.emplace(rhs);
+		insn->extra = (uint32_t)pred;
 
 		insn->result.type = Type::Bool();
 		insn->result.kind = ValueKind::Instruction;
@@ -190,9 +211,9 @@ namespace tea::mir {
 
 		Instruction* insn = block->body.emplace();
 		insn->op = OpCode::FCmp;
-		insn->operands.emplace((Value*)pred);
 		insn->operands.emplace(lhs);
 		insn->operands.emplace(rhs);
+		insn->extra = (uint32_t)pred;
 
 		insn->result.type = Type::Bool();
 		insn->result.kind = ValueKind::Instruction;

@@ -14,6 +14,7 @@ namespace tea::mir {
 		friend class ConstantArray;
 		friend class ConstantNumber;
 		friend class ConstantString;
+		friend class ConstantPointer;
 
 		tea::vector<std::unique_ptr<tea::Type>> types;
 		tea::map<size_t, std::unique_ptr<tea::StructType>> structTypes;
@@ -24,6 +25,8 @@ namespace tea::mir {
 		tea::map<uint8_t, std::unique_ptr<ConstantNumber>> num0Const;
 		tea::map<uint8_t, std::unique_ptr<ConstantNumber>> num1Const;
 		tea::map<uint64_t, std::unique_ptr<ConstantNumber>> numConst;
+
+		tea::map<size_t, std::unique_ptr<ConstantPointer>> ptrConst;
 
 	public:
 		Context() {

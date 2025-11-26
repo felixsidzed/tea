@@ -80,6 +80,20 @@ namespace tea::mir {
 		}
 	}
 
+	Global* Module::getNamedGlobal(const tea::string& name) {
+		for (const auto& el : body)
+			if (el->kind == ValueKind::Global && el->name == name)
+				return (Global*)el.get();
+		return nullptr;
+	}
+
+	Function* Module::getNamedFunction(const tea::string& name) {
+		for (const auto& el : body)
+			if (el->kind == ValueKind::Function && el->name == name)
+				return (Function*)el.get();
+		return nullptr;
+	}
+
 	BasicBlock* Function::appendBlock(const tea::string& name) {
 		return blocks.emplace(scope.add(name), this);
 	}

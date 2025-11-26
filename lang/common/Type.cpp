@@ -176,7 +176,7 @@ namespace tea {
 		} break;
 
 		case TypeKind::Struct:
-			result += ((StructType*)this)->name;
+			result = ((StructType*)this)->name;
 			break;
 
 		default: {

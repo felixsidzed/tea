@@ -33,16 +33,15 @@ end
 
 		tea::mir::Builder builder;
 		auto module = std::make_unique<tea::mir::Module>("[module]");
-		tea::Type* x[] = {
-			tea::Type::Int(),
-			tea::Type::Long()
-		};
-		auto ty = tea::Type::Struct(x, 2, "MyStruct");
-		tea::mir::dump(ty); putchar('\n');
-		printf("%d\n", module->getSize(ty));
-		tea::mir::Function* main = module->addFunction("main", tea::Type::Function(ty));
+
+		tea::Type* i32 = tea::Type::Int();
+		auto ty = tea::Type::Struct(&i32, 1, "MyStruct");
+
+		tea::mir::Function* main = module->addFunction("main", tea::Type::Function(i32));
 		builder.insertInto(main->appendBlock("entry"));
-		builder.ret(tea::mir::ConstantNumber::get(0, 32));
+
+		auto pfield = builder.gep(tea::mir::ConstantPointer::get(ty, 0x676767), tea::mir::ConstantNumber::get(0, 32), "");
+		builder.ret(builder.load(pfield, "", true));
 
 		tea::mir::dump(module.get());
 		
