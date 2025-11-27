@@ -47,7 +47,7 @@ namespace tea::frontend::analysis {
 		void visitStat(const frontend::AST::Node* node);
 		void visitBlock(const frontend::AST::Tree& tree);
 
-		Type* visitExpression(const frontend::AST::ExpressionNode* node);
+		Type* visitExpression(frontend::AST::ExpressionNode* node);
 	};
 
 } // namespace tea::analysis

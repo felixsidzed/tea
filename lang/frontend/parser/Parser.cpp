@@ -4,12 +4,13 @@
 
 #define next() (++cur)
 
+#define mknodei(T, i, ...) std::make_unique<T>(__VA_ARGS__, _line##i, _column##i)
 #define mknode(T, ...) std::make_unique<T>(__VA_ARGS__, _line, _column)
 
 #define pushtree(T, ...) { \
 	auto node = std::make_unique<T>(__VA_ARGS__, _line, _column); \
 	auto body = &node->body; \
-	treeHistory.push(tree); \
+    treeHistory.push(tree); \
 	tree->push(std::move(node)); \
 	tree = body; \
 }
@@ -143,15 +144,36 @@ namespace tea::frontend {
 	};
 
 	tea::vector<std::pair<Type*, tea::string>> Parser::parseParams() {
-		// TODO
+		tea::vector<std::pair<Type*, tea::string>> result;
 		consume(TokenKind::Lpar);
-		consume(TokenKind::Rpar);
-		return {};
-	};
+
+		if (match(TokenKind::Rpar))
+			return result;
+
+		while (true) {
+			const tea::string& typeName = parseType();
+			Type* type = Type::get(typeName);
+			if (!type)
+				TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
+
+			result.emplace(
+				type,
+				consume(TokenKind::Identf).text
+			);
+
+			if (match(TokenKind::Rpar))
+				break;
+
+			consume(TokenKind::Comma);
+		}
+
+		return result;
+	}
 
 	tea::string Parser::parseType() {
 		tea::string typeName;
 		tea::string first;
+
 		if (cur->kind == TokenKind::Identf)
 			first = cur->text;
 		else
@@ -160,30 +182,37 @@ namespace tea::frontend {
 
 		if (first == "const") {
 			typeName = "const ";
-			tea::string next = consume(TokenKind::Identf).text;
-			if (next == "signed" || next == "unsigned") {
-				typeName += next;
-				typeName += ' ';
+			tea::string nextToken = consume(TokenKind::Identf).text;
+			if (nextToken == "signed" || nextToken == "unsigned") {
+				typeName += nextToken + ' ';
 				typeName += consume(TokenKind::Identf).text;
 			} else
-				typeName += next;
+				typeName += nextToken;
 		} else if (first == "signed" || first == "unsigned") {
-			typeName = first;
-			typeName += ' ';
-			tea::string next = consume(TokenKind::Identf).text;
-			if (next == "const") {
+			typeName = first + ' ';
+			tea::string nextToken = consume(TokenKind::Identf).text;
+			if (nextToken == "const") {
 				typeName += "const ";
 				typeName += consume(TokenKind::Identf).text;
 			} else
-				typeName += next;
+				typeName += nextToken;
 		} else
-			typeName += first;
+			typeName = first;
+
+		while (cur->kind == TokenKind::Star) {
+			typeName += '*';
+			next();
+			if (cur->kind == TokenKind::Identf && cur->text == "const") {
+				typeName += " const";
+				next();
+			}
+		}
 
 		return typeName;
-	};
+	}
 
 	std::unique_ptr<AST::ExpressionNode> Parser::parsePrimary() {
-		uint32_t _line = 0, _column = 0;
+		uint32_t _line = cur->line, _column = cur->column;
 		std::unique_ptr<AST::ExpressionNode> node = nullptr;
 
 		switch (cur->kind) {
@@ -194,13 +223,13 @@ namespace tea::frontend {
 		}
 
 		case TokenKind::Float: {
-			node = mknode(AST::LiteralNode, AST::ExprKind::Int, cur->text);
+			node = mknode(AST::LiteralNode, AST::ExprKind::Float, cur->text);
 			next();
 			break;
 		}
 
 		case TokenKind::Double: {
-			node = mknode(AST::LiteralNode, AST::ExprKind::Int, cur->text);
+			node = mknode(AST::LiteralNode, AST::ExprKind::Double, cur->text);
 			next();
 			break;
 		}
@@ -227,6 +256,29 @@ namespace tea::frontend {
 		}
 		default:
 			unexpected();
+		}
+
+		while (true) {
+			if (match(TokenKind::Lpar)) {
+				uint32_t _line2 = cur->line, _column2 = cur->column;
+				tea::vector<std::unique_ptr<AST::ExpressionNode>> args;
+				if (cur->kind != TokenKind::Rpar) {
+					while (true) {
+						args.push(parseExpression());
+						if (cur->kind == TokenKind::Comma) {
+							next();
+							continue;
+						}
+						break;
+					}
+				}
+
+				consume(TokenKind::Rpar);
+				node = mknodei(AST::CallNode, 2, std::move(node), std::move(args));
+				continue;
+			}
+			
+			break;
 		}
 
 		return node;

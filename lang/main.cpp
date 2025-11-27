@@ -14,8 +14,12 @@ int main() {
 #endif
 
 		const tea::vector<tea::frontend::Token>& tokens = tea::frontend::lex(R"(
+public func foo() -> int
+	return 67;
+end
+
 public func main() -> int
-	return 0;
+	return foo();
 end
 )");
 
@@ -31,19 +35,7 @@ end
 			return 1;
 		}
 
-		tea::mir::Builder builder;
-		auto module = std::make_unique<tea::mir::Module>("[module]");
-
-		tea::Type* i32 = tea::Type::Int();
-		auto ty = tea::Type::Struct(&i32, 1, "MyStruct");
-
-		tea::mir::Function* main = module->addFunction("main", tea::Type::Function(i32));
-		builder.insertInto(main->appendBlock("entry"));
-
-		auto pfield = builder.gep(tea::mir::ConstantPointer::get(ty, 0x676767), tea::mir::ConstantNumber::get(0, 32), "");
-		builder.ret(builder.load(pfield, "", true));
-
-		tea::mir::dump(module.get());
+		printf("%d\n", ast.size);
 		
 #ifdef _DEBUG
 		printf("Compilation took %ldms\n", clock() - start);
