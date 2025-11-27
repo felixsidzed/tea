@@ -1,25 +1,24 @@
+#include <fstream>
 #include <iostream>
 
+#include "mir/dump/dump.h"
+#include "codegen/codegen.h"
+#include "backend/lowering.h"
 #include "frontend/lexer/Lexer.h"
 #include "frontend/parser/Parser.h"
 #include "frontend/semantics/SemanticAnalyzer.h"
 
-#include "mir/mir.h"
-#include "mir/dump/dump.h"
-
 int main() {
 	try {
-#ifdef _DEBUG
 		clock_t start = clock();
-#endif
 
 		const tea::vector<tea::frontend::Token>& tokens = tea::frontend::lex(R"(
-public func foo() -> int
-	return 67;
+public func foo(int a) -> int
+	return a;
 end
 
 public func main() -> int
-	return foo();
+	return foo(123);
 end
 )");
 
@@ -35,11 +34,18 @@ end
 			return 1;
 		}
 
-		printf("%d\n", ast.size);
+		tea::CodeGen codegen;
+		auto module = codegen.emit(ast);
+
+		tea::backend::MIRLowering lowering;
+		auto [mc, size] = lowering.lower(module.get());
+
+		std::ofstream stream("x64/Debug/test.o");
+		stream.write((char*)mc.get(), size);
+		stream.close();
 		
-#ifdef _DEBUG
-		printf("Compilation took %ldms\n", clock() - start);
-#endif
+		printf("Wrote to 'x64/Debug/test.o'. Compilation took %ldms\n", clock() - start);
+
 	} catch (const std::exception& e) {
 		std::cout << e.what() << std::endl;
 		return 1;

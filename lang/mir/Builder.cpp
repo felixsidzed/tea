@@ -29,6 +29,8 @@ namespace tea::mir {
 		insn->operands.emplace(ptr);
 		insn->operands.emplace(val);
 
+		insn->extra = volat;
+
 		return insn;
 	}
 
@@ -36,6 +38,8 @@ namespace tea::mir {
 		Instruction* insn = block->body.emplace();
 		insn->op = OpCode::Load;
 		insn->operands.emplace(ptr);
+
+		insn->extra = volat;
 
 		insn->result.type = ((PointerType*)ptr->type)->pointee;
 		insn->result.kind = ValueKind::Instruction;

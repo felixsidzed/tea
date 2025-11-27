@@ -4,6 +4,8 @@
 
 namespace tea::mir {
 
+	using StorageClass = frontend::AST::StorageClass;
+
 	static const char* opcodeName[] = {
 		"add", "sub", "mul", "div", "mod",
 		"not", "and", "or", "xor", "shl", "shr",

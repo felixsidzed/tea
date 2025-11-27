@@ -11,11 +11,11 @@ namespace tea::frontend::analysis {
 			 tea::string name;
 			 Type* type;
 
-			 bool isConst : 1;
-			 bool isFunction : 1;
-			 bool isMember : 1;
-			 bool isPublic : 1;
-			 bool isInitialized : 1;
+			 bool isConst;
+			 bool isFunction;
+			 bool isMember;
+			 bool isPublic;
+			 bool isInitialized;
 
 			 Symbol(
 				 const tea::string& name,

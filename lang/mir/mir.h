@@ -11,7 +11,13 @@
 #include "mir/Scope.h"
 #include "mir/Context.h"
 
+namespace tea::backend {
+	class MIRLowering;
+}
+
 namespace tea::mir {
+
+	using StorageClass = frontend::AST::StorageClass;
 
 	enum class OpCode {
 		// Arithmetic operations
@@ -59,11 +65,6 @@ namespace tea::mir {
 		ThreadLocal = 1 << 0
 	};
 
-	enum class StorageClass {
-		Public,
-		Private
-	};
-
 	enum class ConstantKind {
 		Number,
 		String,
@@ -75,6 +76,7 @@ namespace tea::mir {
 
 	class Value {
 	protected:
+		friend class backend::MIRLowering;
 		friend void dump(const tea::mir::Value* value);
 
 		uint32_t subclassData = 0;
@@ -97,7 +99,7 @@ namespace tea::mir {
 		SourceLoc loc;
 
 		Instruction()
-			: op(OpCode::Nop), result(ValueKind::Null, nullptr), loc{ .line = 0,.column = 0 } {
+			: op(OpCode::Nop), result(ValueKind::Null, nullptr), loc{ .line = 0,.column = 0 }, extra(0) {
 		}
 	};
 
@@ -105,6 +107,7 @@ namespace tea::mir {
 
 	class BasicBlock {
 		friend class Builder;
+		friend class backend::MIRLowering;
 		friend void dump(const Function* func);
 
 		Scope scope;
@@ -118,11 +121,11 @@ namespace tea::mir {
 			: name(name), parent(parent) {
 		}
 
-		Instruction* getTerminator() {
+		const Instruction* getTerminator() const {
 			if (body.empty())
 				return nullptr;
 
-			Instruction* insn = body.end() - 1;
+			const Instruction* insn = body.end() - 1;
 			switch (insn->op) {
 			case OpCode::Br:
 			case OpCode::Ret:
@@ -150,7 +153,7 @@ namespace tea::mir {
 			subclassData = (uint32_t)ConstantKind::Number;
 		};
 
-		uint8_t getBitwidth() {
+		uint8_t getBitwidth() const {
 			switch (type->kind) {
 			case TypeKind::Bool:
 				return 1;
@@ -169,7 +172,7 @@ namespace tea::mir {
 			}
 		}
 
-		double getDouble() {
+		double getDouble() const {
 			switch (type->kind) {
 			case TypeKind::Float:
 			case TypeKind::Double:
@@ -179,7 +182,7 @@ namespace tea::mir {
 			}
 		}
 
-		uint64_t getInteger() {
+		uint64_t getInteger() const {
 			switch (type->kind) {
 			case TypeKind::Bool:
 			case TypeKind::Char:
@@ -192,7 +195,7 @@ namespace tea::mir {
 			}
 		}
 
-		int64_t getSInteger() {
+		int64_t getSInteger() const {
 			if (type->isFloat())
 				return 0;
 
@@ -250,14 +253,15 @@ namespace tea::mir {
 	class Function : public Value {
 		friend class Module;
 		friend class Builder;
+		friend class backend::MIRLowering;
 		friend void dump(const Function* func);
 
 		Scope scope;
-		StorageClass storage;
 		tea::vector<BasicBlock> blocks;
 		tea::vector<std::unique_ptr<Value>> params;
 	
 	public:
+		StorageClass storage;
 		Module* parent = nullptr;
 
 		Function(StorageClass storage, tea::FunctionType* type, Module* parent)
@@ -266,12 +270,12 @@ namespace tea::mir {
 
 		void clearAttributes() { subclassData = 0; };
 		void addAttribute(FunctionAttribute attr) { subclassData |= (uint32_t)attr; };
-		bool hasAttribute(FunctionAttribute attr) { return subclassData & (uint32_t)attr; };
+		bool hasAttribute(FunctionAttribute attr) const { return subclassData & (uint32_t)attr; };
 		void removeAttribute(FunctionAttribute attr) { subclassData &= ~(uint32_t)attr; };
 
 		BasicBlock* appendBlock(const tea::string& name);
 
-		Value* getParam(uint32_t i) { return params[i].get(); }
+		Value* getParam(uint32_t i) const { return params[i].get(); }
 		BasicBlock* getBlock(uint32_t i) { return &blocks[i]; }
 	};
 
@@ -280,12 +284,13 @@ namespace tea::mir {
 		Value* initializer = nullptr;
 		StorageClass storage = StorageClass::Public;
 
-		Global(Type* type, StorageClass storage, Value* initializer = nullptr) : Value(ValueKind::Global, type), storage(storage), initializer(initializer) {
+		Global(Type* type, StorageClass storage, Value* initializer = nullptr) :
+			Value(ValueKind::Global, type), storage(storage), initializer(initializer) {
 		}
 
 		void clearAttributes() { subclassData = 0; };
 		void addAttribute(GlobalAttribute attr) { subclassData |= (uint32_t)attr; };
-		bool hasAttribute(GlobalAttribute attr) { return subclassData & (uint32_t)attr; };
+		bool hasAttribute(GlobalAttribute attr) const { return subclassData & (uint32_t)attr; };
 		void removeAttribute(GlobalAttribute attr) { subclassData &= ~(uint32_t)attr; };
 	};
 
@@ -296,6 +301,7 @@ namespace tea::mir {
 	};
 
 	class Module {
+		friend class tea::backend::MIRLowering;
 		friend void dump(const Module* module);
 
 		Scope scope;
@@ -313,10 +319,10 @@ namespace tea::mir {
 		Function* addFunction(const tea::string& name, tea::FunctionType* ftype);
 		Global* addGlobal(const tea::string& name, Type* type, Value* initializer);
 
-		Global* getNamedGlobal(const tea::string& name);
-		Function* getNamedFunction(const tea::string& name);
+		Global* getNamedGlobal(const tea::string& name) const;
+		Function* getNamedFunction(const tea::string& name) const;
 
-		uint32_t getSize(const tea::Type* type);
+		uint32_t getSize(const tea::Type* type) const;
 	};
 
 	class Builder {

@@ -20,9 +20,17 @@ namespace tea::frontend::analysis {
 				tea::vector<Type*> params;
 				for (const auto& [ty, _] : func->params)
 					params.emplace(ty);
+
 				Type* ftype = Type::Function(func->returnType, params, func->isVarArg());
 				pushsym(func->name, ftype, false, true, false, func->getVisibility() == AST::StorageClass::Public, true);
+
+				pushscope();
+				for (const auto& [ty, name] : func->params)
+					pushsym(name, ty, false, false, false, false, true);
+
 				visitBlock(func->body);
+				popscope();
+
 				func = nullptr;
 			} break;
 
@@ -57,12 +65,8 @@ namespace tea::frontend::analysis {
 	}
 
 	void SemanticAnalyzer::visitBlock(const AST::Tree& tree) {
-		pushscope();
-
 		for (const auto& node : tree)
 			visitStat(node.get());
-
-		popscope();
 	}
 
 	void SemanticAnalyzer::visitStat(const AST::Node* node) {
@@ -118,12 +122,26 @@ namespace tea::frontend::analysis {
 		} break;
 
 		case AST::ExprKind::Call: {
-			type = visitExpression(((AST::CallNode*)node)->callee.get());
+			AST::CallNode* call = (AST::CallNode*)node;
+			type = visitExpression(call->callee.get());
 			if (type->kind != TypeKind::Function)
 				errors.emplace(std::format("Function '{}': cannot call a value of type '{}'. line {}, column {}",
 					func->name, type->str().data(), node->line, node->column).c_str());
-			else
-				type = ((FunctionType*)type)->returnType;
+			else {
+				FunctionType* ftype = (FunctionType*)type;
+				type = ftype->returnType;
+
+				uint32_t i = 0;
+				for (const auto& arg : call->args) {
+					Type* argType = visitExpression(arg.get());
+					Type* paramType = ftype->params[i];
+
+					if (argType != paramType)
+						errors.emplace(std::format("Function '{}': argument {}: expected type {}, got {}. line {}, column {}",
+							func->name, i, paramType->str(), argType->str(), node->line, node->column).c_str());
+					i++;
+				}
+			}
 		} break;
 
 		default:

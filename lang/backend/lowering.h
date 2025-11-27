@@ -1,0 +1,33 @@
+#pragma once
+
+#include "mir/mir.h"
+#include "llvm-c/Types.h"
+
+namespace tea::backend {
+
+	class MIRLowering {
+		LLVMModuleRef M;
+
+		tea::map<size_t, LLVMValueRef> globalMap;
+		tea::map<const mir::Value*, LLVMValueRef> valueMap;
+		tea::map<const mir::BasicBlock*, LLVMBasicBlockRef> blockMap;
+
+	public:
+		struct Options {
+			bool DumpLLVMModule;
+			bool DebugLogging;
+		};
+
+		Options options;
+
+		std::pair<std::unique_ptr<uint8_t[]>, size_t> lower(const mir::Module* module, Options options = {});
+
+	private:
+		LLVMTypeRef lowerType(const Type* ty);
+		void lowerGlobal(const mir::Global* g);
+		void lowerFunction(const mir::Function* f);
+		LLVMValueRef lowerValue(const mir::Value* val);
+		void lowerBlock(const mir::BasicBlock* block, LLVMBuilderRef builder);
+	};
+
+} // namespace tea::backend

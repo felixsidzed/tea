@@ -57,19 +57,19 @@ namespace tea {
 		static ArrayType* Array(Type* elementType, uint32_t size, bool constant = false, mir::Context* ctx = nullptr);
 		static StructType* Struct(Type** body, uint32_t n, const char* name, bool packed = false, mir::Context* ctx = nullptr);
 
-		bool isNumeric() {
+		bool isNumeric() const {
 			return kind == TypeKind::Bool || kind == TypeKind::Char || kind == TypeKind::Short || kind == TypeKind::Int || kind == TypeKind::Long;
 		}
 
-		bool isFloat() {
+		bool isFloat() const {
 			return kind == TypeKind::Float || kind == TypeKind::Double;
 		}
 		
-		bool isIndexable() {
+		bool isIndexable() const {
 			return kind == TypeKind::Array || kind == TypeKind::Pointer;
 		}
 
-		Type* getElementType() {
+		Type* getElementType() const {
 			switch (kind) {
 			case TypeKind::Array:
 				return *(Type**)((char*)this + sizeof(Type) + sizeof(uint32_t));

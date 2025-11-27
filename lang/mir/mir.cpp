@@ -4,6 +4,8 @@
 
 namespace tea::mir {
 
+	using StorageClass = frontend::AST::StorageClass;
+
 	Function* Module::addFunction(const tea::string& name, tea::FunctionType* ftype) {
 		Function* f = (Function*)body.emplace(std::make_unique<Function>(StorageClass::Public, ftype, this))->get();
 		f->name = scope.add(name);
@@ -26,7 +28,7 @@ namespace tea::mir {
 		return g;
 	}
 
-	uint32_t Module::getSize(const tea::Type* type) {
+	uint32_t Module::getSize(const tea::Type* type) const {
 		switch (type->kind) {
 		case TypeKind::Char:
 		case TypeKind::Bool:
@@ -80,14 +82,14 @@ namespace tea::mir {
 		}
 	}
 
-	Global* Module::getNamedGlobal(const tea::string& name) {
+	Global* Module::getNamedGlobal(const tea::string& name) const {
 		for (const auto& el : body)
 			if (el->kind == ValueKind::Global && el->name == name)
 				return (Global*)el.get();
 		return nullptr;
 	}
 
-	Function* Module::getNamedFunction(const tea::string& name) {
+	Function* Module::getNamedFunction(const tea::string& name) const {
 		for (const auto& el : body)
 			if (el->kind == ValueKind::Function && el->name == name)
 				return (Function*)el.get();

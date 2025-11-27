@@ -150,6 +150,7 @@ namespace tea {
 			FunctionType* ftype = (FunctionType*)this;
 
 			if (ftype->returnType) {
+				result += "func(";
 				result += ftype->returnType->str().data();
 				result += ')'; result += '(';
 			}
