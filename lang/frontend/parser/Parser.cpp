@@ -10,8 +10,8 @@
 #define pushtree(T, ...) { \
 	auto node = std::make_unique<T>(__VA_ARGS__, _line, _column); \
 	auto body = &node->body; \
-    treeHistory.push(tree); \
-	tree->push(std::move(node)); \
+    treeHistory.emplace(tree); \
+	tree->emplace(std::move(node)); \
 	tree = body; \
 }
 
@@ -27,7 +27,7 @@ namespace tea::frontend {
 
 		AST::Tree root;
 		tree = &root;
-		treeHistory.push(tree);
+		treeHistory.emplace(tree);
 
 		while (!match(TokenKind::EndOfFile)) {
 			uint32_t _line = cur->line, _column = cur->column;
@@ -58,8 +58,38 @@ namespace tea::frontend {
 					parseBlock();
 					break;
 				}
-				TEA_FALLTHROUGH;
+				unexpected();
 			}
+
+			case KeywordKind::Import: {
+				next();
+				
+				if (match(KeywordKind::Func)) {
+					const tea::string& name = consume(TokenKind::Identf).text;
+					const auto& params = parseParams();
+
+					consume(TokenKind::Arrow);
+
+					const tea::string& typeName = parseType();
+					Type* returnType = Type::get(typeName);
+					if (!returnType)
+						TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
+
+					auto node = mknode(AST::FunctionImportNode, name, params, returnType);
+					consume(TokenKind::Semicolon);
+					tree->emplace(std::move(node));
+				} else
+					unexpected();
+			} break;
+
+			case KeywordKind::Using: {
+				next();
+
+				const tea::string& path = consume(TokenKind::String).text;
+				auto node = mknode(AST::ModuleImportNode, path);
+				consume(TokenKind::Semicolon);
+				tree->emplace(std::move(node));
+			} break;
 
 			default:
 				unexpected();
@@ -111,7 +141,7 @@ namespace tea::frontend {
 			uint32_t _line = cur->line, _column = cur->column;
 			auto node = parseStat();
 			node->line = _line; node->column = _column;
-			tree->push(std::move(node));
+			tree->emplace(std::move(node));
 
 			if (match(TokenKind::EndOfFile))
 				TEA_PANIC("unexpected EOF (did you forget to close a function?). line %d, column %d", cur->line, cur->column);
@@ -135,6 +165,12 @@ namespace tea::frontend {
 				break;
 			}
 		} break;
+
+		case TokenKind::Identf: {
+			auto node = parseExpression();
+			consume(TokenKind::Semicolon);
+			return std::move(node);
+		}
 
 		default:
 			unexpected();
@@ -244,8 +280,10 @@ namespace tea::frontend {
 			break;
 		}
 		case TokenKind::Identf: {
-			node = mknode(AST::LiteralNode, AST::ExprKind::Identf, cur->text);
-			next();
+			tea::string text;
+			while (cur->kind == TokenKind::Identf || cur->kind == TokenKind::Scope)
+				text += (cur++)->text;
+			node = mknode(AST::LiteralNode, AST::ExprKind::Identf, text);
 			break;
 		}
 		case TokenKind::Lpar: {

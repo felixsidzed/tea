@@ -37,9 +37,9 @@ namespace tea::frontend {
 	};
 
 	enum class KeywordKind {
-		//Using, Import,
-		//Macro,
 		Public, Private,
+		Using, Import,
+		//Macro,
 		//If, Else, ElseIf, Do, While, For, Break, Continue,
 		Func, Return, End,
 		//Var,

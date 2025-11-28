@@ -7,9 +7,9 @@
 #define pushtok(t) pushtokex(t, pos, 1, 0)
 
 static const char* keywords[] = {
-	//"using", "import",
-	//"macro",
 	"public", "private",
+	"using", "import",
+	//"macro",
 	//"if", "else", "elseif", "do", "while", "for", "break", "continue",
 	"func", "return", "end",
 	//"var",
@@ -26,49 +26,47 @@ static bool isKeyword(const char* word, unsigned int len, int* idx) {
 	return false;
 }
 
-static char unescape(const char** p) {
-	const char* s = *p;
-	s++;
+static char unescape(const char*& p) {
+	p++;
+	char c = *p;
 
-	switch (*s) {
-	case 'n': *p = ++s; return '\n';
-	case 'r': *p = ++s; return '\r';
-	case 't': *p = ++s; return '\t';
-	case 'v': *p = ++s; return '\v';
-	case 'f': *p = ++s; return '\f';
-	case 'b': *p = ++s; return '\b';
-	case 'a': *p = ++s; return '\a';
-	case '\\': *p = ++s; return '\\';
-	case '\'': *p = ++s; return '\'';
-	case '"': *p = ++s; return '"';
+	switch (c) {
+	case 'n': return '\n';
+	case 'r': return '\r';
+	case 't': return '\t';
+	case 'v': return '\v';
+	case 'f': return '\f';
+	case 'b': return '\b';
+	case 'a': return '\a';
+	case '\\':return '\\';
+	case '\'':return '\'';
+	case '"': return '"';
+
 	case '0': case '1': case '2': case '3':
 	case '4': case '5': case '6': case '7': {
-		int v = 0;
-		int count = 0;
-		while (*s >= '0' && *s <= '7' && count < 3) {
-			v = (v << 3) | (*s - '0');
-			s++;
-			count++;
+		int v = 0, count = 0;
+		while (*p >= '0' && *p <= '7' && count < 3) {
+			v = (v << 3) | (*p - '0');
+			p++; count++;
 		}
-		*p = s;
+		p--;
 		return (char)v;
 	}
+
 	case 'x': {
-		s++;
+		p++;
 		int v = 0;
-		if (!isxdigit(*s))
-			return 0;
-		while (isxdigit(*s)) {
-			v = (v << 4) | (isdigit(*s) ? *s - '0' :
-				tolower(*s) - 'a' + 10);
-			s++;
+		if (!isxdigit(*p)) return 0;
+		while (isxdigit(*p)) {
+			v = (v << 4) | (isdigit(*p) ? *p - '0' : tolower(*p) - 'a' + 10);
+			p++;
 		}
-		*p = s;
+		p--;
 		return (char)v;
 	}
+
 	default:
-		*p = s;
-		return *s;
+		return c;
 	}
 }
 
@@ -81,13 +79,13 @@ namespace tea::frontend {
 
 		const char* pos = src.data();
 		uint32_t line = 1;
-		uint32_t col = 0;
+		uint32_t col = 1;
 
 		while (*pos > 0) {
 			char c = *pos;
 			if (isspace(c)) {
 				if (c == '\n')
-					line++, col = 0;
+					line++, col = 1;
 			}
 			else if (isalpha(c) || c == '_') {
 				unsigned int len = 0;
@@ -238,12 +236,15 @@ namespace tea::frontend {
 					std::string buffer;
 					while (*pos != '"') {
 						if (!*pos)
-							TEA_PANIC("unterminated string");
+							TEA_PANIC("unterminated string. line %d, column %d", line, col);
 						if (*pos == '\\')
-							buffer += unescape(&pos);
+							buffer += unescape(pos);
 						else
 							buffer += *pos;
-						pos++; col++;
+						if (*pos++ == '\n')
+							col = 1, line++;
+						else
+							col++;
 					}
 					tokens.push(Token(TokenKind::String, 0, tea::string(buffer.c_str(), buffer.size()), line, col));
 				} break;
@@ -254,7 +255,7 @@ namespace tea::frontend {
 					if (!*pos)
 						TEA_PANIC("unterminated char");
 					if (*pos == '\\')
-						value = unescape(&pos);
+						value = unescape(pos);
 					else
 						value = *pos;
 					pos++; col++;

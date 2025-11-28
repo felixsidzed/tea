@@ -73,23 +73,25 @@ namespace tea::mir {
 
 	void dump(const tea::mir::Function* func) {
 		printf("%s func %s(",
-			(StorageClass)func->subclassData == StorageClass::Public ? "public" : "private",
+			func->blocks.empty() ? "import" : ((StorageClass)func->subclassData == StorageClass::Public ? "public" : "private"),
 			func->name
 		);
 		for (const auto& param : func->params)
 			dump(param.get());
 		printf(") -> %s\n", ((FunctionType*)func->type)->returnType->str().data());
 
-		for (const auto& block : func->blocks) {
-			printf("%s:\n", block.name);
-			for (const auto& insn : block.body) {
-				putchar(' '); putchar(' '); putchar(' '); putchar(' ');
-				dump(&insn);
-				putchar('\n');
-			};
-		}
+		if (!func->blocks.empty()) {
+			for (const auto& block : func->blocks) {
+				printf("%s:\n", block.name);
+				for (const auto& insn : block.body) {
+					putchar(' '); putchar(' '); putchar(' '); putchar(' ');
+					dump(&insn);
+					putchar('\n');
+				};
+			}
 
-		printf("end");
+			fputs("end", stdout);
+		}
 	}
 
 	void dump(const tea::mir::Instruction* insn) {

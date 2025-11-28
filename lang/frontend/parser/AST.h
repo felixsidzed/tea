@@ -11,7 +11,9 @@ namespace tea::frontend::AST {
 		Function,
 		Return,
 		Expression,
-		Call
+		Call,
+		FunctionImport,
+		ModuleImport
 	};
 
 	enum class ExprKind : uint32_t {
@@ -113,5 +115,35 @@ namespace tea::frontend::AST {
 			tea::vector<std::unique_ptr<ExpressionNode>>&& args,
 			uint32_t _line, uint32_t _column
 		) : args(std::move(args)), callee(std::move(callee)), ExpressionNode(ExprKind::Call, _line, _column) {}
+	};
+
+	struct FunctionImportNode : Node {
+		tea::string name;
+		tea::vector<std::pair<Type*, tea::string>> params;
+		Type* returnType;
+
+		FunctionImportNode(
+			const tea::string& name,
+			const tea::vector<std::pair<Type*, tea::string>>& params,
+			Type* retType,
+			uint32_t line, uint32_t column
+		)
+			: Node(NodeKind::FunctionImport, line, column),
+			name(name), params(params), returnType(retType) {
+		}
+
+		bool isVarArg() const { return (extra & 1) != 0; }
+		void setVarArg(bool vararg) { extra = (extra & ~1) | (vararg ? 1 : 0); }
+	};
+
+	struct ModuleImportNode : Node {
+		tea::string path;
+		
+		ModuleImportNode(
+			const tea::string& path,
+			uint32_t line, uint32_t column
+		)
+			: Node(NodeKind::ModuleImport, line, column), path(path) {
+		}
 	};
 }

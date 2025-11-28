@@ -96,10 +96,9 @@ namespace tea::mir {
 		uint32_t extra;
 		tea::vector<Value*> operands;
 		Value result;
-		SourceLoc loc;
 
 		Instruction()
-			: op(OpCode::Nop), result(ValueKind::Null, nullptr), loc{ .line = 0,.column = 0 }, extra(0) {
+			: op(OpCode::Nop), result(ValueKind::Null, nullptr), extra(0) {
 		}
 	};
 
@@ -220,7 +219,7 @@ namespace tea::mir {
 	public:
 		tea::string value;
 
-		ConstantString(const tea::string& value) : Value(ValueKind::Constant, Type::Array(Type::Char(true), (uint32_t)value.length(), true)), value(value) {
+		ConstantString(const tea::string& value) : Value(ValueKind::Constant, Type::Array(Type::Char(true), (uint32_t)value.length() + 1, true)), value(value) {
 			subclassData = (uint32_t)ConstantKind::String;
 		}
 

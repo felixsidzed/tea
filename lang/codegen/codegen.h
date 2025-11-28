@@ -9,9 +9,14 @@ namespace tea {
 	using namespace frontend;
 
 	class CodeGen {
+		typedef tea::map<tea::string, mir::Function*> ImportedModule;
+
 		mir::Builder builder;
 		std::unique_ptr<mir::Module> module = nullptr;
 		tea::vector<std::pair<Type*, tea::string>>* curParams = nullptr;
+
+		// TODO: hash the keys
+		tea::map<tea::string, ImportedModule> importedModules;
 
 	public:
 		struct Options {
@@ -19,11 +24,15 @@ namespace tea {
 			mir::DataLayout dl;
 		};
 
+		tea::vector<const char*> importLookup;
+
 		std::unique_ptr<mir::Module> emit(const AST::Tree& tree, const Options& options = {});
 
 	private:
 		void emitBlock(const AST::Tree& tree);
+		void emitModuleImport(const AST::ModuleImportNode* node);
 		mir::Value* emitExpression(const AST::ExpressionNode* expr);
+		mir::Function* emitFunctionImport(const AST::FunctionImportNode* node);
 	};
 
 } // namespace tea

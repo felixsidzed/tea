@@ -1,6 +1,12 @@
 #include "SemanticAnalyzer.h"
 
+#include <fstream>
+#include <filesystem>
+
 #include "mir/Context.h"
+#include "frontend/parser/Parser.h"
+
+namespace fs = std::filesystem;
 
 #define pushscope() scope = scopeHistory.emplace()
 #define popscope() scope = &scopeHistory[scopeHistory.size - 1]; scopeHistory.pop()
@@ -23,7 +29,7 @@ namespace tea::frontend::analysis {
 
 				Type* ftype = Type::Function(func->returnType, params, func->isVarArg());
 				pushsym(func->name, ftype, false, true, false, func->getVisibility() == AST::StorageClass::Public, true);
-
+				
 				pushscope();
 				for (const auto& [ty, name] : func->params)
 					pushsym(name, ty, false, false, false, false, true);
@@ -32,6 +38,64 @@ namespace tea::frontend::analysis {
 				popscope();
 
 				func = nullptr;
+			} break;
+
+			case AST::NodeKind::FunctionImport: {
+				AST::FunctionImportNode* fi = (AST::FunctionImportNode*)node.get();
+
+				tea::vector<Type*> params;
+				for (const auto& [ty, _] : fi->params)
+					params.emplace(ty);
+
+				Type* ftype = Type::Function(fi->returnType, params, fi->isVarArg());
+				pushsym(fi->name, ftype, false, true, false, false, true);
+			} break;
+
+			case AST::NodeKind::ModuleImport: {
+				AST::ModuleImportNode* mi = (AST::ModuleImportNode*)node.get();
+				
+				// TODO: we should probably add all the modules symbol's into the current scope
+				// but that would need parsing of the module
+
+				std::string fullModuleName(mi->path + ".itea");
+
+				fs::path path;
+				std::ifstream file;
+				for (const auto& lookup : importLookup) {
+					path = fs::path(lookup) / fullModuleName;
+					file.open(path);
+					if (file.is_open())
+						goto cont;
+				}
+
+				if (!file.is_open()) {
+					errors.emplace(std::format("Failed to import module '{}': failed to open file", mi->path).c_str());
+					break;
+				}
+
+			cont:
+				std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+				const auto& tokens = tea::frontend::lex({ content.data(), content.size() });
+				tea::frontend::Parser parser(tokens);
+				tea::frontend::AST::Tree tree = parser.parse();
+				const tea::string& moduleName = path.stem().string().c_str();
+
+				for (const auto& node_ : tree) {
+					if (node_->kind == AST::NodeKind::FunctionImport) {
+						AST::FunctionImportNode* fi = (AST::FunctionImportNode*)node_.get();
+
+						tea::vector<Type*> params;
+						for (const auto& [ty, _] : fi->params)
+							params.emplace(ty);
+
+						Type* ftype = Type::Function(fi->returnType, params, fi->isVarArg());
+						pushsym(moduleName + "::" + fi->name, ftype, false, true, false, true, true);
+					} else
+						TEA_PANIC("invalid root statement. line %d, column %d", node_->line, node_->column);
+				}
+
+				file.close();
 			} break;
 
 			default:
@@ -58,7 +122,8 @@ namespace tea::frontend::analysis {
 				if (sym.name == name)
 					return &sym;
 
-			if (it == scopeHistory.begin()) break;
+			if (it == scopeHistory.begin())
+				break;
 			--it;
 		}
 		return nullptr;
@@ -77,6 +142,10 @@ namespace tea::frontend::analysis {
 				errors.emplace(std::format("Function '{}': return type mismatch, expected '{}', got '{}'. line {}, column {}",
 					func->name, func->returnType->str(), returnedType->str(), node->line, node->column).c_str());
 		} break;
+
+		case AST::NodeKind::Expression:
+			visitExpression((AST::ExpressionNode*)node);
+			break;
 
 		default:
 			#ifdef _DEBUG

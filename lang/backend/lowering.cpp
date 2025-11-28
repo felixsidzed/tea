@@ -5,6 +5,7 @@
 #include "llvm-c/Core.h"
 #include "llvm-c/Analysis.h"
 #include "llvm-c/TargetMachine.h"
+#include "llvm-c/Transforms/PassManagerBuilder.h"
 
 #define lowerBasicBlock(x) blockMap[(x)]
 
@@ -91,12 +92,17 @@ namespace tea::backend {
 				TEA_UNREACHABLE();
 			}
 		}
+		
+		if (options.DumpLLVMModule) LLVMDumpModule(M);
+		if (LLVMVerifyModule(M, LLVMPrintMessageAction, &err)) TEA_PANIC("%s", err);
 
-		if (options.DumpLLVMModule)
-			LLVMDumpModule(M);
-
-		if (LLVMVerifyModule(M, LLVMPrintMessageAction, &err))
-			TEA_PANIC("%s", err);
+		if (options.OptimizationLevel > 0) {
+			LLVMPassManagerRef pm = LLVMCreatePassManager();
+			LLVMPassManagerBuilderRef pmb = LLVMPassManagerBuilderCreate();
+			LLVMPassManagerBuilderSetOptLevel(pmb, options.OptimizationLevel);
+			LLVMPassManagerBuilderPopulateModulePassManager(pmb, pm);
+			LLVMRunPassManager(pm, M);
+		}
 
 		LLVMMemoryBufferRef buf;
 		if (LLVMTargetMachineEmitToMemoryBuffer(TM, M, LLVMObjectFile, &err, &buf))
@@ -152,7 +158,7 @@ namespace tea::backend {
 	}
 
 	void MIRLowering::lowerGlobal(const mir::Global* g) {
-		LLVMValueRef global = LLVMAddGlobal(M, lowerType(g->type), g->name);
+		LLVMValueRef global = LLVMAddGlobal(M, lowerType(((const PointerType*)g->type)->pointee), g->name);
 		if (g->storage == mir::StorageClass::Private)
 			LLVMSetLinkage(global, LLVMPrivateLinkage);
 
@@ -197,7 +203,7 @@ namespace tea::backend {
 	void MIRLowering::lowerBlock(const mir::BasicBlock* block, LLVMBuilderRef builder) {
 		for (const auto& insn : block->body) {
 			LLVMValueRef result = nullptr;
-			
+
 			switch (insn.op) {
 			case mir::OpCode::Add: {
 				LLVMValueRef lhs = lowerValue(insn.operands[0]);

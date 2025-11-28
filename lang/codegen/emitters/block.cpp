@@ -15,6 +15,11 @@ namespace tea {
 				builder.ret(emitExpression(ret->value.get()));
 			} break;
 
+			case AST::NodeKind::Expression: {
+				emitExpression((const AST::ExpressionNode*)node.get());
+				break;
+			}
+
 			default:
 				TEA_PANIC("unknown node kind %d", node->kind);
 			}

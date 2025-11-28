@@ -6,7 +6,7 @@
 namespace tea::backend {
 
 	class MIRLowering {
-		LLVMModuleRef M;
+		LLVMModuleRef M = nullptr;
 
 		tea::map<size_t, LLVMValueRef> globalMap;
 		tea::map<const mir::Value*, LLVMValueRef> valueMap;
@@ -14,8 +14,8 @@ namespace tea::backend {
 
 	public:
 		struct Options {
-			bool DumpLLVMModule;
-			bool DebugLogging;
+			bool DumpLLVMModule : 1 = true;
+			uint8_t OptimizationLevel : 2 = 0;
 		};
 
 		Options options;

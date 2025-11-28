@@ -36,8 +36,16 @@ namespace tea {
 				builder.insertInto(nullptr);
 			} break;
 
+			case AST::NodeKind::FunctionImport:
+				emitFunctionImport((const AST::FunctionImportNode*)node.get());
+				break;
+
+			case AST::NodeKind::ModuleImport:
+				emitModuleImport((const AST::ModuleImportNode*)node.get());
+				break;
+
 			default:
-				TEA_PANIC("unknown node kind %d", node->kind);
+				TEA_PANIC("unknown root statement kind %d", node->kind);
 			}
 		}
 

@@ -13,12 +13,11 @@ int main() {
 		clock_t start = clock();
 
 		const tea::vector<tea::frontend::Token>& tokens = tea::frontend::lex(R"(
-public func foo(int a) -> int
-	return a;
-end
+using "io";
 
 public func main() -> int
-	return foo(123);
+	io::puts("Hello, World!\n");
+	return 0;
 end
 )");
 
@@ -26,6 +25,8 @@ end
 		const tea::frontend::AST::Tree& ast = parser.parse();
 
 		tea::frontend::analysis::SemanticAnalyzer analyzer;
+		analyzer.importLookup.emplace(".");
+
 		const auto& errors = analyzer.visit(ast);
 		if (!errors.empty()) {
 			fprintf(stderr, "SemanticAnalyzer: %d error%c:\n", errors.size, errors.size == 1 ? 0 : 's');
@@ -35,6 +36,7 @@ end
 		}
 
 		tea::CodeGen codegen;
+		codegen.importLookup.emplace(".");
 		auto module = codegen.emit(ast);
 
 		tea::backend::MIRLowering lowering;
