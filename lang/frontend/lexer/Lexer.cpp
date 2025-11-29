@@ -12,8 +12,8 @@ static const char* keywords[] = {
 	//"macro",
 	//"if", "else", "elseif", "do", "while", "for", "break", "continue",
 	"func", "return", "end",
-	//"var",
-	//"__stdcall", "__fastcall", "__cdecl", "__auto",
+	"var",
+	"__stdcall", "__fastcall", "__cdecl", "__auto",
 	//"class", "new",
 };
 

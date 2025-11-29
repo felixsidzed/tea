@@ -13,11 +13,9 @@ int main() {
 		clock_t start = clock();
 
 		const tea::vector<tea::frontend::Token>& tokens = tea::frontend::lex(R"(
-using "io";
-
-public func main() -> int
-	io::puts("Hello, World!\n");
-	return 0;
+public __cdecl func main() -> int
+	var a = 2;
+	return (a + a) * a;
 end
 )");
 

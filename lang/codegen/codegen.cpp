@@ -27,6 +27,8 @@ namespace tea {
 
 				mir::Function* f = module->addFunction(func->name, ftype);
 				f->storage = func->getVisibility();
+				f->cc = func->getCC();
+
 				builder.insertInto(f->appendBlock("entry"));
 				curParams = &func->params;
 
@@ -45,7 +47,7 @@ namespace tea {
 				break;
 
 			default:
-				TEA_PANIC("unknown root statement kind %d", node->kind);
+				TEA_PANIC("unknown root statement %d", node->kind);
 			}
 		}
 

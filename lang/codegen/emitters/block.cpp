@@ -4,26 +4,29 @@
 
 namespace tea {
 
-	using namespace frontend;
-
 	void CodeGen::emitBlock(const AST::Tree& tree) {
+		tea::map<size_t, Local> oldLocals = locals;
+
 		for (const auto& node : tree) {
 			switch (node->kind) {
-			case AST::NodeKind::Return: {
-				AST::ReturnNode* ret = (AST::ReturnNode*)node.get();
-				
-				builder.ret(emitExpression(ret->value.get()));
-			} break;
+			case AST::NodeKind::Return:
+				builder.ret(emitExpression(((AST::ReturnNode*)node.get())->value.get()));
+				break;
 
-			case AST::NodeKind::Expression: {
+			case AST::NodeKind::Expression:
 				emitExpression((const AST::ExpressionNode*)node.get());
 				break;
-			}
+
+			case AST::NodeKind::Variable:
+				emitVariable((const AST::VariableNode*)node.get());
+				break;
 
 			default:
-				TEA_PANIC("unknown node kind %d", node->kind);
+				TEA_PANIC("unknown statement %d", node->kind);
 			}
 		}
+
+		locals = oldLocals;
 	}
 
 } // namespace tea

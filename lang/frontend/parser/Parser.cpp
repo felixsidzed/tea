@@ -22,6 +22,10 @@
 
 namespace tea::frontend {
 
+	static inline bool isCC(KeywordKind kind) {
+		return kind == KeywordKind::StdCC || kind == KeywordKind::FastCC || kind == KeywordKind::CCC || kind == KeywordKind::AutoCC;
+	}
+
 	AST::Tree Parser::parse() {
 		treeHistory.clear();
 
@@ -42,8 +46,15 @@ namespace tea::frontend {
 				AST::StorageClass vis = (AST::StorageClass)cur->extra;
 				next();
 				
-				if ((KeywordKind)cur->extra == KeywordKind::Func) {
-					next();
+				if (isCC((KeywordKind)cur->extra) || (KeywordKind)cur->extra == KeywordKind::Func) {
+					AST::CallingConvention cc = AST::CallingConvention::Auto;
+					if (cur->extra != (uint32_t)KeywordKind::Func) {
+						cc = (AST::CallingConvention)(cur->extra - (uint32_t)KeywordKind::StdCC);
+						next();
+						consume(KeywordKind::Func);
+					} else
+						next();
+
 					const tea::string& name = consume(TokenKind::Identf).text;
 					const auto& params = parseParams();
 
@@ -54,7 +65,7 @@ namespace tea::frontend {
 					if (!returnType)
 						TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
 
-					pushtree(AST::FunctionNode, vis, name, params, returnType);
+					pushtree(AST::FunctionNode, vis, cc, name, params, returnType);
 					parseBlock();
 					break;
 				}
@@ -64,7 +75,15 @@ namespace tea::frontend {
 			case KeywordKind::Import: {
 				next();
 				
-				if (match(KeywordKind::Func)) {
+				if (isCC((KeywordKind)cur->extra) || (KeywordKind)cur->extra == KeywordKind::Func) {
+					AST::CallingConvention cc = AST::CallingConvention::Auto;
+					if (cur->extra != (uint32_t)KeywordKind::Func) {
+						cc = (AST::CallingConvention)(cur->extra - (uint32_t)KeywordKind::StdCC);
+						next();
+						consume(KeywordKind::Func);
+					} else
+						next();
+
 					const tea::string& name = consume(TokenKind::Identf).text;
 					const auto& params = parseParams();
 
@@ -75,7 +94,7 @@ namespace tea::frontend {
 					if (!returnType)
 						TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
 
-					auto node = mknode(AST::FunctionImportNode, name, params, returnType);
+					auto node = mknode(AST::FunctionImportNode, cc, name, params, returnType);
 					consume(TokenKind::Semicolon);
 					tree->emplace(std::move(node));
 				} else
@@ -158,6 +177,26 @@ namespace tea::frontend {
 				auto node = mknode(AST::ReturnNode, parseExpression());
 				consume(TokenKind::Semicolon);
 				return std::move(node);
+			} break;
+
+			case KeywordKind::Var: {
+				next();
+				const tea::string& name = consume(TokenKind::Identf).text;
+
+				Type* type = nullptr;
+				if (match(TokenKind::Colon)) {
+					const tea::string& typeName = parseType();
+					type = Type::get(typeName);
+					if (!type)
+						TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
+				}
+
+				std::unique_ptr<AST::ExpressionNode> initializer;
+				if (match(TokenKind::Assign))
+					initializer = parseExpression();
+				consume(TokenKind::Semicolon);
+
+				return mknode(AST::VariableNode, name, type, std::move(initializer));
 			} break;
 
 			default:
@@ -322,7 +361,7 @@ namespace tea::frontend {
 		return node;
 	}
 
-	/*static int getPrecedence(TokenKind kind) {
+	static int getPrecedence(TokenKind kind) {
 		switch (kind) {
 
 		case TokenKind::Or:
@@ -368,12 +407,11 @@ namespace tea::frontend {
 	}
 
 	static const std::unordered_map<TokenKind, AST::ExprKind> tt2et = {
-		{TokenKind::String, AST::ExprKind::String},
-		{TokenKind::Char, AST::ExprKind::Char},
-		{TokenKind::Int, AST::ExprKind::Int},
-		{TokenKind::Float, AST::ExprKind::Float},
-		{TokenKind::Double, AST::ExprKind::Double},
-		{TokenKind::Identf, AST::ExprKind::Identf}
+		{TokenKind::Add, AST::ExprKind::Add},
+		{TokenKind::Sub, AST::ExprKind::Sub},
+		{TokenKind::Star, AST::ExprKind::Mul},
+		{TokenKind::Div, AST::ExprKind::Div},
+
 	};
 
 	std::unique_ptr<AST::ExpressionNode> Parser::parseRhs(int lhsPrec, std::unique_ptr<AST::ExpressionNode> lhs) {
@@ -387,16 +425,13 @@ namespace tea::frontend {
 			int nextPrec = getPrecedence(cur->kind);
 			if (prec < nextPrec)
 				rhs = parseRhs(prec + 1, std::move(rhs));
-			lhs = std::make_unique<AST::BinaryExpr>(*tt2et.find(tt), std::move(lhs), std::move(rhs), (cur - 1)->line, lhs->column = (cur - 1)->column);
+			lhs = std::make_unique<AST::BinaryExpr>(tt2et.find(tt)->second, std::move(lhs), std::move(rhs), (cur - 1)->line, lhs->column = (cur - 1)->column);
 		}
 	}
 
 	std::unique_ptr<AST::ExpressionNode> Parser::parseExpression() {
 		auto lhs = parsePrimary();
 		return parseRhs(0, std::move(lhs));
-	}*/
-	std::unique_ptr<AST::ExpressionNode> Parser::parseExpression() {
-		return parsePrimary();
 	}
 
 } // tea::frontend

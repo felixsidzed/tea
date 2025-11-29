@@ -97,11 +97,11 @@ namespace tea::mir {
 	void dump(const tea::mir::Instruction* insn) {
 		switch (insn->op) {
 		case OpCode::Alloca:
-			printf("%%\"%s\" = alloca %s", insn->result.name, ((PointerType*)insn->result.type)->pointee->str().data());
+			printf("%%\"%s\" = alloca %s", insn->result->name, ((PointerType*)insn->result->type)->pointee->str().data());
 			break;
 
 		case OpCode::Cast:
-			printf("%%\"%s\" = cast %s, ", insn->result.name, insn->result.type->str().data());
+			printf("%%\"%s\" = cast %s, ", insn->result->name, insn->result->type->str().data());
 			dump(insn->operands[0]);
 			break;
 
@@ -113,7 +113,7 @@ namespace tea::mir {
 			break;
 
 		case OpCode::GetElementPtr:
-			printf("%%\"%s\" = gep %s ", insn->result.name, insn->result.type->str().data());
+			printf("%%\"%s\" = gep %s ", insn->result->name, insn->result->type->str().data());
 
 			dump(insn->operands[0]);
 			for (uint32_t i = 1; i < insn->operands.size; i++) {
@@ -127,8 +127,8 @@ namespace tea::mir {
 			break;
 
 		case OpCode::Call: {
-			if (insn->result.kind != ValueKind::Null)
-				printf("%%\"%s\" = ", insn->result.name);
+			if (insn->result)
+				printf("%%\"%s\" = ", insn->result->name);
 
 			fputs("call ", stdout);
 			dump(insn->operands[0]);
@@ -146,14 +146,14 @@ namespace tea::mir {
 		} break;
 
 		case OpCode::ICmp:
-			printf("%%\"%s\" = icmp %s ", insn->result.name, icmpPredName[insn->extra]);
+			printf("%%\"%s\" = icmp %s ", insn->result->name, icmpPredName[insn->extra]);
 			dump(insn->operands[0]);
 			putchar(','); putchar(' ');
 			dump(insn->operands[1]);
 			break;
 
 		case OpCode::FCmp:
-			printf("%%\"%s\" = fcmp %s ", insn->result.name, fcmpPredName[insn->extra]);
+			printf("%%\"%s\" = fcmp %s ", insn->result->name, fcmpPredName[insn->extra]);
 			dump(insn->operands[0]);
 			putchar(','); putchar(' ');
 			dump(insn->operands[1]);
@@ -167,8 +167,8 @@ namespace tea::mir {
 
 		default:
 		_default:
-			if (insn->result.kind != ValueKind::Null)
-				printf("%%\"%s\" = ", insn->result.name);
+			if (insn->result)
+				printf("%%\"%s\" = ", insn->result->name);
 			if ((insn->op == OpCode::Store || insn->op == OpCode::Load) && insn->extra & 1)
 				fputs("volatile ", stdout);
 			printf("%s ", opcodeName[(uint32_t)insn->op]);

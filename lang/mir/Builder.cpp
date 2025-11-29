@@ -16,11 +16,10 @@ namespace tea::mir {
 		Instruction* insn = block->body.emplace();
 		insn->op = OpCode::Alloca;
 
-		insn->result.type = tea::Type::Pointer(type);
-		insn->result.kind = ValueKind::Instruction;
-		insn->result.name = block->scope.add(name);
+		insn->result = std::make_unique<Value>(ValueKind::Instruction, tea::Type::Pointer(type));
+		insn->result->name = block->scope.add(name);
 
-		return &insn->result;
+		return insn->result.get();
 	}
 
 	Instruction* Builder::store(Value* ptr, Value* val, bool volat) {
@@ -41,11 +40,10 @@ namespace tea::mir {
 
 		insn->extra = volat;
 
-		insn->result.type = ((PointerType*)ptr->type)->pointee;
-		insn->result.kind = ValueKind::Instruction;
-		insn->result.name = block->scope.add(name);
+		insn->result = std::make_unique<Value>(ValueKind::Instruction, ((PointerType*)ptr->type)->pointee);
+		insn->result->name = block->scope.add(name);
 
-		return &insn->result;
+		return insn->result.get();
 	}
 
 	Value* Builder::cast(Value* ptr, Type* targetType, const char* name) {
@@ -58,11 +56,11 @@ namespace tea::mir {
 		insn->op = OpCode::Cast;
 		insn->operands.emplace(ptr);
 
-		insn->result.type = targetType;
-		insn->result.kind = ValueKind::Instruction;
-		insn->result.name = block->scope.add(name);
+		insn->result = std::make_unique<Value>(ValueKind::Instruction, targetType);
+		insn->result->name = block->scope.add(name);
+		insn->result->type = targetType;
 
-		return &insn->result;
+		return insn->result.get();
 	}
 
 	Value* Builder::globalString(const tea::string& val) {
@@ -79,11 +77,10 @@ namespace tea::mir {
 		insn->operands.emplace(lhs);
 		insn->operands.emplace(rhs);
 
-		insn->result.type = lhs->type;
-		insn->result.kind = ValueKind::Instruction;
-		insn->result.name = block->scope.add(name);
+		insn->result = std::make_unique<Value>(ValueKind::Instruction, lhs->type);
+		insn->result->name = block->scope.add(name);
 
-		return &insn->result;
+		return insn->result.get();
 	}
 
 	Value* Builder::arithm(OpCode op, Value* lhs, Value* rhs, const char* name) {
@@ -95,11 +92,10 @@ namespace tea::mir {
 		insn->operands.emplace(lhs);
 		insn->operands.emplace(rhs);
 
-		insn->result.type = lhs->type;
-		insn->result.kind = ValueKind::Instruction;
-		insn->result.name = block->scope.add(name);
+		insn->result = std::make_unique<Value>(ValueKind::Instruction, lhs->type);
+		insn->result->name = block->scope.add(name);
 
-		return &insn->result;
+		return insn->result.get();
 	}
 
 	Instruction* Builder::unreachable() {
@@ -124,11 +120,10 @@ namespace tea::mir {
 
 			StructType* st = (StructType*)(((PointerType*)ptr->type)->pointee);
 
-			insn->result.type = Type::Pointer(st->body[(uint32_t)((ConstantNumber*)idx)->getInteger()], false);
-			insn->result.kind = ValueKind::Instruction;
-			insn->result.name = block->scope.add(name);
+			insn->result = std::make_unique<Value>(ValueKind::Instruction, Type::Pointer(st->body[(uint32_t)((ConstantNumber*)idx)->getInteger()], false));
+			insn->result->name = block->scope.add(name);
 
-			return &insn->result;
+			return insn->result.get();
 		}
 
 		return gep(ptr, &idx, 1, name);
@@ -152,11 +147,10 @@ namespace tea::mir {
 			ty = ty->getElementType();
 		}
 
-		insn->result.type = ty;
-		insn->result.kind = ValueKind::Instruction;
-		insn->result.name = block->scope.add(name);
+		insn->result = std::make_unique<Value>(ValueKind::Instruction, ty);
+		insn->result->name = block->scope.add(name);
 
-		return &insn->result;
+		return insn->result.get();
 	}
 
 	Instruction* Builder::br(BasicBlock* b, bool change) {
@@ -184,12 +178,11 @@ namespace tea::mir {
 
 		Type* retType = ((FunctionType*)func->type)->returnType;
 		if (retType->kind != TypeKind::Void) {
-			insn->result.type = retType;
-			insn->result.kind = ValueKind::Instruction;
-			insn->result.name = block->scope.add(name);
+			insn->result = std::make_unique<Value>(ValueKind::Instruction, retType);
+			insn->result->name = block->scope.add(name);
 		}
 
-		return &insn->result;
+		return insn->result.get();
 	}
 
 	Value* Builder::icmp(ICmpPredicate pred, Value* lhs, Value* rhs, const char* name) {
@@ -202,11 +195,10 @@ namespace tea::mir {
 		insn->operands.emplace(rhs);
 		insn->extra = (uint32_t)pred;
 
-		insn->result.type = Type::Bool();
-		insn->result.kind = ValueKind::Instruction;
-		insn->result.name = block->scope.add(name);
+		insn->result = std::make_unique<Value>(ValueKind::Instruction, Type::Bool());
+		insn->result->name = block->scope.add(name);
 
-		return &insn->result;
+		return insn->result.get();
 	}
 
 	Value* Builder::fcmp(FCmpPredicate pred, Value* lhs, Value* rhs, const char* name) {
@@ -219,11 +211,10 @@ namespace tea::mir {
 		insn->operands.emplace(rhs);
 		insn->extra = (uint32_t)pred;
 
-		insn->result.type = Type::Bool();
-		insn->result.kind = ValueKind::Instruction;
-		insn->result.name = block->scope.add(name);
+		insn->result = std::make_unique<Value>(ValueKind::Instruction, Type::Bool());
+		insn->result->name = block->scope.add(name);
 
-		return &insn->result;
+		return insn->result.get();
 	}
 
 	Instruction* Builder::cbr(Value* pred, BasicBlock* truthy, BasicBlock* falsy) {

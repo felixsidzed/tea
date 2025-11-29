@@ -46,6 +46,7 @@ namespace tea::frontend::analysis {
 	private:
 		Symbol* lookup(const tea::string& name);
 
+		void visitVariable(AST::VariableNode* node);
 		void visitStat(const frontend::AST::Node* node);
 		void visitBlock(const frontend::AST::Tree& tree);
 

@@ -13,13 +13,14 @@ namespace tea::frontend::AST {
 		Expression,
 		Call,
 		FunctionImport,
-		ModuleImport
+		ModuleImport,
+		Variable
 	};
 
 	enum class ExprKind : uint32_t {
 		String, Char, Int, Float, Double,
 		Identf, Call,
-		/*Add, Sub, Mul, Div,
+		Add, Sub, Mul, Div/*,
 		Eq, Neq, Lt, Gt, Le, Ge,
 		Not, And, Or,
 		Ref, Deref, Cast,
@@ -29,6 +30,16 @@ namespace tea::frontend::AST {
 
 	enum class StorageClass {
 		Public, Private
+	};
+
+	enum class CallingConvention {
+		Std, Fast, C, Auto
+	};
+
+	struct FunctionExtra {
+		uint32_t vararg : 1;
+		uint32_t cc : 2;
+		uint32_t storage : 2;
 	};
 
 	struct Node {
@@ -63,16 +74,17 @@ namespace tea::frontend::AST {
 		}
 	};
 
-	/*struct BinaryExpr : ExpressionNode {
+	struct BinaryExpr : ExpressionNode {
 		std::unique_ptr<ExpressionNode> lhs;
 		std::unique_ptr<ExpressionNode> rhs;
 
 		BinaryExpr(ExprKind ekind, std::unique_ptr<ExpressionNode> lhs, std::unique_ptr<ExpressionNode> rhs,
 				   uint32_t line, uint32_t column)
 			: ExpressionNode(ekind, line, column), lhs(std::move(lhs)), rhs(std::move(rhs)) {}
-	};*/
+	};
 
 	struct FunctionNode : Node {
+		CallingConvention cc;
 		tea::string name;
 		tea::vector<std::pair<Type*, tea::string>> params;
 		Type* returnType;
@@ -81,6 +93,7 @@ namespace tea::frontend::AST {
 
 		FunctionNode(
 			StorageClass vis,
+			CallingConvention cc,
 			const tea::string& name,
 			const tea::vector<std::pair<Type*, tea::string>>& params,
 			Type* retType,
@@ -89,13 +102,17 @@ namespace tea::frontend::AST {
 			: Node(NodeKind::Function, line, column),
 			name(name), params(params), returnType(retType) {
 			setVisibility(vis);
+			setCC(cc);
 		}
 
-		bool isVarArg() const { return (extra & 1) != 0; }
-		void setVarArg(bool vararg) { extra = (extra & ~1) | (vararg ? 1 : 0); }
+		bool isVarArg() const { return ((FunctionExtra*)&extra)->vararg; }
+		void setVarArg(bool vararg) { ((FunctionExtra*)&extra)->vararg = vararg; }
 
-		StorageClass getVisibility() const { return (StorageClass)((extra & 6) >> 1); }
-		void setVisibility(StorageClass vis) { extra = (extra & ~6) | (((uint32_t)vis << 1) & 6); }
+		StorageClass getVisibility() const { return (StorageClass)((FunctionExtra*)&extra)->storage; }
+		void setVisibility(StorageClass vis) { ((FunctionExtra*)&extra)->storage = (uint32_t)vis; }
+
+		CallingConvention getCC() const { return (CallingConvention)((FunctionExtra*)&extra)->cc; }
+		void setCC(CallingConvention cc) { ((FunctionExtra*)&extra)->cc = (uint32_t)cc; };
 	};
 
 	struct ReturnNode : Node {
@@ -118,22 +135,28 @@ namespace tea::frontend::AST {
 	};
 
 	struct FunctionImportNode : Node {
+		CallingConvention cc;
 		tea::string name;
 		tea::vector<std::pair<Type*, tea::string>> params;
 		Type* returnType;
 
 		FunctionImportNode(
+			CallingConvention cc,
 			const tea::string& name,
 			const tea::vector<std::pair<Type*, tea::string>>& params,
 			Type* retType,
 			uint32_t line, uint32_t column
 		)
 			: Node(NodeKind::FunctionImport, line, column),
-			name(name), params(params), returnType(retType) {
+			name(name), params(params), returnType(retType), cc(cc) {
+			setCC(cc);
 		}
 
-		bool isVarArg() const { return (extra & 1) != 0; }
-		void setVarArg(bool vararg) { extra = (extra & ~1) | (vararg ? 1 : 0); }
+		bool isVarArg() const { return ((FunctionExtra*)&extra)->vararg; }
+		void setVarArg(bool vararg) { ((FunctionExtra*)&extra)->vararg = vararg; }
+
+		CallingConvention getCC() const { return (CallingConvention)((FunctionExtra*)&extra)->cc; }
+		void setCC(CallingConvention cc) { ((FunctionExtra*)&extra)->cc = (uint32_t)cc; };
 	};
 
 	struct ModuleImportNode : Node {
@@ -144,6 +167,21 @@ namespace tea::frontend::AST {
 			uint32_t line, uint32_t column
 		)
 			: Node(NodeKind::ModuleImport, line, column), path(path) {
+		}
+	};
+
+	struct VariableNode : Node {
+		tea::string name;
+		Type* type;
+		std::unique_ptr<ExpressionNode> initializer;
+
+		VariableNode(
+			const tea::string& name,
+			Type* type,
+			std::unique_ptr<ExpressionNode> initializer,
+			uint32_t line, uint32_t column
+		)
+			: Node(NodeKind::Variable, line, column), name(name), type(type), initializer(std::move(initializer)) {
 		}
 	};
 }

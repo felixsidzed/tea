@@ -9,6 +9,10 @@ namespace tea {
 	using namespace frontend;
 
 	class CodeGen {
+		struct Local {
+			mir::Value* allocated;
+			mir::Value* load;
+		};
 		typedef tea::map<tea::string, mir::Function*> ImportedModule;
 
 		mir::Builder builder;
@@ -17,6 +21,8 @@ namespace tea {
 
 		// TODO: hash the keys
 		tea::map<tea::string, ImportedModule> importedModules;
+
+		tea::map<size_t, Local> locals;
 
 	public:
 		struct Options {
@@ -30,6 +36,7 @@ namespace tea {
 
 	private:
 		void emitBlock(const AST::Tree& tree);
+		void emitVariable(const AST::VariableNode* node);
 		void emitModuleImport(const AST::ModuleImportNode* node);
 		mir::Value* emitExpression(const AST::ExpressionNode* expr);
 		mir::Function* emitFunctionImport(const AST::FunctionImportNode* node);

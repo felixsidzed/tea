@@ -42,8 +42,8 @@ namespace tea::frontend {
 		//Macro,
 		//If, Else, ElseIf, Do, While, For, Break, Continue,
 		Func, Return, End,
-		//Var,
-		//StdCC, FastCC, CCC, AutoCC,
+		Var,
+		StdCC, FastCC, CCC, AutoCC,
 		//Class, New
 	};
 	

@@ -11,8 +11,6 @@ namespace fs = std::filesystem;
 
 namespace tea {
 
-	using namespace frontend;
-
 	mir::Function* CodeGen::emitFunctionImport(const AST::FunctionImportNode* node) {
 		tea::vector<Type*> params;
 		for (const auto& [ty, _] : node->params)

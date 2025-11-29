@@ -18,6 +18,7 @@ namespace tea::backend {
 namespace tea::mir {
 
 	using StorageClass = frontend::AST::StorageClass;
+	using CallingConvention = frontend::AST::CallingConvention;
 
 	enum class OpCode {
 		// Arithmetic operations
@@ -95,10 +96,10 @@ namespace tea::mir {
 		OpCode op;
 		uint32_t extra;
 		tea::vector<Value*> operands;
-		Value result;
+		std::unique_ptr<Value> result;
 
 		Instruction()
-			: op(OpCode::Nop), result(ValueKind::Null, nullptr), extra(0) {
+			: op(OpCode::Nop), extra(0), result(nullptr) {
 		}
 	};
 
@@ -261,10 +262,11 @@ namespace tea::mir {
 	
 	public:
 		StorageClass storage;
+		CallingConvention cc;
 		Module* parent = nullptr;
 
 		Function(StorageClass storage, tea::FunctionType* type, Module* parent)
-			: Value(ValueKind::Function, type), storage(storage), parent(parent) {
+			: Value(ValueKind::Function, type), storage(storage), parent(parent), cc(CallingConvention::Auto) {
 		};
 
 		void clearAttributes() { subclassData = 0; };
@@ -300,7 +302,7 @@ namespace tea::mir {
 	};
 
 	class Module {
-		friend class tea::backend::MIRLowering;
+		friend class backend::MIRLowering;
 		friend void dump(const Module* module);
 
 		Scope scope;

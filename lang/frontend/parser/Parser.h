@@ -40,7 +40,7 @@ namespace tea::frontend {
 
 		std::unique_ptr<AST::ExpressionNode> parsePrimary();
 		std::unique_ptr<AST::ExpressionNode> parseExpression();
-		//std::unique_ptr<AST::ExpressionNode> parseRhs(int exprPrec, std::unique_ptr<AST::ExpressionNode> lhs);
+		std::unique_ptr<AST::ExpressionNode> parseRhs(int exprPrec, std::unique_ptr<AST::ExpressionNode> lhs);
 	};
 
 } // tea::frontend

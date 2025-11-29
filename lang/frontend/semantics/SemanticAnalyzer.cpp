@@ -15,6 +15,12 @@ namespace fs = std::filesystem;
 
 namespace tea::frontend::analysis {
 
+	static const char* binExprName[] = {
+		"+", "-", "*", "/",
+		"==", "!=", "<", ">", "<=", ">=",
+		"!", "&&", "||"
+	};
+
 	tea::vector<tea::string> SemanticAnalyzer::visit(const AST::Tree& root) {
 		pushscope();
 
@@ -54,9 +60,6 @@ namespace tea::frontend::analysis {
 			case AST::NodeKind::ModuleImport: {
 				AST::ModuleImportNode* mi = (AST::ModuleImportNode*)node.get();
 				
-				// TODO: we should probably add all the modules symbol's into the current scope
-				// but that would need parsing of the module
-
 				std::string fullModuleName(mi->path + ".itea");
 
 				fs::path path;
@@ -147,6 +150,10 @@ namespace tea::frontend::analysis {
 			visitExpression((AST::ExpressionNode*)node);
 			break;
 
+		case AST::NodeKind::Variable:
+			visitVariable((AST::VariableNode*)node);
+			break;
+
 		default:
 			#ifdef _DEBUG
 			fprintf(stderr, "SemanticAnalyzer: unhandled statement kind %d\n", node->kind);
@@ -213,6 +220,35 @@ namespace tea::frontend::analysis {
 			}
 		} break;
 
+		case AST::ExprKind::Add:
+		case AST::ExprKind::Sub:
+		case AST::ExprKind::Mul:
+		case AST::ExprKind::Div: {
+			AST::BinaryExpr* be = (AST::BinaryExpr*)node;
+
+			Type* lhsType = visitExpression(be->lhs.get());
+			Type* rhsType = visitExpression(be->rhs.get());
+
+			if (lhsType != rhsType) {
+				errors.emplace(std::format("Function '{}': operator '{}': type mismatch: '{}' vs '{}'. line {}, column {}",
+					func->name,
+					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
+					lhsType->str(), rhsType->str(),
+					node->line, node->column
+				).c_str());
+				type = Type::Void();
+			} else if (!lhsType->isNumeric() && !lhsType->isFloat()) {
+				errors.emplace(std::format("Function '{}': operator '{}' cannot be applied to non-numeric type '{}'. line {}, column {}",
+					func->name,
+					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
+					lhsType->str(),
+					node->line, node->column
+				).c_str());
+				type = Type::Void();
+			} else
+				type = lhsType;
+		} break;
+
 		default:
 			#ifdef _DEBUG
 			fprintf(stderr, "SemanticAnalyzer: unhandled expression kind %d\n", node->extra);
@@ -221,6 +257,21 @@ namespace tea::frontend::analysis {
 		}
 		node->type = type;
 		return type;
+	}
+
+	void SemanticAnalyzer::visitVariable(AST::VariableNode* node) {
+		Type* initType = visitExpression(node->initializer.get());
+		if (node->type) {
+			if (node->type != initType)
+				TEA_PANIC("variable initializer type (%s) doesn't match variable type (%s). line %d, column %d",
+					initType->str().data(), node->type->str().data(), node->line, node->column);
+		} else
+			node->type = initType;
+
+		#pragma warning(push)
+		#pragma warning(disable : 6011)
+		pushsym(node->name, node->type, (bool)node->type->constant, false, false, false, node->type != nullptr);
+		#pragma warning(pop)
 	}
 
 } // namespace tea::analysis

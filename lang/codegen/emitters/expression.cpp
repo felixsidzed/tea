@@ -8,17 +8,17 @@ namespace tea {
 	mir::Value* CodeGen::emitExpression(const AST::ExpressionNode* node) {
 		switch (node->getEKind()) {
 		case AST::ExprKind::String: {
-			AST::LiteralNode* literal = (AST::LiteralNode*)node;
+			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
 			return builder.globalString(literal->value);
 		}
 
 		case AST::ExprKind::Char: {
-			AST::LiteralNode* literal = (AST::LiteralNode*)node;
+			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
 			return mir::ConstantNumber::get(literal->value[0], 8);
 		}
 
 		case AST::ExprKind::Int: {
-			AST::LiteralNode* literal = (AST::LiteralNode*)node;
+			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
 			uint64_t val = std::stoull(std::string(literal->value.data(), literal->value.length()), nullptr, 0);
 			return mir::ConstantNumber::get(
 				val, 32, node->type->sign
@@ -27,7 +27,7 @@ namespace tea {
 
 		case AST::ExprKind::Double:
 		case AST::ExprKind::Float: {
-			AST::LiteralNode* literal = (AST::LiteralNode*)node;
+			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
 			return mir::ConstantNumber::get<double>(
 				std::stod(std::string(literal->value.data(), literal->value.length()), nullptr),
 				node->getEKind() == AST::ExprKind::Float ? 32 : 64,
@@ -36,7 +36,7 @@ namespace tea {
 		}
 
 		case AST::ExprKind::Identf: {
-			AST::LiteralNode* literal = (AST::LiteralNode*)node;
+			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
 
 			if (strchr(literal->value, ':')) {
 				bool first = true;
@@ -79,7 +79,7 @@ namespace tea {
 
 				{
 					mir::Global* g = module->getNamedGlobal(literal->value);
-					if (g) return g;
+					if (g) return builder.load(g, "");
 				} {
 					mir::Function* f = module->getNamedFunction(literal->value);
 					if (f) return f;
@@ -90,6 +90,12 @@ namespace tea {
 							return builder.getInsertBlock()->parent->getParam(i);
 						i++;
 					}
+				} {
+					if (auto* it = locals.find(std::hash<tea::string>()(literal->value))) {
+						if (!it->load)
+							it->load = builder.load(it->allocated, literal->value.data());
+						return it->load;
+					}
 				}
 			}
 
@@ -97,7 +103,7 @@ namespace tea {
 		} break;
 
 		case AST::ExprKind::Call: {
-			AST::CallNode* call = (AST::CallNode*)node;
+			const AST::CallNode* call = (const AST::CallNode*)node;
 			mir::Value* val = emitExpression(call->callee.get());
 			
 			tea::vector<mir::Value*> args;
@@ -105,6 +111,29 @@ namespace tea {
 				args.emplace(emitExpression(arg.get()));
 
 			return builder.call(val, args.data, args.size, "");
+		} break;
+
+		case AST::ExprKind::Add:
+		case AST::ExprKind::Sub:
+		case AST::ExprKind::Mul:
+		case AST::ExprKind::Div: {
+			const AST::BinaryExpr* be = (const AST::BinaryExpr*)node;
+
+			mir::Value* lhs = emitExpression(be->lhs.get());
+			mir::Value* rhs = emitExpression(be->rhs.get());
+
+			switch (node->getEKind()) {
+			case AST::ExprKind::Add:
+				return builder.arithm(mir::OpCode::Add, lhs, rhs, "");
+			case AST::ExprKind::Sub:
+				return builder.arithm(mir::OpCode::Sub, lhs, rhs, "");
+			case AST::ExprKind::Mul:
+				return builder.arithm(mir::OpCode::Mul, lhs, rhs, "");
+			case AST::ExprKind::Div:
+				return builder.arithm(mir::OpCode::Div, lhs, rhs, "");
+			default:
+				break;
+			}
 		} break;
 
 		default:

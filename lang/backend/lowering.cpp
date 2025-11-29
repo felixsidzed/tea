@@ -93,8 +93,10 @@ namespace tea::backend {
 			}
 		}
 		
-		if (options.DumpLLVMModule) LLVMDumpModule(M);
-		if (LLVMVerifyModule(M, LLVMPrintMessageAction, &err)) TEA_PANIC("%s", err);
+		if (LLVMVerifyModule(M, LLVMReturnStatusAction, &err)) {
+			if (options.DumpLLVMModule) LLVMDumpModule(M);
+			TEA_PANIC("%s", err);
+		}
 
 		if (options.OptimizationLevel > 0) {
 			LLVMPassManagerRef pm = LLVMCreatePassManager();
@@ -103,6 +105,7 @@ namespace tea::backend {
 			LLVMPassManagerBuilderPopulateModulePassManager(pmb, pm);
 			LLVMRunPassManager(pm, M);
 		}
+		if (options.DumpLLVMModule) LLVMDumpModule(M);
 
 		LLVMMemoryBufferRef buf;
 		if (LLVMTargetMachineEmitToMemoryBuffer(TM, M, LLVMObjectFile, &err, &buf))
@@ -173,6 +176,14 @@ namespace tea::backend {
 		if (f->storage == mir::StorageClass::Private)
 			LLVMSetLinkage(func, LLVMPrivateLinkage);
 
+		if (f->cc != mir::CallingConvention::Auto)
+			switch (f->cc) {
+			case mir::CallingConvention::C: LLVMSetFunctionCallConv(func, LLVMCCallConv); break;
+			case mir::CallingConvention::Fast: LLVMSetFunctionCallConv(func, LLVMFastCallConv); break;
+			case mir::CallingConvention::Std: LLVMSetFunctionCallConv(func, LLVMX86StdcallCallConv); break;
+			default: break;
+			}
+
 		globalMap[std::hash<tea::string>()(f->name)] = func;
 		
 		if (f->params.size) {
@@ -208,77 +219,77 @@ namespace tea::backend {
 			case mir::OpCode::Add: {
 				LLVMValueRef lhs = lowerValue(insn.operands[0]);
 				LLVMValueRef rhs = lowerValue(insn.operands[1]);
-				if (insn.result.type->isFloat())
-					result = LLVMBuildFAdd(builder, lhs, rhs, "");
+				if (insn.result->type->isFloat())
+					result = LLVMBuildFAdd(builder, lhs, rhs, insn.result->name);
 				else
-					result = LLVMBuildAdd(builder, lhs, rhs, "");
+					result = LLVMBuildAdd(builder, lhs, rhs, insn.result->name);
 			} break;
 
 			case mir::OpCode::Sub: {
 				LLVMValueRef lhs = lowerValue(insn.operands[0]);
 				LLVMValueRef rhs = lowerValue(insn.operands[1]);
-				if (insn.result.type->isFloat())
-					result = LLVMBuildFSub(builder, lhs, rhs, "");
+				if (insn.result->type->isFloat())
+					result = LLVMBuildFSub(builder, lhs, rhs, insn.result->name);
 				else
-					result = LLVMBuildSub(builder, lhs, rhs, "");
+					result = LLVMBuildSub(builder, lhs, rhs, insn.result->name);
 			} break;
 
 			case mir::OpCode::Mul: {
 				LLVMValueRef lhs = lowerValue(insn.operands[0]);
 				LLVMValueRef rhs = lowerValue(insn.operands[1]);
-				if (insn.result.type->isFloat())
-					result = LLVMBuildFMul(builder, lhs, rhs, "");
+				if (insn.result->type->isFloat())
+					result = LLVMBuildFMul(builder, lhs, rhs, insn.result->name);
 				else
-					result = LLVMBuildMul(builder, lhs, rhs, "");
+					result = LLVMBuildMul(builder, lhs, rhs, insn.result->name);
 			} break;
 
 			case mir::OpCode::Div: {
 				LLVMValueRef lhs = lowerValue(insn.operands[0]);
 				LLVMValueRef rhs = lowerValue(insn.operands[1]);
-				if (insn.result.type->isFloat())
-					result = LLVMBuildFDiv(builder, lhs, rhs, "");
-				else if (insn.result.type->sign)
-					result = LLVMBuildSDiv(builder, lhs, rhs, "");
+				if (insn.result->type->isFloat())
+					result = LLVMBuildFDiv(builder, lhs, rhs, insn.result->name);
+				else if (insn.result->type->sign)
+					result = LLVMBuildSDiv(builder, lhs, rhs, insn.result->name);
 				else
-					result = LLVMBuildUDiv(builder, lhs, rhs, "");
+					result = LLVMBuildUDiv(builder, lhs, rhs, insn.result->name);
 			} break;
 
 			case mir::OpCode::Mod: {
 				LLVMValueRef lhs = lowerValue(insn.operands[0]);
 				LLVMValueRef rhs = lowerValue(insn.operands[1]);
-				if (insn.result.type->isFloat())
-					result = LLVMBuildFRem(builder, lhs, rhs, "");
-				else if (insn.result.type->sign)
-					result = LLVMBuildSRem(builder, lhs, rhs, "");
+				if (insn.result->type->isFloat())
+					result = LLVMBuildFRem(builder, lhs, rhs, insn.result->name);
+				else if (insn.result->type->sign)
+					result = LLVMBuildSRem(builder, lhs, rhs, insn.result->name);
 				else
-					result = LLVMBuildURem(builder, lhs, rhs, "");
+					result = LLVMBuildURem(builder, lhs, rhs, insn.result->name);
 			} break;
 
 			case mir::OpCode::Not:
-				result = LLVMBuildNot(builder, lowerValue(insn.operands[0]), "");
+				result = LLVMBuildNot(builder, lowerValue(insn.operands[0]), insn.result->name);
 				break;
 
 			case mir::OpCode::And:
-				result = LLVMBuildAnd(builder, lowerValue(insn.operands[0]), lowerValue(insn.operands[1]), "");
+				result = LLVMBuildAnd(builder, lowerValue(insn.operands[0]), lowerValue(insn.operands[1]), insn.result->name);
 				break;
 
 			case mir::OpCode::Or:
-				result = LLVMBuildOr(builder, lowerValue(insn.operands[0]), lowerValue(insn.operands[1]), "");
+				result = LLVMBuildOr(builder, lowerValue(insn.operands[0]), lowerValue(insn.operands[1]), insn.result->name);
 				break;
 
 			case mir::OpCode::Xor:
-				result = LLVMBuildXor(builder, lowerValue(insn.operands[0]), lowerValue(insn.operands[1]), "");
+				result = LLVMBuildXor(builder, lowerValue(insn.operands[0]), lowerValue(insn.operands[1]), insn.result->name);
 				break;
 
 			case mir::OpCode::Shl:
-				result = LLVMBuildShl(builder, lowerValue(insn.operands[0]), lowerValue(insn.operands[1]), "");
+				result = LLVMBuildShl(builder, lowerValue(insn.operands[0]), lowerValue(insn.operands[1]), insn.result->name);
 				break;
 
 			case mir::OpCode::Shr:
 				if (insn.operands[0]->type->sign)
-					result = LLVMBuildAShr(builder, lowerValue(insn.operands[0]), lowerValue(insn.operands[1]), "");
+					result = LLVMBuildAShr(builder, lowerValue(insn.operands[0]), lowerValue(insn.operands[1]), insn.result->name);
 				else
-					result = LLVMBuildLShr(builder, lowerValue(insn.operands[0]), lowerValue(insn.operands[1]), "");
+					result = LLVMBuildLShr(builder, lowerValue(insn.operands[0]), lowerValue(insn.operands[1]), insn.result->name);
 				break;
 
 			case mir::OpCode::ICmp:
@@ -286,7 +297,7 @@ namespace tea::backend {
 					builder, icmpPred2llvm[insn.extra],
 					lowerValue(insn.operands[0]),
 					lowerValue(insn.operands[1]),
-					""
+					insn.result->name
 				);
 				break;
 
@@ -295,25 +306,25 @@ namespace tea::backend {
 					builder, fcmpPred2llvm[insn.extra],
 					lowerValue(insn.operands[0]),
 					lowerValue(insn.operands[1]),
-					""
+					insn.result->name
 				);
 				break;
 
 			case mir::OpCode::Load: {
 				LLVMValueRef ptr = lowerValue(insn.operands[0]);
-				result = LLVMBuildLoad(builder, ptr, "");
+				result = LLVMBuildLoad(builder, ptr, insn.result->name);
 				if (insn.extra & 1)
 					LLVMSetVolatile(result, true);
 			} break;
 
-			case mir::OpCode::Store:
-				LLVMBuildStore(builder, lowerValue(insn.operands[0]), lowerValue(insn.operands[1]));
+			case mir::OpCode::Store: {
+				LLVMValueRef store = LLVMBuildStore(builder, lowerValue(insn.operands[1]), lowerValue(insn.operands[0]));
 				if (insn.extra & 1)
-					LLVMSetVolatile(LLVMGetLastInstruction(LLVMGetInsertBlock(builder)), true);
-				break;
+					LLVMSetVolatile(store, true);
+			} break;
 
 			case mir::OpCode::Alloca:
-				result = LLVMBuildAlloca(builder, lowerType(insn.result.type), "");
+				result = LLVMBuildAlloca(builder, lowerType(((const PointerType*)insn.result->type)->pointee), insn.result->name);
 				break;
 
 			case mir::OpCode::GetElementPtr: {
@@ -323,7 +334,7 @@ namespace tea::backend {
 				for (uint32_t i = 1; i < insn.operands.size; i++)
 					indices.emplace(lowerValue(insn.operands[i]));
 
-				result = LLVMBuildGEP(builder, ptr, indices.data, indices.size, "");
+				result = LLVMBuildGEP(builder, ptr, indices.data, indices.size, insn.result->name);
 			} break;
 
 			case mir::OpCode::Br:
@@ -354,7 +365,7 @@ namespace tea::backend {
 					incomingBlocks.emplace(lowerBasicBlock((const mir::BasicBlock*)insn.operands[++i]));
 				}
 
-				result = LLVMBuildPhi(builder, lowerType((const Type*)insn.operands[0]), "x");
+				result = LLVMBuildPhi(builder, lowerType((const Type*)insn.operands[0]), insn.result->name);
 				LLVMAddIncoming(
 					result,
 					incomingValues.data, incomingBlocks.data,
@@ -370,7 +381,7 @@ namespace tea::backend {
 					args.emplace(lowerValue(insn.operands[i]));
 				
 				FunctionType* ftype = (FunctionType*)insn.operands[0]->type;
-				result = LLVMBuildCall(builder, callee, args.data, args.size, "");
+				result = LLVMBuildCall(builder, callee, args.data, args.size, insn.result->name);
 			} break;
 
 			case mir::OpCode::Nop:
@@ -378,25 +389,25 @@ namespace tea::backend {
 
 			case mir::OpCode::Cast: {
 				LLVMValueRef value = lowerValue(insn.operands[0]);
-				LLVMTypeRef destType = lowerType(insn.result.type);
+				LLVMTypeRef destType = lowerType(insn.result->type);
 				
 				const Type* src = insn.operands[0]->type;
-				const Type* dst = insn.result.type;
+				const Type* dst = insn.result->type;
 				
 				if (src->isFloat() && dst->isNumeric()) {
 					if (dst->sign)
-						result = LLVMBuildFPToSI(builder, value, destType, "");
+						result = LLVMBuildFPToSI(builder, value, destType, insn.result->name);
 					else
-						result = LLVMBuildFPToUI(builder, value, destType, "");
+						result = LLVMBuildFPToUI(builder, value, destType, insn.result->name);
 				} else if (src->isNumeric() && dst->isFloat()) {
 					if (src->sign)
-						result = LLVMBuildSIToFP(builder, value, destType, "");
+						result = LLVMBuildSIToFP(builder, value, destType, insn.result->name);
 					else
-						result = LLVMBuildUIToFP(builder, value, destType, "");
+						result = LLVMBuildUIToFP(builder, value, destType, insn.result->name);
 				} else if (src->isNumeric() && dst->isNumeric())
-					result = LLVMBuildIntCast(builder, value, destType, "");
+					result = LLVMBuildIntCast(builder, value, destType, insn.result->name);
 				else
-					result = LLVMBuildBitCast(builder, value, destType, "");
+					result = LLVMBuildBitCast(builder, value, destType, insn.result->name);
 			} break;
 
 			case mir::OpCode::Unreachable:
@@ -407,8 +418,8 @@ namespace tea::backend {
 				TEA_PANIC("cannot lower unknown opcode: %d", insn.op);
 			}
 			
-			if (result && insn.result.kind == mir::ValueKind::Instruction)
-				valueMap[&insn.result] = result;
+			if (result && insn.result->kind == mir::ValueKind::Instruction)
+				valueMap[insn.result.get()] = result;
 		}
 	}
 
