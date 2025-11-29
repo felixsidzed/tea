@@ -136,6 +136,44 @@ namespace tea {
 			}
 		} break;
 
+		case AST::ExprKind::Eq:
+		case AST::ExprKind::Neq:
+		case AST::ExprKind::Lt:
+		case AST::ExprKind::Le:
+		case AST::ExprKind::Gt:
+		case AST::ExprKind::Ge: {
+			const AST::BinaryExpr* be = (const AST::BinaryExpr*)node;
+
+			mir::Value* lhs = emitExpression(be->lhs.get());
+			mir::Value* rhs = emitExpression(be->rhs.get());
+
+			if (lhs->type->isFloat() || rhs->type->isFloat()) {
+				mir::FCmpPredicate pred;
+				switch (node->getEKind()) {
+				case AST::ExprKind::Eq:  pred = mir::FCmpPredicate::OEQ; break;
+				case AST::ExprKind::Neq: pred = mir::FCmpPredicate::ONEQ; break;
+				case AST::ExprKind::Lt:  pred = mir::FCmpPredicate::OLT; break;
+				case AST::ExprKind::Le:  pred = mir::FCmpPredicate::OLE; break;
+				case AST::ExprKind::Gt:  pred = mir::FCmpPredicate::OGT; break;
+				case AST::ExprKind::Ge:  pred = mir::FCmpPredicate::OGE; break;
+				default: TEA_UNREACHABLE();
+				}
+				return builder.fcmp(pred, lhs, rhs, "");
+			} else {
+				mir::ICmpPredicate pred;
+				switch (node->getEKind()) {
+				case AST::ExprKind::Eq:  pred = mir::ICmpPredicate::EQ; break;
+				case AST::ExprKind::Neq: pred = mir::ICmpPredicate::NEQ; break;
+				case AST::ExprKind::Lt:  pred = node->type->sign ? mir::ICmpPredicate::SLT : mir::ICmpPredicate::ULT; break;
+				case AST::ExprKind::Le:  pred = node->type->sign ? mir::ICmpPredicate::SLE : mir::ICmpPredicate::ULE; break;
+				case AST::ExprKind::Gt:  pred = node->type->sign ? mir::ICmpPredicate::SGT : mir::ICmpPredicate::UGT; break;
+				case AST::ExprKind::Ge:  pred = node->type->sign ? mir::ICmpPredicate::SGE : mir::ICmpPredicate::UGE; break;
+				default: TEA_UNREACHABLE();
+				}
+				return builder.icmp(pred, lhs, rhs, "");
+			}
+		} break;
+
 		default:
 			TEA_PANIC("unknown expression kind %d", node->getEKind());
 			TEA_UNREACHABLE();

@@ -1,6 +1,6 @@
 #include "Parser.h"
 
-#include <unordered_map>
+#include "common/map.h"
 
 #define next() (++cur)
 
@@ -149,18 +149,16 @@ namespace tea::frontend {
 		return *cur++;
 	};
 
-	void Parser::parseBlock() {
+	void Parser::parseBlock(const tea::vector<KeywordKind>& extraTerminators) {
 		while (true) {
-			if (cur->kind == TokenKind::Keyword && cur->extra == (uint32_t)KeywordKind::End) {
+			if (cur->kind == TokenKind::Keyword && (cur->extra == (uint32_t)KeywordKind::End || extraTerminators.find((KeywordKind)cur->extra))) {
 				next();
 				poptree();
 				return;
 			}
 
-			uint32_t _line = cur->line, _column = cur->column;
-			auto node = parseStat();
-			node->line = _line; node->column = _column;
-			tree->emplace(std::move(node));
+			if (auto node = parseStat())
+				tree->emplace(std::move(node));
 
 			if (match(TokenKind::EndOfFile))
 				TEA_PANIC("unexpected EOF (did you forget to close a function?). line %d, column %d", cur->line, cur->column);
@@ -191,12 +189,40 @@ namespace tea::frontend {
 						TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
 				}
 
-				std::unique_ptr<AST::ExpressionNode> initializer;
+				std::unique_ptr<AST::ExpressionNode> initializer = nullptr;
 				if (match(TokenKind::Assign))
 					initializer = parseExpression();
 				consume(TokenKind::Semicolon);
 
 				return mknode(AST::VariableNode, name, type, std::move(initializer));
+			} break;
+
+			case KeywordKind::If: {
+				next();
+
+				consume(TokenKind::Lpar);
+				auto pred = parseExpression();
+				consume(TokenKind::Rpar);
+
+				consume(KeywordKind::Do);
+				
+				auto ifNode = mknode(AST::IfNode, std::move(pred));
+				treeHistory.emplace(tree);
+				tree = &ifNode->body;
+
+				parseBlock({ KeywordKind::Else });
+
+				if ((cur - 1)->kind == TokenKind::Keyword && (cur - 1)->extra == (uint32_t)KeywordKind::Else) {
+					auto otherwise = std::make_unique<AST::ElseNode>(_line, _column);
+					treeHistory.emplace(tree);
+					tree = &otherwise->body;
+
+					parseBlock();
+
+					ifNode->otherwise = std::move(otherwise);
+				}
+
+				tree->push(std::move(ifNode));
 			} break;
 
 			default:
@@ -363,8 +389,7 @@ namespace tea::frontend {
 
 	static int getPrecedence(TokenKind kind) {
 		switch (kind) {
-
-		case TokenKind::Or:
+		/*case TokenKind::Or:
 			return 1;
 
 		case TokenKind::And:
@@ -379,7 +404,7 @@ namespace tea::frontend {
 		case TokenKind::Amp:
 			return 5;
 
-		case TokenKind::Eq:
+		*/case TokenKind::Eq:
 		case TokenKind::Neq:
 			return 6;
 
@@ -389,9 +414,9 @@ namespace tea::frontend {
 		case TokenKind::Ge:
 			return 7;
 
-		case TokenKind::Shl:
+		/*case TokenKind::Shl:
 		case TokenKind::Shr:
-			return 8;
+			return 8;*/
 
 		case TokenKind::Add:
 		case TokenKind::Sub:
@@ -406,11 +431,18 @@ namespace tea::frontend {
 		}
 	}
 
-	static const std::unordered_map<TokenKind, AST::ExprKind> tt2et = {
+	static const tea::map<TokenKind, AST::ExprKind> tt2et = {
 		{TokenKind::Add, AST::ExprKind::Add},
 		{TokenKind::Sub, AST::ExprKind::Sub},
 		{TokenKind::Star, AST::ExprKind::Mul},
 		{TokenKind::Div, AST::ExprKind::Div},
+
+		{TokenKind::Eq, AST::ExprKind::Eq},
+		{TokenKind::Neq, AST::ExprKind::Neq},
+		{TokenKind::Lt, AST::ExprKind::Lt},
+		{TokenKind::Le, AST::ExprKind::Le},
+		{TokenKind::Gt, AST::ExprKind::Gt},
+		{TokenKind::Ge, AST::ExprKind::Ge},
 
 	};
 
@@ -419,13 +451,13 @@ namespace tea::frontend {
 			int prec = getPrecedence(cur->kind);
 			if (prec < lhsPrec)
 				return lhs;
-			TokenKind tt = cur->kind;
+			TokenKind tk = cur->kind;
 			next();
 			auto rhs = parsePrimary();
 			int nextPrec = getPrecedence(cur->kind);
 			if (prec < nextPrec)
 				rhs = parseRhs(prec + 1, std::move(rhs));
-			lhs = std::make_unique<AST::BinaryExpr>(tt2et.find(tt)->second, std::move(lhs), std::move(rhs), (cur - 1)->line, lhs->column = (cur - 1)->column);
+			lhs = std::make_unique<AST::BinaryExpr>(*tt2et.find(tk), std::move(lhs), std::move(rhs), (cur - 1)->line, (cur - 1)->column);
 		}
 	}
 

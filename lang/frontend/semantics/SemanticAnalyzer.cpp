@@ -154,6 +154,14 @@ namespace tea::frontend::analysis {
 			visitVariable((AST::VariableNode*)node);
 			break;
 
+		case AST::NodeKind::If: {
+			AST::IfNode* ifNode = (AST::IfNode*)node;
+			visitExpression(ifNode->pred.get());
+			visitBlock(ifNode->body);
+			if (ifNode->otherwise)
+				visitBlock(ifNode->otherwise->body);
+		} break;
+
 		default:
 			#ifdef _DEBUG
 			fprintf(stderr, "SemanticAnalyzer: unhandled statement kind %d\n", node->kind);
@@ -247,6 +255,39 @@ namespace tea::frontend::analysis {
 				type = Type::Void();
 			} else
 				type = lhsType;
+		} break;
+
+		case AST::ExprKind::Eq:
+		case AST::ExprKind::Neq:
+		case AST::ExprKind::Lt:
+		case AST::ExprKind::Gt:
+		case AST::ExprKind::Ge:
+		case AST::ExprKind::Le: {
+			AST::BinaryExpr* be = (AST::BinaryExpr*)node;
+
+			Type* lhsType = visitExpression(be->lhs.get());
+			Type* rhsType = visitExpression(be->rhs.get());
+
+			if (lhsType != rhsType) {
+				errors.emplace(std::format(
+					"Function '{}': operator '{}': type mismatch: '{}' vs '{}'. line {}, column {}",
+					func->name,
+					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
+					lhsType->str(), rhsType->str(),
+					node->line, node->column
+				).c_str());
+				type = Type::Void();
+			} else if (!lhsType->isNumeric() && lhsType->kind != TypeKind::Char && lhsType->kind != TypeKind::String) {
+				errors.emplace(std::format(
+					"Function '{}': operator '{}' cannot be applied to type '{}'. line {}, column {}",
+					func->name,
+					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
+					lhsType->str(),
+					node->line, node->column
+				).c_str());
+				type = Type::Void();
+			} else
+				type = Type::Bool();
 		} break;
 
 		default:

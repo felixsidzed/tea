@@ -8,21 +8,20 @@
 
 namespace tea::frontend::AST {
 	enum class NodeKind: uint32_t {
-		Function,
-		Return,
+		Function, Return,
 		Expression,
 		Call,
-		FunctionImport,
-		ModuleImport,
-		Variable
+		FunctionImport, ModuleImport,
+		Variable,
+		If, Else,
 	};
 
 	enum class ExprKind : uint32_t {
 		String, Char, Int, Float, Double,
 		Identf, Call,
-		Add, Sub, Mul, Div/*,
+		Add, Sub, Mul, Div,
 		Eq, Neq, Lt, Gt, Le, Ge,
-		Not, And, Or,
+		/*Not, And, Or,
 		Ref, Deref, Cast,
 		Array, Index,
 		Band, Bor, Bxor, Shr, Shl*/
@@ -182,6 +181,27 @@ namespace tea::frontend::AST {
 			uint32_t line, uint32_t column
 		)
 			: Node(NodeKind::Variable, line, column), name(name), type(type), initializer(std::move(initializer)) {
+		}
+	};
+
+	struct ElseNode : Node {
+		Tree body;
+
+		ElseNode(uint32_t line, uint32_t column)
+			: Node(NodeKind::Else, line, column) {
+		}
+	};
+
+	struct IfNode : Node {
+		std::unique_ptr<ExpressionNode> pred;
+		std::unique_ptr<ElseNode> otherwise;
+
+		Tree body;
+
+		IfNode(
+			std::unique_ptr<ExpressionNode> pred,
+			uint32_t line, uint32_t column
+		) : Node(NodeKind::If, line, column), pred(std::move(pred)) {
 		}
 	};
 }

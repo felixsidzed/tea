@@ -31,7 +31,7 @@ namespace tea::frontend {
 		const Token& consume(TokenKind kind);
 		const Token& consume(KeywordKind kind);
 
-		void parseBlock();
+		void parseBlock(const tea::vector<KeywordKind>& extraTerminators = {});
 		std::unique_ptr<AST::Node> parseStat();
 
 		tea::vector<std::pair<Type*, tea::string>> parseParams();

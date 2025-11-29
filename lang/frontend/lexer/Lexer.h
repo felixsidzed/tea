@@ -40,7 +40,7 @@ namespace tea::frontend {
 		Public, Private,
 		Using, Import,
 		//Macro,
-		//If, Else, ElseIf, Do, While, For, Break, Continue,
+		If, Else, /*ElseIf,*/ Do, //While, For, Break, Continue,
 		Func, Return, End,
 		Var,
 		StdCC, FastCC, CCC, AutoCC,

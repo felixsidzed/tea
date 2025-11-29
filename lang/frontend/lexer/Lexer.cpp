@@ -10,7 +10,7 @@ static const char* keywords[] = {
 	"public", "private",
 	"using", "import",
 	//"macro",
-	//"if", "else", "elseif", "do", "while", "for", "break", "continue",
+	"if", "else", /*"elseif",*/ "do", //"while", "for", "break", "continue",
 	"func", "return", "end",
 	"var",
 	"__stdcall", "__fastcall", "__cdecl", "__auto",

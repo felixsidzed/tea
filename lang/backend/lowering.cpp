@@ -7,7 +7,7 @@
 #include "llvm-c/TargetMachine.h"
 #include "llvm-c/Transforms/PassManagerBuilder.h"
 
-#define lowerBasicBlock(x) blockMap[(x)]
+#define lowerBasicBlock(x) blockMap[(const mir::BasicBlock*)(x)]
 
 namespace tea::backend {
 
@@ -34,6 +34,28 @@ namespace tea::backend {
 		LLVMRealPredicateTrue,
 		LLVMRealPredicateFalse
 	};
+
+	static void removeDeadBlocks(LLVMValueRef func) {
+		LLVMBasicBlockRef block = LLVMGetFirstBasicBlock(func);
+		while (block) {
+			LLVMBasicBlockRef nextBlock = LLVMGetNextBasicBlock(block);
+
+			if (block != LLVMGetEntryBasicBlock(func)) {
+				if (!LLVMGetFirstUse((LLVMValueRef)block)) {
+					LLVMValueRef insn = LLVMGetFirstInstruction(block);
+					while (insn) {
+						LLVMValueRef nextInsn = LLVMGetNextInstruction(insn);
+						LLVMInstructionEraseFromParent(insn);
+						insn = nextInsn;
+					}
+
+					LLVMDeleteBasicBlock(block);
+				}
+			}
+
+			block = nextBlock;
+		}
+	}
 
 	std::pair<std::unique_ptr<uint8_t[]>, size_t> MIRLowering::lower(const mir::Module* module, Options options) {
 		LLVMInitializeAllTargets();
@@ -85,7 +107,7 @@ namespace tea::backend {
 				break;
 
 			case mir::ValueKind::Function:
-				lowerFunction((const mir::Function*)node.get());
+				removeDeadBlocks(lowerFunction((const mir::Function*)node.get()));
 				break;
 
 			default:
@@ -171,7 +193,7 @@ namespace tea::backend {
 		globalMap[std::hash<tea::string>()(g->name)] = global;
 	}
 
-	void MIRLowering::lowerFunction(const mir::Function* f) {
+	LLVMValueRef MIRLowering::lowerFunction(const mir::Function* f) {
 		LLVMValueRef func = LLVMAddFunction(M, f->name, lowerType(f->type));
 		if (f->storage == mir::StorageClass::Private)
 			LLVMSetLinkage(func, LLVMPrivateLinkage);
@@ -209,6 +231,7 @@ namespace tea::backend {
 		LLVMDisposeBuilder(builder);
 		blockMap.data.clear();
 		valueMap.data.clear();
+		return func;
 	}
 
 	void MIRLowering::lowerBlock(const mir::BasicBlock* block, LLVMBuilderRef builder) {
@@ -338,14 +361,14 @@ namespace tea::backend {
 			} break;
 
 			case mir::OpCode::Br:
-				LLVMBuildBr(builder, lowerBasicBlock((const mir::BasicBlock*)insn.operands[0]));
+				LLVMBuildBr(builder, lowerBasicBlock(insn.operands[0]));
 				break;
 
 			case mir::OpCode::CondBr:
 				LLVMBuildCondBr(
 					builder, lowerValue(insn.operands[0]),
-					lowerBasicBlock((const mir::BasicBlock*)insn.operands[1]),
-					lowerBasicBlock((const mir::BasicBlock*)insn.operands[2])
+					lowerBasicBlock(insn.operands[1]),
+					lowerBasicBlock(insn.operands[2])
 				);
 				break;
 
@@ -362,7 +385,7 @@ namespace tea::backend {
 
 				for (uint32_t i = 0; i < insn.operands.size;) {
 					incomingValues.emplace(lowerValue(insn.operands[++i]));
-					incomingBlocks.emplace(lowerBasicBlock((const mir::BasicBlock*)insn.operands[++i]));
+					incomingBlocks.emplace(lowerBasicBlock(insn.operands[++i]));
 				}
 
 				result = LLVMBuildPhi(builder, lowerType((const Type*)insn.operands[0]), insn.result->name);

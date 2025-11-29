@@ -25,8 +25,8 @@ namespace tea::backend {
 	private:
 		LLVMTypeRef lowerType(const Type* ty);
 		void lowerGlobal(const mir::Global* g);
-		void lowerFunction(const mir::Function* f);
 		LLVMValueRef lowerValue(const mir::Value* val);
+		LLVMValueRef lowerFunction(const mir::Function* f);
 		void lowerBlock(const mir::BasicBlock* block, LLVMBuilderRef builder);
 	};
 
