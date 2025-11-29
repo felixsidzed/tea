@@ -1,18 +1,7 @@
 #pragma once
 
-#include <cstring>
-
 #include "string.h"
 #include "vector.h"
-
-namespace tea {
-	struct Configuration {
-		void(*panic)(const char* message, ...);
-		bool is64Bit;
-	};
-
-	extern Configuration configuration;
-}
 
 #if defined(__clang__) && defined(__has_warning)
 	#if __has_feature(cxx_attributes) && __has_warning("-Wimplicit-fallthrough")
@@ -61,3 +50,13 @@ namespace tea {
 #endif
 
 #define TEA_PANIC tea::configuration.panic
+
+namespace tea {
+	struct Configuration {
+		void(*panic)(const char* message, ...);
+	};
+
+	extern Configuration configuration;
+
+	void compile(const tea::string& source, const tea::vector<const char*>& importLookup, const char* outFile, const char* triple = nullptr, bool verbose = false, uint8_t optLevel = 2);
+}
