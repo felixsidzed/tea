@@ -70,6 +70,7 @@ namespace tea::mir {
 
 	class Value {
 	protected:
+		friend class CodeGen;
 		friend class backend::MIRLowering;
 		friend void dump(const tea::mir::Value* value);
 

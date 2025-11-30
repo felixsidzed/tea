@@ -12,7 +12,7 @@ namespace tea::frontend::AST {
 		Expression,
 		Call,
 		FunctionImport, ModuleImport,
-		Variable,
+		Variable, GlobalVariable,
 		If, Else, ElseIf
 	};
 
@@ -218,5 +218,28 @@ namespace tea::frontend::AST {
 			uint32_t line, uint32_t column
 		) : Node(NodeKind::If, line, column), pred(std::move(pred)) {
 		}
+	};
+
+	struct GlobalVariableNode : Node {
+		tea::string name;
+		Type* type;
+		std::unique_ptr<ExpressionNode> initializer;
+		StorageClass vis;
+
+		GlobalVariableNode(
+			const tea::string& name,
+			Type* type,
+			std::unique_ptr<ExpressionNode> initializer,
+			StorageClass vis,
+			uint32_t line, uint32_t column
+		)
+			: Node(NodeKind::GlobalVariable, line, column),
+			name(name), type(type), initializer(std::move(initializer)), vis(vis) {
+		}
+
+		void clearAttributes() { extra = 0; };
+		void addAttribute(GlobalAttribute attr) { extra |= (uint32_t)attr; };
+		bool hasAttribute(GlobalAttribute attr) const { return extra & (uint32_t)attr; };
+		void removeAttribute(GlobalAttribute attr) { extra &= ~(uint32_t)attr; };
 	};
 }

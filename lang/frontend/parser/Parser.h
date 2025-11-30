@@ -34,6 +34,7 @@ namespace tea::frontend {
 		std::unique_ptr<AST::Node> parseStat();
 		void parseBlock(const tea::vector<KeywordKind>& extraTerminators = {});
 
+		void parseFuncImport(uint32_t _line, uint32_t _column);
 		void parseFunc(AST::StorageClass vis, uint32_t _line, uint32_t _column);
 		std::pair<bool, tea::vector<std::pair<Type*, tea::string>>> parseParams();
 

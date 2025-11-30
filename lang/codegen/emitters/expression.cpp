@@ -5,11 +5,15 @@
 
 namespace tea {
 
-	mir::Value* CodeGen::emitExpression(const AST::ExpressionNode* node, bool allowInlineFuncs) {
+	mir::Value* CodeGen::emitExpression(const AST::ExpressionNode* node, EmissionFlags flags) {
 		switch (node->getEKind()) {
 		case AST::ExprKind::String: {
 			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
-			return builder.globalString(literal->value);
+			if (flags.has(EmissionFlags::Constant)) {
+				mir::ConstantString* str = mir::ConstantString::get(literal->value);
+				return module->addGlobal("", str->type, str);
+			} else
+				return builder.globalString(literal->value);
 		}
 
 		case AST::ExprKind::Char: {
@@ -20,9 +24,7 @@ namespace tea {
 		case AST::ExprKind::Int: {
 			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
 			uint64_t val = std::stoull(std::string(literal->value.data(), literal->value.length()), nullptr, 0);
-			return mir::ConstantNumber::get(
-				val, 32, node->type->sign
-			);
+			return mir::ConstantNumber::get(val, 32, node->type->sign);
 		}
 
 		case AST::ExprKind::Double:
@@ -78,15 +80,20 @@ namespace tea {
 					return mir::ConstantPointer::get(Type::Void(), 0);
 
 				{
-					mir::Global* g = module->getNamedGlobal(literal->value);
-					if (g) return builder.load(g, "");
-				} {
 					mir::Function* f = module->getNamedFunction(literal->value);
 					if (f) {
-						if (!allowInlineFuncs && f->hasAttribute(mir::FunctionAttribute::Inline))
+						if (!flags.has(EmissionFlags::AllowInlinedFunctions) && f->hasAttribute(mir::FunctionAttribute::Inline))
 							TEA_PANIC("ur function grew legs and escaped. line %d, column %d", literal->line, literal->column);
 						return f;
 					}
+				}
+				
+				if (flags.has(EmissionFlags::Constant))
+					TEA_PANIC("value is not a constant expression. line %d, column %d", literal->line, literal->column);
+
+				{
+					mir::Global* g = module->getNamedGlobal(literal->value);
+					if (g) return builder.load(g, "");
 				} if (curParams) {
 					uint32_t i = 0;
 					for (const auto& [_, name] : *curParams) {
@@ -107,8 +114,11 @@ namespace tea {
 		} break;
 
 		case AST::ExprKind::Call: {
+			if (flags.has(EmissionFlags::Constant))
+				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
+
 			const AST::CallNode* call = (const AST::CallNode*)node;
-			mir::Value* callee = emitExpression(call->callee.get(), true);
+			mir::Value* callee = emitExpression(call->callee.get(), EmissionFlags::AllowInlinedFunctions);
 
 			tea::vector<mir::Value*> args;
 			for (const auto& arg : call->args)
@@ -207,6 +217,9 @@ namespace tea {
 			mir::Value* lhs = emitExpression(be->lhs.get());
 			mir::Value* rhs = emitExpression(be->rhs.get());
 
+			if (flags.has(EmissionFlags::Constant) && (lhs->kind != mir::ValueKind::Constant || rhs->kind != mir::ValueKind::Constant))
+				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
+
 			switch (node->getEKind()) {
 			case AST::ExprKind::Add:
 				return builder.arithm(mir::OpCode::Add, lhs, rhs, "");
@@ -231,6 +244,9 @@ namespace tea {
 
 			mir::Value* lhs = emitExpression(be->lhs.get());
 			mir::Value* rhs = emitExpression(be->rhs.get());
+
+			if (flags.has(EmissionFlags::Constant) && (lhs->kind != mir::ValueKind::Constant || rhs->kind != mir::ValueKind::Constant))
+				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
 
 			if (lhs->type->isFloat() || rhs->type->isFloat()) {
 				mir::FCmpPredicate pred;

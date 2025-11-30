@@ -87,15 +87,44 @@ namespace tea::mir {
 		if (op < OpCode::Add || op > OpCode::Mod || lhs->type != rhs->type)
 			return nullptr;
 
-		Instruction* insn = block->body.emplace();
-		insn->op = op;
-		insn->operands.emplace(lhs);
-		insn->operands.emplace(rhs);
+		// TODO fuckass
+		if (lhs->kind == ValueKind::Constant && rhs->kind == ValueKind::Constant) {
+			uint8_t width = ((ConstantNumber*)lhs)->getBitwidth();
+			if (lhs->type->isNumeric() && rhs->type->isNumeric()) {
+				uint64_t lnum = ((ConstantNumber*)lhs)->getInteger();
+				uint64_t rnum = ((ConstantNumber*)rhs)->getInteger();
+				switch (op) {
+				case OpCode::Add: return ConstantNumber::get(lnum + rnum, width, lhs->type->sign);
+				case OpCode::Sub: return ConstantNumber::get(lnum - rnum, width, lhs->type->sign);
+				case OpCode::Mul: return ConstantNumber::get(lnum * rnum, width, lhs->type->sign);
+				case OpCode::Div: return ConstantNumber::get(lnum / rnum, width, lhs->type->sign);
+				case OpCode::Mod: return ConstantNumber::get(lnum % rnum, width, lhs->type->sign);
+				default: __assume(0);
+				}
+			} else if (lhs->type->isFloat() && rhs->type->isFloat()) {
+				double lnum = ((ConstantNumber*)lhs)->getDouble();
+				double rnum = ((ConstantNumber*)rhs)->getDouble();
+				switch (op) {
+				case OpCode::Add: return ConstantNumber::get<double>(lnum + rnum, width, lhs->type->sign);
+				case OpCode::Sub: return ConstantNumber::get<double>(lnum - rnum, width, lhs->type->sign);
+				case OpCode::Mul: return ConstantNumber::get<double>(lnum * rnum, width, lhs->type->sign);
+				case OpCode::Div: return ConstantNumber::get<double>(lnum / rnum, width, lhs->type->sign);
+				case OpCode::Mod: return ConstantNumber::get<double>(fmod(lnum, rnum), width, lhs->type->sign);
+				default: __assume(0);
+				}
+			}
+			return nullptr;
+		} else {
+			Instruction* insn = block->body.emplace();
+			insn->op = op;
+			insn->operands.emplace(lhs);
+			insn->operands.emplace(rhs);
 
-		insn->result = std::make_unique<Value>(ValueKind::Instruction, lhs->type);
-		insn->result->name = block->scope.add(name);
+			insn->result = std::make_unique<Value>(ValueKind::Instruction, lhs->type);
+			insn->result->name = block->scope.add(name);
 
-		return insn->result.get();
+			return insn->result.get();
+		}
 	}
 
 	Instruction* Builder::unreachable() {
@@ -189,32 +218,78 @@ namespace tea::mir {
 		if (!lhs->type->isNumeric() || !rhs->type->isNumeric())
 			return nullptr;
 
-		Instruction* insn = block->body.emplace();
-		insn->op = OpCode::ICmp;
-		insn->operands.emplace(lhs);
-		insn->operands.emplace(rhs);
-		insn->extra = (uint32_t)pred;
+		if (lhs->kind == ValueKind::Constant && rhs->kind == ValueKind::Constant) {
+			if (lhs->type->sign) {
+				int64_t lnum = ((ConstantNumber*)lhs)->getSInteger();
+				int64_t rnum = ((ConstantNumber*)rhs)->getSInteger();
+				switch (pred) {
+				case ICmpPredicate::EQ: return ConstantNumber::get(lnum == rnum, 1);
+				case ICmpPredicate::NEQ: return ConstantNumber::get(lnum != rnum, 1);
+				case ICmpPredicate::SGT: return ConstantNumber::get(lnum > rnum, 1);
+				case ICmpPredicate::SGE: return ConstantNumber::get(lnum >= rnum, 1);
+				case ICmpPredicate::SLT: return ConstantNumber::get(lnum < rnum, 1);
+				case ICmpPredicate::SLE: return ConstantNumber::get(lnum <= rnum, 1);
+				default: break;
+				}
+			}
 
-		insn->result = std::make_unique<Value>(ValueKind::Instruction, Type::Bool());
-		insn->result->name = block->scope.add(name);
+			uint64_t lnum = ((ConstantNumber*)lhs)->getInteger();
+			uint64_t rnum = ((ConstantNumber*)rhs)->getInteger();
+			switch (pred) {
+			case ICmpPredicate::EQ: return ConstantNumber::get(lnum == rnum, 1);
+			case ICmpPredicate::NEQ: return ConstantNumber::get(lnum != rnum, 1);
+			case ICmpPredicate::UGT: return ConstantNumber::get(lnum > rnum, 1);
+			case ICmpPredicate::UGE: return ConstantNumber::get(lnum >= rnum, 1);
+			case ICmpPredicate::ULT: return ConstantNumber::get(lnum < rnum, 1);
+			case ICmpPredicate::ULE: return ConstantNumber::get(lnum <= rnum, 1);
+			default: return nullptr;
+			}
+		} else {
+			Instruction* insn = block->body.emplace();
+			insn->op = OpCode::ICmp;
+			insn->operands.emplace(lhs);
+			insn->operands.emplace(rhs);
+			insn->extra = (uint32_t)pred;
 
-		return insn->result.get();
+			insn->result = std::make_unique<Value>(ValueKind::Instruction, Type::Bool());
+			insn->result->name = block->scope.add(name);
+
+			return insn->result.get();
+		}
+		return nullptr;
 	}
 
 	Value* Builder::fcmp(FCmpPredicate pred, Value* lhs, Value* rhs, const char* name) {
 		if (!lhs->type->isFloat() || !rhs->type->isFloat())
 			return nullptr;
 
-		Instruction* insn = block->body.emplace();
-		insn->op = OpCode::FCmp;
-		insn->operands.emplace(lhs);
-		insn->operands.emplace(rhs);
-		insn->extra = (uint32_t)pred;
+		if (lhs->kind == ValueKind::Constant && rhs->kind == ValueKind::Constant) {
+			double lnum = ((ConstantNumber*)lhs)->getDouble();
+			double rnum = ((ConstantNumber*)rhs)->getDouble();
+			switch (pred) {
+			case FCmpPredicate::OEQ: return ConstantNumber::get(lnum == rnum, 1);
+			case FCmpPredicate::ONEQ: return ConstantNumber::get(lnum != rnum, 1);
+			case FCmpPredicate::OGT: return ConstantNumber::get(lnum > rnum, 1);
+			case FCmpPredicate::OGE: return ConstantNumber::get(lnum >= rnum, 1);
+			case FCmpPredicate::OLT: return ConstantNumber::get(lnum < rnum, 1);
+			case FCmpPredicate::OLE: return ConstantNumber::get(lnum <= rnum, 1);
+			case FCmpPredicate::TRUE: return ConstantNumber::get(1, 1);
+			case FCmpPredicate::FALSE: return ConstantNumber::get(0, 1);
+			default: return nullptr;
+			}
+		} else {
+			Instruction* insn = block->body.emplace();
+			insn->op = OpCode::FCmp;
+			insn->operands.emplace(lhs);
+			insn->operands.emplace(rhs);
+			insn->extra = (uint32_t)pred;
 
-		insn->result = std::make_unique<Value>(ValueKind::Instruction, Type::Bool());
-		insn->result->name = block->scope.add(name);
+			insn->result = std::make_unique<Value>(ValueKind::Instruction, Type::Bool());
+			insn->result->name = block->scope.add(name);
 
-		return insn->result.get();
+			return insn->result.get();
+		}
+		return nullptr;
 	}
 
 	Instruction* Builder::cbr(Value* pred, BasicBlock* truthy, BasicBlock* falsy) {

@@ -93,12 +93,26 @@ namespace tea::frontend::analysis {
 							params.emplace(ty);
 
 						Type* ftype = Type::Function(fi->returnType, params, fi->vararg);
-						pushsym(moduleName + "::" + fi->name, ftype, false, true, false, true, true);
+						pushsym(fi->hasAttribute(AST::FunctionAttribute::NoNamespace) ? fi->name : moduleName + "::" + fi->name, ftype, false, true, false, true, true);
 					} else
 						TEA_PANIC("invalid root statement. line %d, column %d", node_->line, node_->column);
 				}
 
 				file.close();
+			} break;
+
+			case AST::NodeKind::GlobalVariable: {
+				AST::GlobalVariableNode* gv = (AST::GlobalVariableNode*)node.get();
+
+				Type* initType = visitExpression(gv->initializer.get());
+				if (gv->type) {
+					if (gv->type != initType)
+						TEA_PANIC("global variable initializer type (%s) doesn't match variable type (%s). line %d, column %d",
+							initType->str().data(), gv->type->str().data(), gv->line, gv->column);
+				} else
+					gv->type = initType;
+
+				pushsym(gv->name, gv->type, (bool)gv->type->constant, false, false, gv->vis == AST::StorageClass::Public, gv->initializer != nullptr);
 			} break;
 
 			default:

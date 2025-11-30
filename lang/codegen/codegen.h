@@ -1,7 +1,7 @@
 #pragma once
 
+#include "flags.h"
 #include "mir/mir.h"
-
 #include "frontend/parser/AST.h"
 
 namespace tea {
@@ -39,7 +39,7 @@ namespace tea {
 		void emitVariable(const AST::VariableNode* node);
 		void emitModuleImport(const AST::ModuleImportNode* node);
 		mir::Function* emitFunctionImport(const AST::FunctionImportNode* node);
-		mir::Value* emitExpression(const AST::ExpressionNode* expr, bool allowInlineFuncs = false);
+		mir::Value* emitExpression(const AST::ExpressionNode* expr, EmissionFlags flags = EmissionFlags::None);
 	};
 
 } // namespace tea

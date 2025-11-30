@@ -47,6 +47,22 @@ namespace tea {
 				emitModuleImport((const AST::ModuleImportNode*)node.get());
 				break;
 
+			case AST::NodeKind::GlobalVariable: {
+				AST::GlobalVariableNode* gv = (AST::GlobalVariableNode*)node.get();
+
+				mir::Value* init = gv->initializer ? emitExpression(gv->initializer.get(), EmissionFlags::Constant) : nullptr;
+				if (init && init->kind == mir::ValueKind::Global) {
+					init->name = gv->name;
+					((mir::Global*)init)->storage = gv->vis;
+					((mir::Global*)init)->subclassData = gv->extra;
+				}
+				else {
+					mir::Global* global = module->addGlobal(gv->name, gv->type, init);
+					global->storage = gv->vis;
+					((mir::Value*)global)->subclassData = gv->extra;
+				}
+			} break;
+
 			default:
 				TEA_PANIC("unknown root statement %d", node->kind);
 			}

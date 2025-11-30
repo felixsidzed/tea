@@ -8,7 +8,7 @@ int main() {
 		std::ifstream file("playground/test.tea");
 		std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
-		tea::compile(content.c_str(), {"."}, "../x64/Debug/test.o", nullptr, true, 0);
+		tea::compile(content.c_str(), {"playground"}, "../x64/Debug/test.o", nullptr, true, 0);
 
 	} catch (const std::exception& e) {
 		std::cout << e.what() << std::endl;

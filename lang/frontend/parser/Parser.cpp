@@ -10,7 +10,7 @@
 #define pushtree(T, ...) { \
 	auto node = std::make_unique<T>(__VA_ARGS__, _line, _column); \
 	auto body = &node->body; \
-    treeHistory.emplace(tree); \
+	treeHistory.emplace(tree); \
 	tree->emplace(std::move(node)); \
 	tree = body; \
 }
@@ -50,38 +50,38 @@ namespace tea::frontend {
 					AST::StorageClass vis = (AST::StorageClass)cur->extra;
 					next();
 
-					if (isCC((KeywordKind)cur->extra) || (KeywordKind)cur->extra == KeywordKind::Func)
+					if (cur->kind == TokenKind::Keyword && (isCC((KeywordKind)cur->extra) || (KeywordKind)cur->extra == KeywordKind::Func))
 						parseFunc(vis, _line, _column);
-					else
+					else if (match(KeywordKind::Var)) {
+						const tea::string& name = consume(TokenKind::Identf).text;
+
+						Type* type = nullptr;
+						if (match(TokenKind::Colon)) {
+							const tea::string& typeName = parseType();
+							type = Type::get(typeName);
+							if (!type)
+								TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
+						}
+
+						std::unique_ptr<AST::ExpressionNode> initializer = nullptr;
+						if (match(TokenKind::Assign))
+							initializer = parseExpression();
+						consume(TokenKind::Semicolon);
+
+						if (!type && !initializer)
+							TEA_PANIC("can't deduct a type without an initializer");
+
+						tree->emplace(mknode(AST::GlobalVariableNode, name, type, std::move(initializer), vis));
+					} else
 						unexpected();
 				} break;
 
 				case KeywordKind::Import: {
 					next();
 				
-					if (isCC((KeywordKind)cur->extra) || (KeywordKind)cur->extra == KeywordKind::Func) {
-						AST::CallingConvention cc = AST::CallingConvention::Auto;
-						if (cur->extra != (uint32_t)KeywordKind::Func) {
-							cc = (AST::CallingConvention)(cur->extra - (uint32_t)KeywordKind::StdCC);
-							next();
-							consume(KeywordKind::Func);
-						} else
-							next();
-
-						const tea::string& name = consume(TokenKind::Identf).text;
-						const auto& [vararg, params] = parseParams();
-
-						consume(TokenKind::Arrow);
-
-						const tea::string& typeName = parseType();
-						Type* returnType = Type::get(typeName);
-						if (!returnType)
-							TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
-
-						auto node = mknode(AST::FunctionImportNode, cc, name, params, returnType, vararg);
-						consume(TokenKind::Semicolon);
-						tree->emplace(std::move(node));
-					} else
+					if (isCC((KeywordKind)cur->extra) || (KeywordKind)cur->extra == KeywordKind::Func)
+						parseFuncImport(_line, _column);
+					else
 						unexpected();
 				} break;
 
@@ -121,9 +121,12 @@ namespace tea::frontend {
 				if (cur->kind == TokenKind::Keyword && (cur->extra == (uint32_t)KeywordKind::Public || cur->extra == (uint32_t)KeywordKind::Private)) {
 					next();
 					parseFunc((AST::StorageClass)cur->extra, _line, _column);
-					tree->data[tree->size - 1]->extra = attr;
-				} else
+				} else if (match(KeywordKind::Import))
+					parseFuncImport(_line, _column);
+				else
 					unexpected();
+
+				tree->data[tree->size - 1]->extra = attr;
 
 			} else
 				unexpected();
@@ -206,6 +209,9 @@ namespace tea::frontend {
 				if (match(TokenKind::Assign))
 					initializer = parseExpression();
 				consume(TokenKind::Semicolon);
+
+				if (!type && !initializer)
+					TEA_PANIC("can't deduct a type without an initializer");
 
 				return mknode(AST::VariableNode, name, type, std::move(initializer));
 			} break;
@@ -302,6 +308,31 @@ namespace tea::frontend {
 
 		pushtree(AST::FunctionNode, vis, cc, name, params, returnType, vararg);
 		parseBlock();
+	}
+
+	void Parser::parseFuncImport(uint32_t _line, uint32_t _column) {
+		AST::CallingConvention cc = AST::CallingConvention::Auto;
+		if (cur->extra != (uint32_t)KeywordKind::Func) {
+			cc = (AST::CallingConvention)(cur->extra - (uint32_t)KeywordKind::StdCC);
+			next();
+			consume(KeywordKind::Func);
+		}
+		else
+			next();
+
+		const tea::string& name = consume(TokenKind::Identf).text;
+		const auto& [vararg, params] = parseParams();
+
+		consume(TokenKind::Arrow);
+
+		const tea::string& typeName = parseType();
+		Type* returnType = Type::get(typeName);
+		if (!returnType)
+			TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
+
+		auto node = mknode(AST::FunctionImportNode, cc, name, params, returnType, vararg);
+		consume(TokenKind::Semicolon);
+		tree->emplace(std::move(node));
 	}
 
 	std::pair<bool, tea::vector<std::pair<Type*, tea::string>>> Parser::parseParams() {
