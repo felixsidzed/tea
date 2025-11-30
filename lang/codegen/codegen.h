@@ -38,8 +38,8 @@ namespace tea {
 		void emitBlock(const AST::Tree& tree);
 		void emitVariable(const AST::VariableNode* node);
 		void emitModuleImport(const AST::ModuleImportNode* node);
-		mir::Value* emitExpression(const AST::ExpressionNode* expr);
 		mir::Function* emitFunctionImport(const AST::FunctionImportNode* node);
+		mir::Value* emitExpression(const AST::ExpressionNode* expr, bool allowInlineFuncs = false);
 	};
 
 } // namespace tea

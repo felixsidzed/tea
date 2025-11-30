@@ -1,11 +1,11 @@
 #include "codegen/codegen.h"
 
+#include "common/map.h"
 #include "common/tea.h"
-#include <iostream>
 
 namespace tea {
 
-	mir::Value* CodeGen::emitExpression(const AST::ExpressionNode* node) {
+	mir::Value* CodeGen::emitExpression(const AST::ExpressionNode* node, bool allowInlineFuncs) {
 		switch (node->getEKind()) {
 		case AST::ExprKind::String: {
 			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
@@ -82,7 +82,11 @@ namespace tea {
 					if (g) return builder.load(g, "");
 				} {
 					mir::Function* f = module->getNamedFunction(literal->value);
-					if (f) return f;
+					if (f) {
+						if (!allowInlineFuncs && f->hasAttribute(mir::FunctionAttribute::Inline))
+							TEA_PANIC("ur function grew legs and escaped. line %d, column %d", literal->line, literal->column);
+						return f;
+					}
 				} if (curParams) {
 					uint32_t i = 0;
 					for (const auto& [_, name] : *curParams) {
@@ -104,13 +108,94 @@ namespace tea {
 
 		case AST::ExprKind::Call: {
 			const AST::CallNode* call = (const AST::CallNode*)node;
-			mir::Value* val = emitExpression(call->callee.get());
-			
+			mir::Value* callee = emitExpression(call->callee.get(), true);
+
 			tea::vector<mir::Value*> args;
 			for (const auto& arg : call->args)
 				args.emplace(emitExpression(arg.get()));
 
-			return builder.call(val, args.data, args.size, "");
+			// TODO: improve // <---- maybe not
+			if (callee->kind == mir::ValueKind::Function && ((mir::Function*)callee)->hasAttribute(mir::FunctionAttribute::Inline)) {
+				mir::Function* func = (mir::Function*)callee;
+				mir::Function* curFunc = builder.getInsertBlock()->parent;
+
+				mir::Value* retVal = nullptr;
+				tea::map<const mir::Value*, mir::Value*> valueMap;
+				tea::map<const mir::BasicBlock*, mir::BasicBlock*> blockMap;
+
+				for (uint32_t i = 0; i < func->params.size; i++)
+					valueMap[func->params[i].get()] = args[i];
+
+				for (const auto& block : func->blocks)
+					blockMap[&block] = curFunc->appendBlock(tea::string("inlined.") + block.name);
+				builder.br(blockMap.data.data[0].second);
+
+				for (const auto& block : func->blocks) {
+					mir::BasicBlock* bb = blockMap[&block];
+					bb->body.reserve(block.body.size);
+
+					for (const auto& insn : block.body) {
+						mir::Instruction cloned;
+						cloned.op = insn.op;
+						cloned.extra = insn.extra;
+						cloned.operands = insn.operands;
+
+						for (uint32_t i = 0; i < cloned.operands.size; i++) {
+							mir::Value* old = cloned.operands[i];
+
+							if (old->kind == mir::ValueKind::Parameter || old->kind == mir::ValueKind::Instruction)
+								cloned.operands[i] = valueMap[old];
+						}
+
+						if (insn.result && insn.result->kind != mir::ValueKind::Null) {
+							auto clonedRes = std::make_unique<mir::Value>(insn.result->kind, insn.result->type);
+							clonedRes->name = insn.result->name;
+							valueMap[insn.result.get()] = clonedRes.get();
+							cloned.result = std::move(clonedRes);
+						}
+
+						bb->body.push(std::move(cloned));
+					}
+				}
+
+				for (const auto& block : func->blocks) {
+					mir::BasicBlock* bb = blockMap[&block];
+
+					mir::Instruction* term = &bb->body.data[bb->body.size - 1];
+					switch (term->op) {
+					case mir::OpCode::Br: {
+						term->operands[0] = (mir::Value*)blockMap[(const mir::BasicBlock*)term->operands[0]];
+						break;
+					}
+					case mir::OpCode::CondBr: {
+						term->operands[1] = (mir::Value*)blockMap[(const mir::BasicBlock*)term->operands[1]];
+						term->operands[2] = (mir::Value*)blockMap[(const mir::BasicBlock*)term->operands[2]];
+						break;
+					}
+					case mir::OpCode::Ret: {
+						if (!term->operands.empty()) {
+							// the hope is that if the return value isnt mapped then its a global/constant
+							if (auto* it = valueMap.find(term->operands[0])) retVal = *it;
+							else retVal = term->operands[0];
+						}
+
+						term->op = mir::OpCode::Nop;
+						term->operands.clear();
+						break;
+					}
+					default:
+						break;
+					}
+				}
+
+				return retVal;
+
+			} else {
+				mir::Value* call = builder.call(callee, args.data, args.size, "");
+				if (callee->kind == mir::ValueKind::Function && ((mir::Function*)callee)->hasAttribute(mir::FunctionAttribute::Inline))
+					builder.unreachable();
+				return call;
+			}
 		} break;
 
 		case AST::ExprKind::Add:

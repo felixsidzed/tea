@@ -16,7 +16,7 @@ namespace tea {
 		for (const auto& [ty, _] : node->params)
 			params.emplace(ty);
 
-		mir::Function* func = module->addFunction(node->name, Type::Function(node->returnType, params, node->isVarArg()));
+		mir::Function* func = module->addFunction(node->name, Type::Function(node->returnType, params, node->vararg));
 		func->storage = AST::StorageClass::Public;
 		return func;
 	}
@@ -49,7 +49,8 @@ namespace tea {
 			if (node_->kind == AST::NodeKind::FunctionImport) {
 				AST::FunctionImportNode* fi = (AST::FunctionImportNode*)node_.get();
 				tea::string unprefixed = fi->name;
-				fi->name = std::format("_{}__{}", moduleName, fi->name).c_str();
+				if (!fi->hasAttribute(mir::FunctionAttribute::NoNamespace))
+					fi->name = std::format("_{}__{}", moduleName, fi->name).c_str();
 				importedModule[unprefixed] = emitFunctionImport(fi);
 			} else
 				TEA_PANIC("invalid root statement in module. line %d, column %d", node_->line, node_->column);

@@ -33,8 +33,8 @@ namespace tea::frontend::analysis {
 				for (const auto& [ty, _] : func->params)
 					params.emplace(ty);
 
-				Type* ftype = Type::Function(func->returnType, params, func->isVarArg());
-				pushsym(func->name, ftype, false, true, false, func->getVisibility() == AST::StorageClass::Public, true);
+				Type* ftype = Type::Function(func->returnType, params, func->vararg);
+				pushsym(func->name, ftype, false, true, false, func->vis == AST::StorageClass::Public, true);
 				
 				pushscope();
 				for (const auto& [ty, name] : func->params)
@@ -53,7 +53,7 @@ namespace tea::frontend::analysis {
 				for (const auto& [ty, _] : fi->params)
 					params.emplace(ty);
 
-				Type* ftype = Type::Function(fi->returnType, params, fi->isVarArg());
+				Type* ftype = Type::Function(fi->returnType, params, fi->vararg);
 				pushsym(fi->name, ftype, false, true, false, false, true);
 			} break;
 
@@ -92,7 +92,7 @@ namespace tea::frontend::analysis {
 						for (const auto& [ty, _] : fi->params)
 							params.emplace(ty);
 
-						Type* ftype = Type::Function(fi->returnType, params, fi->isVarArg());
+						Type* ftype = Type::Function(fi->returnType, params, fi->vararg);
 						pushsym(moduleName + "::" + fi->name, ftype, false, true, false, true, true);
 					} else
 						TEA_PANIC("invalid root statement. line %d, column %d", node_->line, node_->column);

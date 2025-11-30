@@ -35,10 +35,14 @@ namespace tea::frontend::AST {
 		Std, Fast, C, Auto
 	};
 
-	struct FunctionExtra {
-		uint32_t vararg : 1;
-		uint32_t cc : 2;
-		uint32_t storage : 2;
+	enum class FunctionAttribute {
+		Inline = 1 << 0,
+		NoReturn = 1 << 1,
+		NoNamespace = 1 << 2
+	};
+
+	enum class GlobalAttribute {
+		ThreadLocal = 1 << 0
 	};
 
 	struct Node {
@@ -84,9 +88,11 @@ namespace tea::frontend::AST {
 
 	struct FunctionNode : Node {
 		CallingConvention cc;
+		StorageClass vis;
 		tea::string name;
 		tea::vector<std::pair<Type*, tea::string>> params;
 		Type* returnType;
+		bool vararg;
 
 		Tree body;
 
@@ -95,23 +101,17 @@ namespace tea::frontend::AST {
 			CallingConvention cc,
 			const tea::string& name,
 			const tea::vector<std::pair<Type*, tea::string>>& params,
-			Type* retType,
+			Type* retType, bool vararg,
 			uint32_t line, uint32_t column
 		)
 			: Node(NodeKind::Function, line, column),
-			name(name), params(params), returnType(retType) {
-			setVisibility(vis);
-			setCC(cc);
+			name(name), params(params), returnType(retType), vis(vis), cc(cc), vararg(vararg) {
 		}
 
-		bool isVarArg() const { return ((FunctionExtra*)&extra)->vararg; }
-		void setVarArg(bool vararg) { ((FunctionExtra*)&extra)->vararg = vararg; }
-
-		StorageClass getVisibility() const { return (StorageClass)((FunctionExtra*)&extra)->storage; }
-		void setVisibility(StorageClass vis) { ((FunctionExtra*)&extra)->storage = (uint32_t)vis; }
-
-		CallingConvention getCC() const { return (CallingConvention)((FunctionExtra*)&extra)->cc; }
-		void setCC(CallingConvention cc) { ((FunctionExtra*)&extra)->cc = (uint32_t)cc; };
+		void clearAttributes() { extra = 0; };
+		void addAttribute(FunctionAttribute attr) { extra |= (uint32_t)attr; };
+		bool hasAttribute(FunctionAttribute attr) const { return extra & (uint32_t)attr; };
+		void removeAttribute(FunctionAttribute attr) { extra &= ~(uint32_t)attr; };
 	};
 
 	struct ReturnNode : Node {
@@ -135,6 +135,7 @@ namespace tea::frontend::AST {
 
 	struct FunctionImportNode : Node {
 		CallingConvention cc;
+		bool vararg;
 		tea::string name;
 		tea::vector<std::pair<Type*, tea::string>> params;
 		Type* returnType;
@@ -143,19 +144,17 @@ namespace tea::frontend::AST {
 			CallingConvention cc,
 			const tea::string& name,
 			const tea::vector<std::pair<Type*, tea::string>>& params,
-			Type* retType,
+			Type* retType, bool vararg,
 			uint32_t line, uint32_t column
 		)
 			: Node(NodeKind::FunctionImport, line, column),
-			name(name), params(params), returnType(retType), cc(cc) {
-			setCC(cc);
+			name(name), params(params), returnType(retType), cc(cc), vararg(vararg) {
 		}
 
-		bool isVarArg() const { return ((FunctionExtra*)&extra)->vararg; }
-		void setVarArg(bool vararg) { ((FunctionExtra*)&extra)->vararg = vararg; }
-
-		CallingConvention getCC() const { return (CallingConvention)((FunctionExtra*)&extra)->cc; }
-		void setCC(CallingConvention cc) { ((FunctionExtra*)&extra)->cc = (uint32_t)cc; };
+		void clearAttributes() { extra = 0; };
+		void addAttribute(FunctionAttribute attr) { extra |= (uint32_t)attr; };
+		bool hasAttribute(FunctionAttribute attr) const { return extra & (uint32_t)attr; };
+		void removeAttribute(FunctionAttribute attr) { extra &= ~(uint32_t)attr; };
 	};
 
 	struct ModuleImportNode : Node {

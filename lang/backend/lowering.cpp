@@ -106,9 +106,11 @@ namespace tea::backend {
 				lowerGlobal((const mir::Global*)node.get());
 				break;
 
-			case mir::ValueKind::Function:
-				removeDeadBlocks(lowerFunction((const mir::Function*)node.get()));
-				break;
+			case mir::ValueKind::Function: {
+				const mir::Function* f = (const mir::Function*)node.get();
+				if (!f->hasAttribute(mir::FunctionAttribute::Inline))
+					removeDeadBlocks(lowerFunction(f));
+			} break;
 
 			default:
 				TEA_UNREACHABLE();
@@ -205,6 +207,9 @@ namespace tea::backend {
 			case mir::CallingConvention::Std: LLVMSetFunctionCallConv(func, LLVMX86StdcallCallConv); break;
 			default: break;
 			}
+
+		if (f->hasAttribute(mir::FunctionAttribute::NoReturn))
+			LLVMAddAttributeAtIndex(func, LLVMAttributeFunctionIndex, LLVMCreateEnumAttribute(LLVMGetGlobalContext(), LLVMNoReturnAttributeKind, 0));
 
 		globalMap[std::hash<tea::string>()(f->name)] = func;
 		

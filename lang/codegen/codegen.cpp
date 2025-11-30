@@ -23,11 +23,12 @@ namespace tea {
 				for (const auto& [ty, _] : func->params)
 					params.emplace(ty);
 
-				FunctionType* ftype = Type::Function(func->returnType, params, func->isVarArg());
+				FunctionType* ftype = Type::Function(func->returnType, params, func->vararg);
 
 				mir::Function* f = module->addFunction(func->name, ftype);
-				f->storage = func->getVisibility();
-				f->cc = func->getCC();
+				f->subclassData = func->extra;
+				f->storage = func->vis;
+				f->cc = func->cc;
 
 				builder.insertInto(f->appendBlock("entry"));
 				curParams = &func->params;

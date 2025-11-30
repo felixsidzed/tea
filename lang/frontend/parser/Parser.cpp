@@ -26,6 +26,12 @@ namespace tea::frontend {
 		return kind == KeywordKind::StdCC || kind == KeywordKind::FastCC || kind == KeywordKind::CCC || kind == KeywordKind::AutoCC;
 	}
 
+	static const tea::map<tea::string, AST::FunctionAttribute> name2fnAttr = {
+		{"inline", AST::FunctionAttribute::Inline},
+		{"noreturn", AST::FunctionAttribute::NoReturn},
+		{"nonamespace", AST::FunctionAttribute::NoNamespace},
+	};
+
 	AST::Tree Parser::parse() {
 		treeHistory.clear();
 
@@ -36,84 +42,91 @@ namespace tea::frontend {
 		while (!match(TokenKind::EndOfFile)) {
 			uint32_t _line = cur->line, _column = cur->column;
 
-			if (cur->kind != TokenKind::Keyword)
-				unexpected();
+			if (cur->kind == TokenKind::Keyword) {
+				switch ((KeywordKind)cur->extra) {
 
-			switch ((KeywordKind)cur->extra) {
+				case KeywordKind::Public:
+				case KeywordKind::Private: {
+					AST::StorageClass vis = (AST::StorageClass)cur->extra;
+					next();
 
-			case KeywordKind::Public:
-			case KeywordKind::Private: {
-				AST::StorageClass vis = (AST::StorageClass)cur->extra;
-				next();
+					if (isCC((KeywordKind)cur->extra) || (KeywordKind)cur->extra == KeywordKind::Func)
+						parseFunc(vis, _line, _column);
+					else
+						unexpected();
+				} break;
+
+				case KeywordKind::Import: {
+					next();
 				
-				if (isCC((KeywordKind)cur->extra) || (KeywordKind)cur->extra == KeywordKind::Func) {
-					AST::CallingConvention cc = AST::CallingConvention::Auto;
-					if (cur->extra != (uint32_t)KeywordKind::Func) {
-						cc = (AST::CallingConvention)(cur->extra - (uint32_t)KeywordKind::StdCC);
-						next();
-						consume(KeywordKind::Func);
+					if (isCC((KeywordKind)cur->extra) || (KeywordKind)cur->extra == KeywordKind::Func) {
+						AST::CallingConvention cc = AST::CallingConvention::Auto;
+						if (cur->extra != (uint32_t)KeywordKind::Func) {
+							cc = (AST::CallingConvention)(cur->extra - (uint32_t)KeywordKind::StdCC);
+							next();
+							consume(KeywordKind::Func);
+						} else
+							next();
+
+						const tea::string& name = consume(TokenKind::Identf).text;
+						const auto& [vararg, params] = parseParams();
+
+						consume(TokenKind::Arrow);
+
+						const tea::string& typeName = parseType();
+						Type* returnType = Type::get(typeName);
+						if (!returnType)
+							TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
+
+						auto node = mknode(AST::FunctionImportNode, cc, name, params, returnType, vararg);
+						consume(TokenKind::Semicolon);
+						tree->emplace(std::move(node));
 					} else
-						next();
+						unexpected();
+				} break;
 
-					const tea::string& name = consume(TokenKind::Identf).text;
-					const auto& params = parseParams();
+				case KeywordKind::Using: {
+					next();
 
-					consume(TokenKind::Arrow);
-
-					const tea::string& typeName = parseType();
-					Type* returnType = Type::get(typeName);
-					if (!returnType)
-						TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
-
-					pushtree(AST::FunctionNode, vis, cc, name, params, returnType);
-					parseBlock();
-					break;
-				}
-				unexpected();
-			}
-
-			case KeywordKind::Import: {
-				next();
-				
-				if (isCC((KeywordKind)cur->extra) || (KeywordKind)cur->extra == KeywordKind::Func) {
-					AST::CallingConvention cc = AST::CallingConvention::Auto;
-					if (cur->extra != (uint32_t)KeywordKind::Func) {
-						cc = (AST::CallingConvention)(cur->extra - (uint32_t)KeywordKind::StdCC);
-						next();
-						consume(KeywordKind::Func);
-					} else
-						next();
-
-					const tea::string& name = consume(TokenKind::Identf).text;
-					const auto& params = parseParams();
-
-					consume(TokenKind::Arrow);
-
-					const tea::string& typeName = parseType();
-					Type* returnType = Type::get(typeName);
-					if (!returnType)
-						TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
-
-					auto node = mknode(AST::FunctionImportNode, cc, name, params, returnType);
+					const tea::string& path = consume(TokenKind::String).text;
+					auto node = mknode(AST::ModuleImportNode, path);
 					consume(TokenKind::Semicolon);
 					tree->emplace(std::move(node));
+				} break;
+
+				default:
+					unexpected();
+					break;
+				}
+
+			} else if (cur->kind == TokenKind::At) {
+				next();
+				uint32_t attr = 0;
+				
+				while (true) {
+					const tea::string& attrName = consume(TokenKind::Identf).text;
+					auto it = name2fnAttr.find(attrName);
+					if (!it)
+						TEA_PANIC("'%s' is not a valid attribute. line %d, column %d", attrName.data(), cur->line, cur->column);
+					else
+						attr |= (uint32_t)*it;
+
+					if ((cur + 1)->kind == TokenKind::Comma) {
+						consume(TokenKind::At);
+						continue;
+					} else
+						break;
+				}
+
+				if (cur->kind == TokenKind::Keyword && (cur->extra == (uint32_t)KeywordKind::Public || cur->extra == (uint32_t)KeywordKind::Private)) {
+					next();
+					parseFunc((AST::StorageClass)cur->extra, _line, _column);
+					tree->data[tree->size - 1]->extra = attr;
 				} else
 					unexpected();
-			} break;
 
-			case KeywordKind::Using: {
-				next();
-
-				const tea::string& path = consume(TokenKind::String).text;
-				auto node = mknode(AST::ModuleImportNode, path);
-				consume(TokenKind::Semicolon);
-				tree->emplace(std::move(node));
-			} break;
-
-			default:
+			} else
 				unexpected();
-				break;
-			}
 		}
 
 		return root;
@@ -244,14 +257,46 @@ namespace tea::frontend {
 		return nullptr;
 	};
 
-	tea::vector<std::pair<Type*, tea::string>> Parser::parseParams() {
-		tea::vector<std::pair<Type*, tea::string>> result;
-		consume(TokenKind::Lpar);
+	void Parser::parseFunc(AST::StorageClass vis, uint32_t _line, uint32_t _column) {
+		AST::CallingConvention cc = AST::CallingConvention::Auto;
+		if (cur->extra != (uint32_t)KeywordKind::Func) {
+			cc = (AST::CallingConvention)(cur->extra - (uint32_t)KeywordKind::StdCC);
+			next();
+			consume(KeywordKind::Func);
+		}
+		else
+			next();
 
+		const tea::string& name = consume(TokenKind::Identf).text;
+		const auto& [vararg, params] = parseParams();
+
+		consume(TokenKind::Arrow);
+
+		const tea::string& typeName = parseType();
+		Type* returnType = Type::get(typeName);
+		if (!returnType)
+			TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
+
+		pushtree(AST::FunctionNode, vis, cc, name, params, returnType, vararg);
+		parseBlock();
+	}
+
+	std::pair<bool, tea::vector<std::pair<Type*, tea::string>>> Parser::parseParams() {
+		bool vararg = false;
+		tea::vector<std::pair<Type*, tea::string>> result;
+
+		consume(TokenKind::Lpar);
 		if (match(TokenKind::Rpar))
-			return result;
+			return { vararg, result };
 
 		while (true) {
+			if (cur->kind == TokenKind::Dot && (cur + 3)->kind == TokenKind::Dot && (cur + 2)->kind == TokenKind::Dot) {
+				cur += 3;
+				vararg = true;
+				consume(TokenKind::Rpar);
+				break;
+			}
+
 			const tea::string& typeName = parseType();
 			Type* type = Type::get(typeName);
 			if (!type)
@@ -268,7 +313,7 @@ namespace tea::frontend {
 			consume(TokenKind::Comma);
 		}
 
-		return result;
+		return { vararg, result };
 	}
 
 	tea::string Parser::parseType() {

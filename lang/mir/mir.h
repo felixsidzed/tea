@@ -11,14 +11,19 @@
 #include "mir/Scope.h"
 #include "mir/Context.h"
 
-namespace tea::backend {
-	class MIRLowering;
+namespace tea {
+	class CodeGen;
+	namespace backend {
+		class MIRLowering;
+	}
 }
 
 namespace tea::mir {
 
 	using StorageClass = frontend::AST::StorageClass;
+	using GlobalAttribute = frontend::AST::GlobalAttribute;
 	using CallingConvention = frontend::AST::CallingConvention;
+	using FunctionAttribute = frontend::AST::FunctionAttribute;
 
 	enum class OpCode {
 		// Arithmetic operations
@@ -56,24 +61,12 @@ namespace tea::mir {
 		Null
 	};
 
-	enum class FunctionAttribute {
-		Inline = 1 << 0,
-		NoReturn = 1 << 1,
-		NoNamespace = 1 << 2
-	};
-
-	enum class GlobalAttribute {
-		ThreadLocal = 1 << 0
-	};
-
 	enum class ConstantKind {
 		Number,
 		String,
 		Array,
 		Pointer
 	};
-
-	struct SourceLoc { uint32_t line, column; };
 
 	class Value {
 	protected:
@@ -90,6 +83,8 @@ namespace tea::mir {
 
 		Value(ValueKind kind, tea::Type* type) : kind(kind), type(type), name(nullptr) {
 		}
+
+		virtual ~Value() = default;
 	};
 
 	struct Instruction {
@@ -106,6 +101,7 @@ namespace tea::mir {
 	class Function;
 
 	class BasicBlock {
+		friend class CodeGen;
 		friend class Builder;
 		friend class backend::MIRLowering;
 		friend void dump(const Function* func);
@@ -253,6 +249,7 @@ namespace tea::mir {
 	class Function : public Value {
 		friend class Module;
 		friend class Builder;
+		friend class tea::CodeGen;
 		friend class backend::MIRLowering;
 		friend void dump(const Function* func);
 
@@ -323,7 +320,7 @@ namespace tea::mir {
 		Global* getNamedGlobal(const tea::string& name) const;
 		Function* getNamedFunction(const tea::string& name) const;
 
-		uint32_t getSize(const tea::Type* type) const;
+		uint32_t getSize(const tea::Type* type) const;;
 	};
 
 	class Builder {
