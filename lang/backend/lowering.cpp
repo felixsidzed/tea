@@ -226,11 +226,11 @@ namespace tea::backend {
 		LLVMBuilderRef builder = LLVMCreateBuilder();
 
 		for (const auto& block : f->blocks)
-			lowerBasicBlock(&block) = LLVMAppendBasicBlock(func, block.name);
+			lowerBasicBlock(block.get()) = LLVMAppendBasicBlock(func, block->name);
 		
 		for (const auto& block : f->blocks) {
-			LLVMPositionBuilderAtEnd(builder, lowerBasicBlock(&block));
-			lowerBlock(&block, builder);
+			LLVMPositionBuilderAtEnd(builder, lowerBasicBlock(block.get()));
+			lowerBlock(block.get(), builder);
 		}
 		
 		LLVMDisposeBuilder(builder);

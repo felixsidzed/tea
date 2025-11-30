@@ -254,8 +254,8 @@ namespace tea::mir {
 		friend void dump(const Function* func);
 
 		Scope scope;
-		tea::vector<BasicBlock> blocks;
 		tea::vector<std::unique_ptr<Value>> params;
+		tea::vector<std::unique_ptr<BasicBlock>> blocks;
 	
 	public:
 		StorageClass storage;
@@ -274,7 +274,7 @@ namespace tea::mir {
 		BasicBlock* appendBlock(const tea::string& name);
 
 		Value* getParam(uint32_t i) const { return params[i].get(); }
-		BasicBlock* getBlock(uint32_t i) { return &blocks[i]; }
+		BasicBlock* getBlock(uint32_t i) { return blocks[i].get(); }
 	};
 
 	class Global : public Value {

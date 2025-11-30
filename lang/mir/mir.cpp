@@ -97,7 +97,7 @@ namespace tea::mir {
 	}
 
 	BasicBlock* Function::appendBlock(const tea::string& name) {
-		return blocks.emplace(scope.add(name), this);
+		return blocks.emplace(std::make_unique<BasicBlock>(scope.add(name), this))->get();
 	}
 
 } // namespace tea::mir

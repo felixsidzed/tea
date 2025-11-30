@@ -82,8 +82,8 @@ namespace tea::mir {
 
 		if (!func->blocks.empty()) {
 			for (const auto& block : func->blocks) {
-				printf("%s:\n", block.name);
-				for (const auto& insn : block.body) {
+				printf("%s:\n", block->name);
+				for (const auto& insn : block->body) {
 					putchar(' '); putchar(' '); putchar(' '); putchar(' ');
 					dump(&insn);
 					putchar('\n');

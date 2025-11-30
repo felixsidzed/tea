@@ -1,8 +1,14 @@
-@inline
-public func foo(int a) -> int
-	return a * 2;
-end
+import func puts(string s) -> int;
 
 public func main() -> int
-	return foo(67);
+	var a = 0;
+	if (a > 0) do
+		puts("positive");
+	elseif (a < 0) do
+		puts("negative");
+	else
+		puts("zero");
+	end
+
+	return 0;
 end

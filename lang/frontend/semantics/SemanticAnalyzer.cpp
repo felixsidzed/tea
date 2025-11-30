@@ -160,6 +160,14 @@ namespace tea::frontend::analysis {
 			visitBlock(ifNode->body);
 			if (ifNode->otherwise)
 				visitBlock(ifNode->otherwise->body);
+
+			AST::ElseIfNode* elseIf = ifNode->elseIf.get();
+			while (elseIf) {
+				visitExpression(elseIf->pred.get());
+				visitBlock(elseIf->body);
+
+				elseIf = elseIf->next.get();
+			}
 		} break;
 
 		default:

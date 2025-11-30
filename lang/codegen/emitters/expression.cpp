@@ -127,14 +127,14 @@ namespace tea {
 					valueMap[func->params[i].get()] = args[i];
 
 				for (const auto& block : func->blocks)
-					blockMap[&block] = curFunc->appendBlock(tea::string("inlined.") + block.name);
+					blockMap[block.get()] = curFunc->appendBlock(tea::string("inlined.") + block->name);
 				builder.br(blockMap.data.data[0].second);
 
 				for (const auto& block : func->blocks) {
-					mir::BasicBlock* bb = blockMap[&block];
-					bb->body.reserve(block.body.size);
+					mir::BasicBlock* bb = blockMap[block.get()];
+					bb->body.reserve(block->body.size);
 
-					for (const auto& insn : block.body) {
+					for (const auto& insn : block->body) {
 						mir::Instruction cloned;
 						cloned.op = insn.op;
 						cloned.extra = insn.extra;
@@ -159,7 +159,7 @@ namespace tea {
 				}
 
 				for (const auto& block : func->blocks) {
-					mir::BasicBlock* bb = blockMap[&block];
+					mir::BasicBlock* bb = blockMap[block.get()];
 
 					mir::Instruction* term = &bb->body.data[bb->body.size - 1];
 					switch (term->op) {

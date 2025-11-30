@@ -35,7 +35,7 @@ namespace tea {
 		std::unique_ptr<mir::Module> emit(const AST::Tree& tree, const Options& options = {});
 
 	private:
-		void emitBlock(const AST::Tree& tree);
+		void emitBlock(const AST::Tree* tree);
 		void emitVariable(const AST::VariableNode* node);
 		void emitModuleImport(const AST::ModuleImportNode* node);
 		mir::Function* emitFunctionImport(const AST::FunctionImportNode* node);

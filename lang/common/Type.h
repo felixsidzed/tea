@@ -69,16 +69,7 @@ namespace tea {
 			return kind == TypeKind::Array || kind == TypeKind::Pointer;
 		}
 
-		Type* getElementType() const {
-			switch (kind) {
-			case TypeKind::Array:
-				return *(Type**)((char*)this + sizeof(Type) + sizeof(uint32_t));
-			case TypeKind::Pointer:
-				return *(Type**)((char*)this + sizeof(Type));
-			default:
-				return nullptr;
-			}
-		}
+		Type* getElementType() const;
 	};
 
 	struct PointerType : Type {

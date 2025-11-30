@@ -224,4 +224,15 @@ namespace tea {
 		return result;
 	}
 
+	Type* Type::getElementType() const {
+		switch (kind) {
+		case TypeKind::Array:
+			return ((ArrayType*)this)->elementType;
+		case TypeKind::Pointer:
+			return ((PointerType*)this)->pointee;
+		default:
+			return nullptr;
+		}
+	}
+
 } // namespace tea

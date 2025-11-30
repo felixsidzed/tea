@@ -33,7 +33,7 @@ namespace tea {
 				builder.insertInto(f->appendBlock("entry"));
 				curParams = &func->params;
 
-				emitBlock(func->body);
+				emitBlock(&func->body);
 
 				curParams = nullptr;
 				builder.insertInto(nullptr);

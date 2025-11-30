@@ -13,7 +13,7 @@ namespace tea::frontend::AST {
 		Call,
 		FunctionImport, ModuleImport,
 		Variable,
-		If, Else,
+		If, Else, ElseIf
 	};
 
 	enum class ExprKind : uint32_t {
@@ -27,11 +27,11 @@ namespace tea::frontend::AST {
 		Band, Bor, Bxor, Shr, Shl*/
 	};
 
-	enum class StorageClass {
+	enum class StorageClass : uint8_t {
 		Public, Private
 	};
 
-	enum class CallingConvention {
+	enum class CallingConvention : uint8_t {
 		Std, Fast, C, Auto
 	};
 
@@ -89,10 +89,10 @@ namespace tea::frontend::AST {
 	struct FunctionNode : Node {
 		CallingConvention cc;
 		StorageClass vis;
+		bool vararg;
 		tea::string name;
 		tea::vector<std::pair<Type*, tea::string>> params;
 		Type* returnType;
-		bool vararg;
 
 		Tree body;
 
@@ -191,9 +191,25 @@ namespace tea::frontend::AST {
 		}
 	};
 
+	struct ElseIfNode : Node {
+		std::unique_ptr<ExpressionNode> pred;
+		std::unique_ptr<struct ElseIfNode> next;
+
+		Tree body;
+
+		ElseIfNode(
+			std::unique_ptr<ExpressionNode> pred,
+			std::unique_ptr<struct ElseIfNode> next,
+			uint32_t line, uint32_t column
+		) : Node(NodeKind::ElseIf, line, column),
+			pred(std::move(pred)), next(std::move(next)) {
+		}
+	};
+
 	struct IfNode : Node {
 		std::unique_ptr<ExpressionNode> pred;
 		std::unique_ptr<ElseNode> otherwise;
+		std::unique_ptr<ElseIfNode> elseIf;
 
 		Tree body;
 

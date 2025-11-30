@@ -4,10 +4,35 @@
 
 namespace tea {
 
-	void CodeGen::emitBlock(const AST::Tree& tree) {
+	mir::Value* expr2bool(mir::Builder* builder, mir::Module* module, mir::Value* pred) {
+		if (pred->type->kind != TypeKind::Bool) {
+			switch (pred->type->kind) {
+			case TypeKind::Int:
+				pred = builder->icmp(
+					mir::ICmpPredicate::NEQ, pred,
+					mir::ConstantNumber::get(0, module->getSize(pred->type) * 8, pred->type->sign), ""
+				);
+				break;
+
+			case TypeKind::Float:
+			case TypeKind::Double:
+				pred = builder->fcmp(
+					mir::FCmpPredicate::ONEQ, pred,
+					mir::ConstantNumber::get<double>(0.0, module->getSize(pred->type) * 8, pred->type->sign), ""
+				);
+				break;
+
+			default:
+				break;
+			}
+		}
+		return pred;
+	}
+
+	void CodeGen::emitBlock(const AST::Tree* tree) {
 		tea::map<size_t, Local> oldLocals = locals;
 
-		for (const auto& node : tree) {
+		for (const auto& node : *tree) {
 			switch (node->kind) {
 			case AST::NodeKind::Return:
 				builder.ret(emitExpression(((AST::ReturnNode*)node.get())->value.get()));
@@ -24,49 +49,59 @@ namespace tea {
 			case AST::NodeKind::If: {
 				AST::IfNode* ifNode = (AST::IfNode*)node.get();
 
-				mir::Value* pred = emitExpression(ifNode->pred.get());
-				if (pred->type->kind != TypeKind::Bool) {
-					switch (pred->type->kind) {
-					case TypeKind::Int:
-						pred = builder.icmp(
-							mir::ICmpPredicate::NEQ, pred,
-							mir::ConstantNumber::get(0, module->getSize(pred->type) * 8, pred->type->sign),
-							""
-						);
-						break;
-					case TypeKind::Float:
-					case TypeKind::Double:
-						pred = builder.fcmp(
-							mir::FCmpPredicate::ONEQ, pred,
-							mir::ConstantNumber::get<double>(0.0, module->getSize(pred->type) * 8, pred->type->sign),
-							""
-						);
-						break;
-					default:
-						break;
-					}
-				}
-
 				mir::Function* func = builder.getInsertBlock()->parent;
-				mir::BasicBlock* then = func->appendBlock("if.then");
-				mir::BasicBlock* otherwise = nullptr;
-				if (ifNode->otherwise)
-					otherwise = func->appendBlock("if.else");
 				mir::BasicBlock* merge = func->appendBlock("if.merge");
+				
+				mir::Value* pred = expr2bool(&builder, module.get(), emitExpression(ifNode->pred.get()));
 
-				builder.cbr(pred, then, otherwise ? otherwise : merge);
+				mir::BasicBlock* falseTarget = nullptr;
+				mir::BasicBlock* thenBlock = func->appendBlock("if.then");
 
-				builder.insertInto(then);
-				emitBlock(ifNode->body);
+				AST::ElseIfNode* elseifNode = ifNode->elseIf.get();
+				if (elseifNode)
+					falseTarget = func->appendBlock("if.elseif.cond");
+				else if (ifNode->otherwise)
+					falseTarget = func->appendBlock("if.else");
+				else
+					falseTarget = merge;
+				builder.cbr(pred, thenBlock, falseTarget);
+
+				builder.insertInto(thenBlock);
+				emitBlock(&ifNode->body);
 				if (!builder.getInsertBlock()->getTerminator())
 					builder.br(merge);
 
-				if (otherwise) {
-					builder.insertInto(otherwise);
-					emitBlock(ifNode->otherwise->body);
+				mir::BasicBlock* curCondBlock = falseTarget;
+				while (elseifNode) {
+					builder.insertInto(curCondBlock);
+
+					mir::Value* elifPred = expr2bool(&builder, module.get(), emitExpression(elseifNode->pred.get()));
+					mir::BasicBlock* elifThenBlock = func->appendBlock("if.elseif.then");
+
+					if (elseifNode->next)
+						curCondBlock = func->appendBlock("if.elseif.cond");
+					else if (ifNode->otherwise)
+						curCondBlock = func->appendBlock("if.else");
+					else
+						curCondBlock = merge;
+					builder.cbr(elifPred, elifThenBlock, curCondBlock);
+
+					builder.insertInto(elifThenBlock);
+					emitBlock(&elseifNode->body);
+					if (!builder.getInsertBlock()->getTerminator())
+						builder.br(merge);
+
+					elseifNode = elseifNode->next.get();
+				}
+
+				if (ifNode->otherwise) {
+					builder.insertInto(curCondBlock);
+					emitBlock(&ifNode->otherwise->body);
 					if (!builder.getInsertBlock()->getTerminator())
 						builder.br(merge);
 				}
+
+				//builder.insertInto(merge);
 			} break;
 
 			default:

@@ -223,7 +223,30 @@ namespace tea::frontend {
 				treeHistory.emplace(tree);
 				tree = &ifNode->body;
 
-				parseBlock({ KeywordKind::Else });
+				parseBlock({ KeywordKind::Else, KeywordKind::ElseIf });
+
+				AST::ElseIfNode* lastElseIf = nullptr;
+				while ((cur - 1)->kind == TokenKind::Keyword && (cur  - 1)->extra == (uint32_t)KeywordKind::ElseIf) {
+					consume(TokenKind::Lpar);
+					auto elseIfPred = parseExpression();
+					consume(TokenKind::Rpar);
+
+					consume(KeywordKind::Do);
+
+					auto elseIfNode = std::make_unique<AST::ElseIfNode>(std::move(elseIfPred), nullptr, cur->line, cur->column);
+					treeHistory.emplace(tree);
+					tree = &elseIfNode->body;
+
+					parseBlock({ KeywordKind::Else, KeywordKind::ElseIf });
+
+					if (!lastElseIf) {
+						ifNode->elseIf = std::move(elseIfNode);
+						lastElseIf = ifNode->elseIf.get();
+					} else {
+						lastElseIf->next = std::move(elseIfNode);
+						lastElseIf = lastElseIf->next.get();
+					}
+				}
 
 				if ((cur - 1)->kind == TokenKind::Keyword && (cur - 1)->extra == (uint32_t)KeywordKind::Else) {
 					auto otherwise = std::make_unique<AST::ElseNode>(_line, _column);
