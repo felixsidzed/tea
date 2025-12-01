@@ -52,7 +52,7 @@ namespace tea::mir {
 
 		case TypeKind::Array: {
 			ArrayType* arr = (ArrayType*)type;
-			return getSize(arr->elementType) * arr->size;
+			return getSize(arr->elementType) * arr->extra;
 		}
 
 		case TypeKind::Struct: {
@@ -63,7 +63,7 @@ namespace tea::mir {
 			uint32_t size = 0;
 			uint32_t alignment = 0;
 
-			if (!st->packed) {
+			if (!st->extra) {
 				for (const auto& el : st->body) {
 					uint32_t elSize = getSize(el);
 					if (elSize > alignment)

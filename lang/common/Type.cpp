@@ -173,7 +173,7 @@ namespace tea {
 
 		case TypeKind::Array: {
 			ArrayType* arr = (ArrayType*)this;
-			result += arr->elementType->str() + "[" + std::to_string(arr->size).c_str() + "]";
+			result += arr->elementType->str() + "[" + std::to_string(arr->extra).c_str() + "]";
 		} break;
 
 		case TypeKind::Struct:

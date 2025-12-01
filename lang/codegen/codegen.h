@@ -39,7 +39,7 @@ namespace tea {
 		void emitVariable(const AST::VariableNode* node);
 		void emitModuleImport(const AST::ModuleImportNode* node);
 		mir::Function* emitFunctionImport(const AST::FunctionImportNode* node);
-		mir::Value* emitExpression(const AST::ExpressionNode* expr, EmissionFlags flags = EmissionFlags::None);
+		mir::Value* emitExpression(const AST::ExpressionNode* expr, EmissionFlags flags = EmissionFlags::None, bool* asRef = nullptr);
 	};
 
 } // namespace tea

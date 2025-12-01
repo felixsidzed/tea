@@ -291,8 +291,7 @@ namespace tea::frontend::analysis {
 			Type* rhsType = visitExpression(be->rhs.get());
 
 			if (lhsType != rhsType) {
-				errors.emplace(std::format(
-					"Function '{}': operator '{}': type mismatch: '{}' vs '{}'. line {}, column {}",
+				errors.emplace(std::format("Function '{}': operator '{}': type mismatch: '{}' vs '{}'. line {}, column {}",
 					func->name,
 					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
 					lhsType->str(), rhsType->str(),
@@ -300,8 +299,7 @@ namespace tea::frontend::analysis {
 				).c_str());
 				type = Type::Void();
 			} else if (!lhsType->isNumeric() && lhsType->kind != TypeKind::Char && lhsType->kind != TypeKind::String) {
-				errors.emplace(std::format(
-					"Function '{}': operator '{}' cannot be applied to type '{}'. line {}, column {}",
+				errors.emplace(std::format("Function '{}': operator '{}' cannot be applied to type '{}'. line {}, column {}",
 					func->name,
 					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
 					lhsType->str(),
@@ -310,6 +308,21 @@ namespace tea::frontend::analysis {
 				type = Type::Void();
 			} else
 				type = Type::Bool();
+		} break;
+
+		case AST::ExprKind::Ref:
+			type = Type::Pointer(visitExpression(((AST::ReferenceNode*)node)->value.get()));
+			break;
+
+		case AST::ExprKind::Deref: {
+			Type* valueType = visitExpression(((AST::ReferenceNode*)node)->value.get());
+			if (valueType->kind != TypeKind::Pointer)
+				errors.emplace(std::format("Function '{}': cannot dereference non-pointer type '{}'. line {}, column {}",
+					func->name,
+					valueType->str().data(),
+					node->line, node->column
+				).c_str());
+			return ((PointerType*)valueType)->pointee;
 		} break;
 
 		default:

@@ -23,9 +23,10 @@ namespace tea {
 	struct FunctionType;
 
 	struct Type {
-		TypeKind kind : 30;
-		uint32_t constant : 1;
-		uint32_t sign : 1;
+		TypeKind kind;
+		bool constant;
+		bool sign;
+		uint32_t extra;
 
 		Type()
 			: kind(TypeKind::Void), constant(false), sign(true) {
@@ -34,6 +35,8 @@ namespace tea {
 		explicit Type(TypeKind b, bool constant = false, bool sign = true)
 			: kind(b), constant(constant), sign(sign) {
 		}
+
+		virtual ~Type() = default;
 
 		tea::string str();
 
@@ -57,17 +60,9 @@ namespace tea {
 		static ArrayType* Array(Type* elementType, uint32_t size, bool constant = false, mir::Context* ctx = nullptr);
 		static StructType* Struct(Type** body, uint32_t n, const char* name, bool packed = false, mir::Context* ctx = nullptr);
 
-		bool isNumeric() const {
-			return kind == TypeKind::Bool || kind == TypeKind::Char || kind == TypeKind::Short || kind == TypeKind::Int || kind == TypeKind::Long;
-		}
-
-		bool isFloat() const {
-			return kind == TypeKind::Float || kind == TypeKind::Double;
-		}
-		
-		bool isIndexable() const {
-			return kind == TypeKind::Array || kind == TypeKind::Pointer;
-		}
+		bool isFloat() const { return kind == TypeKind::Float || kind == TypeKind::Double; }
+		bool isIndexable() const { return kind == TypeKind::Array || kind == TypeKind::Pointer; }
+		bool isNumeric() const { return kind == TypeKind::Bool || kind == TypeKind::Char || kind == TypeKind::Short || kind == TypeKind::Int || kind == TypeKind::Long; }
 
 		Type* getElementType() const;
 	};
@@ -91,21 +86,21 @@ namespace tea {
 	};
 
 	struct ArrayType : Type {
-		uint32_t size;
 		Type* elementType;
 
 		ArrayType(Type* elementType, uint32_t size, bool constant = false)
-			: Type(TypeKind::Array, constant), elementType(elementType), size(size) {
+			: Type(TypeKind::Array, constant), elementType(elementType) {
+			extra = size;
 		}
 	};
 
 	struct StructType : Type {
-		bool packed;
 		const char* name;
 		tea::vector<Type*> body;
 
 		StructType(Type** body, uint32_t n, const char* name, bool packed)
-			: Type(TypeKind::Struct), packed(packed), body(body, n), name(name) {
+			: Type(TypeKind::Struct), body(body, n), name(name) {
+			extra = packed;
 		}
 	};
 

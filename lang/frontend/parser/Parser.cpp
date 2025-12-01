@@ -419,43 +419,42 @@ namespace tea::frontend {
 		case TokenKind::Int: {
 			node = mknode(AST::LiteralNode, AST::ExprKind::Int, cur->text);
 			next();
-			break;
-		}
-
+		} break;
 		case TokenKind::Float: {
 			node = mknode(AST::LiteralNode, AST::ExprKind::Float, cur->text);
 			next();
-			break;
-		}
-
+		} break;
 		case TokenKind::Double: {
 			node = mknode(AST::LiteralNode, AST::ExprKind::Double, cur->text);
 			next();
-			break;
-		}
+		} break;
 		case TokenKind::String: {
 			node = mknode(AST::LiteralNode, AST::ExprKind::String, cur->text);
 			next();
-			break;
-		}
+		} break;
 		case TokenKind::Char: {
 			node = mknode(AST::LiteralNode, AST::ExprKind::Char, cur->text);
 			next();
-			break;
-		}
+		} break;
 		case TokenKind::Identf: {
 			tea::string text;
 			while (cur->kind == TokenKind::Identf || cur->kind == TokenKind::Scope)
 				text += (cur++)->text;
 			node = mknode(AST::LiteralNode, AST::ExprKind::Identf, text);
-			break;
-		}
+		} break;
 		case TokenKind::Lpar: {
 			next();
 			node = parseExpression();
 			consume(TokenKind::Rpar);
-			break;
-		}
+		} break;
+		case TokenKind::Amp: {
+			next();
+			node = mknode(AST::ReferenceNode, parseExpression());
+		} break;
+		case TokenKind::Star: {
+			next();
+			node = mknode(AST::DereferenceNode, parseExpression());
+		} break;
 		default:
 			unexpected();
 		}
@@ -501,9 +500,9 @@ namespace tea::frontend {
 			return 4;
 
 		case TokenKind::Amp:
-			return 5;
+			return 5;*/
 
-		*/case TokenKind::Eq:
+		case TokenKind::Eq:
 		case TokenKind::Neq:
 			return 6;
 

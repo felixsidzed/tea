@@ -21,9 +21,9 @@ namespace tea::frontend::AST {
 		Identf, Call,
 		Add, Sub, Mul, Div,
 		Eq, Neq, Lt, Gt, Le, Ge,
-		/*Not, And, Or,
+		//Not, And, Or,
 		Ref, Deref, Cast,
-		Array, Index,
+		/*Array, Index,
 		Band, Bor, Bxor, Shr, Shl*/
 	};
 
@@ -241,5 +241,25 @@ namespace tea::frontend::AST {
 		void addAttribute(GlobalAttribute attr) { extra |= (uint32_t)attr; };
 		bool hasAttribute(GlobalAttribute attr) const { return extra & (uint32_t)attr; };
 		void removeAttribute(GlobalAttribute attr) { extra &= ~(uint32_t)attr; };
+	};
+
+	struct ReferenceNode : ExpressionNode {
+		std::unique_ptr<ExpressionNode> value;
+
+		ReferenceNode(
+			std::unique_ptr<ExpressionNode> value,
+			uint32_t line, uint32_t column
+		) : ExpressionNode(ExprKind::Ref, line, column), value(std::move(value)) {
+		}
+	};
+
+	struct DereferenceNode : ExpressionNode {
+		std::unique_ptr<ExpressionNode> value;
+
+		DereferenceNode(
+			std::unique_ptr<ExpressionNode> value,
+			uint32_t line, uint32_t column
+		) : ExpressionNode(ExprKind::Deref, line, column), value(std::move(value)) {
+		}
 	};
 }

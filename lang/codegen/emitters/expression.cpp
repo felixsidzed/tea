@@ -5,7 +5,7 @@
 
 namespace tea {
 
-	mir::Value* CodeGen::emitExpression(const AST::ExpressionNode* node, EmissionFlags flags) {
+	mir::Value* CodeGen::emitExpression(const AST::ExpressionNode* node, EmissionFlags flags, bool* asRef) {
 		switch (node->getEKind()) {
 		case AST::ExprKind::String: {
 			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
@@ -87,13 +87,19 @@ namespace tea {
 						return f;
 					}
 				}
-				
+
 				if (flags.has(EmissionFlags::Constant))
 					TEA_PANIC("value is not a constant expression. line %d, column %d", literal->line, literal->column);
 
 				{
 					mir::Global* g = module->getNamedGlobal(literal->value);
-					if (g) return builder.load(g, "");
+					if (g) {
+						if (asRef) {
+							*asRef = true;
+							return g;
+						} else
+							return builder.load(g, "");
+					}
 				} if (curParams) {
 					uint32_t i = 0;
 					for (const auto& [_, name] : *curParams) {
@@ -103,9 +109,14 @@ namespace tea {
 					}
 				} {
 					if (auto* it = locals.find(std::hash<tea::string>()(literal->value))) {
-						if (!it->load)
-							it->load = builder.load(it->allocated, literal->value.data());
-						return it->load;
+						if (asRef) {
+							*asRef = true;
+							return it->allocated;
+						} else {
+							if (!it->load)
+								it->load = builder.load(it->allocated, literal->value.data());
+							return it->load;
+						}
 					}
 				}
 			}
@@ -273,6 +284,19 @@ namespace tea {
 				}
 				return builder.icmp(pred, lhs, rhs, "");
 			}
+		} break;
+
+		case AST::ExprKind::Ref: {
+			bool isRef;
+			mir::Value* ref = emitExpression(((AST::ReferenceNode*)node)->value.get(), EmissionFlags::None, &isRef);
+			if (!isRef)
+				TEA_PANIC("cannot reference value. line %d, column %d", node->line, node->column);
+
+			return ref;
+		} break;
+
+		case AST::ExprKind::Deref: {
+			return builder.load(emitExpression(((AST::DereferenceNode*)node)->value.get()), "");
 		} break;
 
 		default:

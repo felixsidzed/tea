@@ -176,7 +176,7 @@ namespace tea::backend {
 		}
 		case TypeKind::Array: {
 			ArrayType* arr = (ArrayType*)ty;
-			return LLVMArrayType(lowerType(arr->elementType), arr->size);
+			return LLVMArrayType(lowerType(arr->elementType), arr->extra);
 		}
 		// TODO: struct type lowering
 		default:
