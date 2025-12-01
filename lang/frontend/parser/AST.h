@@ -95,6 +95,7 @@ namespace tea::frontend::AST {
 		tea::string name;
 		tea::vector<std::pair<Type*, tea::string>> params;
 		Type* returnType;
+		tea::vector<std::unique_ptr<struct VariableNode>> variables;
 
 		Tree body;
 

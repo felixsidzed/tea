@@ -46,15 +46,13 @@ namespace tea::mir {
 		return insn->result.get();
 	}
 
-	Value* Builder::cast(Value* ptr, Type* targetType, const char* name) {
-		if (ptr->type->kind != TypeKind::Pointer || targetType->kind != TypeKind::Pointer)
-			return nullptr;
-		if (((PointerType*)ptr->type)->pointee == targetType)
-			return ptr;
+	Value* Builder::cast(Value* val, Type* targetType, const char* name) {
+		if (val->type == targetType)
+			return val;
 
 		Instruction* insn = block->body.emplace();
 		insn->op = OpCode::Cast;
-		insn->operands.emplace(ptr);
+		insn->operands.emplace(val);
 
 		insn->result = std::make_unique<Value>(ValueKind::Instruction, targetType);
 		insn->result->name = block->scope.add(name);

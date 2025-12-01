@@ -42,10 +42,6 @@ namespace tea {
 				emitExpression((const AST::ExpressionNode*)node.get());
 				break;
 
-			case AST::NodeKind::Variable:
-				emitVariable((const AST::VariableNode*)node.get());
-				break;
-
 			case AST::NodeKind::If: {
 				AST::IfNode* ifNode = (AST::IfNode*)node.get();
 

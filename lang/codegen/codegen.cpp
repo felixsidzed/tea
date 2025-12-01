@@ -33,6 +33,9 @@ namespace tea {
 				builder.insertInto(f->appendBlock("entry"));
 				curParams = &func->params;
 
+				for (const auto& var : func->variables)
+					emitVariable(var.get());
+
 				emitBlock(&func->body);
 
 				curParams = nullptr;

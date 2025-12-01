@@ -409,7 +409,10 @@ namespace tea::backend {
 					args.emplace(lowerValue(insn.operands[i]));
 				
 				FunctionType* ftype = (FunctionType*)insn.operands[0]->type;
-				result = LLVMBuildCall(builder, callee, args.data, args.size, insn.result->name);
+				if (insn.result)
+					result = LLVMBuildCall(builder, callee, args.data, args.size, insn.result->name);
+				else
+					LLVMBuildCall(builder, callee, args.data, args.size, "");
 			} break;
 
 			case mir::OpCode::Nop:

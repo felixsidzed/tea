@@ -316,6 +316,9 @@ namespace tea {
 				""
 			);
 
+		case AST::ExprKind::Cast:
+			return builder.cast(emitExpression(((AST::UnaryExprNode*)node)->value.get()), node->type, "");
+
 		default:
 			TEA_PANIC("unknown expression kind %d", node->getEKind());
 			TEA_UNREACHABLE();

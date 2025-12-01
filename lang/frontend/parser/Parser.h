@@ -13,6 +13,7 @@ namespace tea::frontend {
 		const Token* end;
 
 		AST::Tree* tree = nullptr;
+		AST::FunctionNode* func = nullptr;
 		tea::vector<AST::Tree*> treeHistory;
 
 	public:

@@ -40,6 +40,9 @@ namespace tea::frontend::analysis {
 				for (const auto& [ty, name] : func->params)
 					pushsym(name, ty, false, false, false, false, true);
 
+				for (const auto& var : func->variables)
+					visitVariable(var.get());
+
 				visitBlock(func->body);
 				popscope();
 
@@ -166,10 +169,6 @@ namespace tea::frontend::analysis {
 			visitExpression((AST::ExpressionNode*)node);
 			break;
 
-		case AST::NodeKind::Variable:
-			visitVariable((AST::VariableNode*)node);
-			break;
-
 		case AST::NodeKind::If: {
 			AST::IfNode* ifNode = (AST::IfNode*)node;
 			visitExpression(ifNode->pred.get());
@@ -239,14 +238,22 @@ namespace tea::frontend::analysis {
 
 		case AST::ExprKind::Identf: {
 			const tea::string& name = ((AST::LiteralNode*)node)->value;
-			const Symbol* sym = lookup(name);
-			if (sym)
-				type = sym->type;
+			if (name == "true")
+				type = Type::Bool();
+			else if (name == "false")
+				type = Type::Bool();
+			else if (name == "null")
+				type = Type::Pointer(Type::Void());
 			else {
-				errors.emplace(std::format("Function '{}': use of undefined symbol '{}'. line {}, column {}",
-					func->name, name, node->line, node->column
-				).c_str());
-				type = Type::Void();
+				const Symbol* sym = lookup(name);
+				if (sym)
+					type = sym->type;
+				else {
+					errors.emplace(std::format("Function '{}': use of undefined symbol '{}'. line {}, column {}",
+						func->name, name, node->line, node->column
+					).c_str());
+					type = Type::Void();
+				}
 			}
 		} break;
 
@@ -362,6 +369,12 @@ namespace tea::frontend::analysis {
 				).c_str());
 			type = Type::Bool();
 		} break;
+
+		// TODO: check for illegal casts
+		case AST::ExprKind::Cast:
+			type = node->type;
+			visitExpression(((AST::UnaryExprNode*)node)->value.get());
+			break;
 
 		default:
 			#ifdef _DEBUG

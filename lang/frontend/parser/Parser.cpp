@@ -213,7 +213,7 @@ namespace tea::frontend {
 					TEA_PANIC("can't deduce a type without an initializer. line %d, column %d", cur->line, cur->column);
 
 				consume(TokenKind::Semicolon);
-				return mknode(AST::VariableNode, name, type, std::move(initializer));
+				func->variables.emplace(mknode(AST::VariableNode, name, type, std::move(initializer)));
 			} break;
 
 			case KeywordKind::If: {
@@ -317,8 +317,15 @@ namespace tea::frontend {
 		if (!returnType)
 			TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
 
-		pushtree(AST::FunctionNode, vis, cc, name, params, returnType, vararg);
+		auto node = std::make_unique<AST::FunctionNode>(vis, cc, name, params, returnType, vararg, _line, _column);
+		func = node.get();
+		auto body = &node->body;
+		treeHistory.emplace(tree);
+		tree->emplace(std::move(node));
+		tree = body;
+
 		parseBlock();
+		func = nullptr;
 	}
 
 	void Parser::parseFuncImport(uint32_t _line, uint32_t _column) {
@@ -450,6 +457,19 @@ namespace tea::frontend {
 		} break;
 		case TokenKind::Lpar: {
 			next();
+
+			if (cur->kind == TokenKind::Identf) {
+				const tea::string& typeName = parseType();
+				Type* type = Type::get(typeName);
+				if (type) {
+					consume(TokenKind::Rpar);
+					auto expr = parseExpression();
+					node = mknode(AST::UnaryExprNode, AST::ExprKind::Cast, std::move(expr));
+					node->type = type;
+					break;
+				}
+			}
+
 			node = parseExpression();
 			consume(TokenKind::Rpar);
 		} break;
