@@ -37,6 +37,7 @@ namespace tea {
 	private:
 		void emitBlock(const AST::Tree* tree);
 		void emitVariable(const AST::VariableNode* node);
+		void emitAssignment(const AST::AssignmentNode* node);
 		void emitModuleImport(const AST::ModuleImportNode* node);
 		mir::Function* emitFunctionImport(const AST::FunctionImportNode* node);
 		mir::Value* emitExpression(const AST::ExpressionNode* expr, EmissionFlags flags = EmissionFlags::None, bool* asRef = nullptr);

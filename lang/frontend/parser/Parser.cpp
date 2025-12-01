@@ -208,11 +208,11 @@ namespace tea::frontend {
 				std::unique_ptr<AST::ExpressionNode> initializer = nullptr;
 				if (match(TokenKind::Assign))
 					initializer = parseExpression();
-				consume(TokenKind::Semicolon);
 
 				if (!type && !initializer)
-					TEA_PANIC("can't deduct a type without an initializer");
+					TEA_PANIC("can't deduce a type without an initializer. line %d, column %d", cur->line, cur->column);
 
+				consume(TokenKind::Semicolon);
 				return mknode(AST::VariableNode, name, type, std::move(initializer));
 			} break;
 
@@ -267,21 +267,32 @@ namespace tea::frontend {
 				tree->push(std::move(ifNode));
 			} break;
 
+			case KeywordKind::While: {
+				next();
+
+				consume(TokenKind::Lpar);
+				auto pred = parseExpression();
+				consume(TokenKind::Rpar);
+				consume(KeywordKind::Do);
+
+				pushtree(AST::WhileLoopNode, std::move(pred));
+				parseBlock();
+			} break;
+
 			default:
 				unexpected();
-				break;
+				TEA_UNREACHABLE();
 			}
 		} break;
 
-		case TokenKind::Identf: {
-			auto node = parseExpression();
-			consume(TokenKind::Semicolon);
-			return std::move(node);
-		}
-
 		default:
-			unexpected();
-			break;
+			if (tryParseAssignment())
+				consume(TokenKind::Semicolon);
+			else {
+				auto node = parseExpression();
+				consume(TokenKind::Semicolon);
+				return std::move(node);
+			}
 		}
 		return nullptr;
 	};
@@ -316,8 +327,7 @@ namespace tea::frontend {
 			cc = (AST::CallingConvention)(cur->extra - (uint32_t)KeywordKind::StdCC);
 			next();
 			consume(KeywordKind::Func);
-		}
-		else
+		} else
 			next();
 
 		const tea::string& name = consume(TokenKind::Identf).text;
@@ -356,11 +366,7 @@ namespace tea::frontend {
 			if (!type)
 				TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
 
-			result.emplace(
-				type,
-				consume(TokenKind::Identf).text
-			);
-
+			result.emplace(type, consume(TokenKind::Identf).text);
 			if (match(TokenKind::Rpar))
 				break;
 
@@ -449,11 +455,15 @@ namespace tea::frontend {
 		} break;
 		case TokenKind::Amp: {
 			next();
-			node = mknode(AST::ReferenceNode, parseExpression());
+			node = mknode(AST::UnaryExprNode, AST::ExprKind::Ref, parseExpression());
 		} break;
 		case TokenKind::Star: {
 			next();
-			node = mknode(AST::DereferenceNode, parseExpression());
+			node = mknode(AST::UnaryExprNode, AST::ExprKind::Deref, parseExpression());
+		} break;
+		case TokenKind::Not: {
+			next();
+			node = mknode(AST::UnaryExprNode, AST::ExprKind::Not, parseExpression());
 		} break;
 		default:
 			unexpected();
@@ -487,13 +497,13 @@ namespace tea::frontend {
 
 	static int getPrecedence(TokenKind kind) {
 		switch (kind) {
-		/*case TokenKind::Or:
+		case TokenKind::Or:
 			return 1;
 
 		case TokenKind::And:
 			return 2;
 
-		case TokenKind::Bor:
+			/*case TokenKind::Bor:
 			return 3;
 
 		case TokenKind::Bxor:
@@ -542,6 +552,8 @@ namespace tea::frontend {
 		{TokenKind::Gt, AST::ExprKind::Gt},
 		{TokenKind::Ge, AST::ExprKind::Ge},
 
+		{TokenKind::And, AST::ExprKind::And},
+		{TokenKind::Or, AST::ExprKind::Or},
 	};
 
 	std::unique_ptr<AST::ExpressionNode> Parser::parseRhs(int lhsPrec, std::unique_ptr<AST::ExpressionNode> lhs) {
@@ -555,13 +567,45 @@ namespace tea::frontend {
 			int nextPrec = getPrecedence(cur->kind);
 			if (prec < nextPrec)
 				rhs = parseRhs(prec + 1, std::move(rhs));
-			lhs = std::make_unique<AST::BinaryExpr>(*tt2et.find(tk), std::move(lhs), std::move(rhs), (cur - 1)->line, (cur - 1)->column);
+			lhs = std::make_unique<AST::BinaryExprNode>(*tt2et.find(tk), std::move(lhs), std::move(rhs), (cur - 1)->line, (cur - 1)->column);
 		}
 	}
 
 	std::unique_ptr<AST::ExpressionNode> Parser::parseExpression() {
 		auto lhs = parsePrimary();
 		return parseRhs(0, std::move(lhs));
+	}
+
+	bool Parser::tryParseAssignment() {
+		const Token* old = cur;
+		uint32_t _line = cur->line, _column = cur->column;
+
+		if (cur->kind != TokenKind::Identf && cur->kind != TokenKind::Star)
+			return false;
+
+		uint32_t extra = 0;
+		auto lhs = parsePrimary();
+
+		switch (cur->kind) {
+		case TokenKind::Add:
+		case TokenKind::Sub:
+		case TokenKind::Div:
+		case TokenKind::Star:
+			extra = (uint32_t)cur->kind;
+			next();
+			break;
+		default:
+			break;
+		}
+
+		if (cur->kind != TokenKind::Assign) {
+			cur = old;
+			return false;
+		}
+		next();
+		
+		tree->emplace(mknode(AST::AssignmentNode, std::move(lhs), parseExpression(), extra));
+		return true;
 	}
 
 } // tea::frontend

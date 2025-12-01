@@ -13,7 +13,9 @@ namespace tea::frontend::AST {
 		Call,
 		FunctionImport, ModuleImport,
 		Variable, GlobalVariable,
-		If, Else, ElseIf
+		If, Else, ElseIf,
+		WhileLoop,
+		Assignment
 	};
 
 	enum class ExprKind : uint32_t {
@@ -21,7 +23,7 @@ namespace tea::frontend::AST {
 		Identf, Call,
 		Add, Sub, Mul, Div,
 		Eq, Neq, Lt, Gt, Le, Ge,
-		//Not, And, Or,
+		Not, And, Or,
 		Ref, Deref, Cast,
 		/*Array, Index,
 		Band, Bor, Bxor, Shr, Shl*/
@@ -77,11 +79,11 @@ namespace tea::frontend::AST {
 		}
 	};
 
-	struct BinaryExpr : ExpressionNode {
+	struct BinaryExprNode : ExpressionNode {
 		std::unique_ptr<ExpressionNode> lhs;
 		std::unique_ptr<ExpressionNode> rhs;
 
-		BinaryExpr(ExprKind ekind, std::unique_ptr<ExpressionNode> lhs, std::unique_ptr<ExpressionNode> rhs,
+		BinaryExprNode(ExprKind ekind, std::unique_ptr<ExpressionNode> lhs, std::unique_ptr<ExpressionNode> rhs,
 				   uint32_t line, uint32_t column)
 			: ExpressionNode(ekind, line, column), lhs(std::move(lhs)), rhs(std::move(rhs)) {}
 	};
@@ -243,23 +245,39 @@ namespace tea::frontend::AST {
 		void removeAttribute(GlobalAttribute attr) { extra &= ~(uint32_t)attr; };
 	};
 
-	struct ReferenceNode : ExpressionNode {
+	struct UnaryExprNode : ExpressionNode {
 		std::unique_ptr<ExpressionNode> value;
 
-		ReferenceNode(
+		UnaryExprNode(
+			ExprKind ekind,
 			std::unique_ptr<ExpressionNode> value,
 			uint32_t line, uint32_t column
-		) : ExpressionNode(ExprKind::Ref, line, column), value(std::move(value)) {
+		) : ExpressionNode(ekind, line, column), value(std::move(value)) {
 		}
 	};
 
-	struct DereferenceNode : ExpressionNode {
-		std::unique_ptr<ExpressionNode> value;
+	struct WhileLoopNode : Node {
+		std::unique_ptr<ExpressionNode> pred;
 
-		DereferenceNode(
-			std::unique_ptr<ExpressionNode> value,
+		Tree body;
+
+		WhileLoopNode(
+			std::unique_ptr<ExpressionNode> pred,
 			uint32_t line, uint32_t column
-		) : ExpressionNode(ExprKind::Deref, line, column), value(std::move(value)) {
+		) : Node(NodeKind::WhileLoop, line, column), pred(std::move(pred)) {
+		}
+	};
+
+	struct AssignmentNode : Node {
+		std::unique_ptr<ExpressionNode> lhs;
+		std::unique_ptr<ExpressionNode> rhs;
+
+		AssignmentNode(
+			std::unique_ptr<ExpressionNode> lhs,
+			std::unique_ptr<ExpressionNode> rhs,
+			uint32_t extra,
+			uint32_t line, uint32_t column
+		) : Node(NodeKind::Assignment, line, column, extra), lhs(std::move(lhs)), rhs(std::move(rhs)) {
 		}
 	};
 }

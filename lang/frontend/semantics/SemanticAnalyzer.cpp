@@ -107,8 +107,10 @@ namespace tea::frontend::analysis {
 				Type* initType = visitExpression(gv->initializer.get());
 				if (gv->type) {
 					if (gv->type != initType)
-						TEA_PANIC("global variable initializer type (%s) doesn't match variable type (%s). line %d, column %d",
-							initType->str().data(), gv->type->str().data(), gv->line, gv->column);
+						errors.emplace(std::format("Global variable initializer type ({}) doesn't match variable type ({}). line {}, column {}",
+							initType->str(), gv->type->str(),
+							gv->line, gv->column
+						).c_str());
 				} else
 					gv->type = initType;
 
@@ -184,6 +186,26 @@ namespace tea::frontend::analysis {
 			}
 		} break;
 
+		case AST::NodeKind::WhileLoop: {
+			AST::WhileLoopNode* loop = (AST::WhileLoopNode*)node;
+
+			visitExpression(loop->pred.get());
+			visitBlock(loop->body);
+		} break;
+
+		case AST::NodeKind::Assignment: {
+			AST::AssignmentNode* assign = (AST::AssignmentNode*)node;
+
+			Type* lhsType = visitExpression(assign->lhs.get());
+			Type* rhsType = visitExpression(assign->rhs.get());
+			if (rhsType != lhsType)
+				errors.emplace(std::format("Function: '{}': assignment type mismatch: '{}' vs '{}'. line {}, column {}",
+					func->name,
+					lhsType->str(), rhsType->str(),
+					node->line, node->column
+				).c_str());
+		} break;
+
 		default:
 			#ifdef _DEBUG
 			fprintf(stderr, "SemanticAnalyzer: unhandled statement kind %d\n", node->kind);
@@ -222,7 +244,8 @@ namespace tea::frontend::analysis {
 				type = sym->type;
 			else {
 				errors.emplace(std::format("Function '{}': use of undefined symbol '{}'. line {}, column {}",
-					func->name, name, node->line, node->column).c_str());
+					func->name, name, node->line, node->column
+				).c_str());
 				type = Type::Void();
 			}
 		} break;
@@ -232,7 +255,8 @@ namespace tea::frontend::analysis {
 			type = visitExpression(call->callee.get());
 			if (type->kind != TypeKind::Function)
 				errors.emplace(std::format("Function '{}': cannot call a value of type '{}'. line {}, column {}",
-					func->name, type->str().data(), node->line, node->column).c_str());
+					func->name, type->str().data(), node->line, node->column
+				).c_str());
 			else {
 				FunctionType* ftype = (FunctionType*)type;
 				type = ftype->returnType;
@@ -244,7 +268,8 @@ namespace tea::frontend::analysis {
 
 					if (argType != paramType)
 						errors.emplace(std::format("Function '{}': argument {}: expected type {}, got {}. line {}, column {}",
-							func->name, i, paramType->str(), argType->str(), node->line, node->column).c_str());
+							func->name, i, paramType->str(), argType->str(), node->line, node->column
+						).c_str());
 					i++;
 				}
 			}
@@ -254,7 +279,7 @@ namespace tea::frontend::analysis {
 		case AST::ExprKind::Sub:
 		case AST::ExprKind::Mul:
 		case AST::ExprKind::Div: {
-			AST::BinaryExpr* be = (AST::BinaryExpr*)node;
+			AST::BinaryExprNode* be = (AST::BinaryExprNode*)node;
 
 			Type* lhsType = visitExpression(be->lhs.get());
 			Type* rhsType = visitExpression(be->rhs.get());
@@ -284,8 +309,10 @@ namespace tea::frontend::analysis {
 		case AST::ExprKind::Lt:
 		case AST::ExprKind::Gt:
 		case AST::ExprKind::Ge:
-		case AST::ExprKind::Le: {
-			AST::BinaryExpr* be = (AST::BinaryExpr*)node;
+		case AST::ExprKind::Le:
+		case AST::ExprKind::And:
+		case AST::ExprKind::Or: {
+			AST::BinaryExprNode* be = (AST::BinaryExprNode*)node;
 
 			Type* lhsType = visitExpression(be->lhs.get());
 			Type* rhsType = visitExpression(be->rhs.get());
@@ -298,7 +325,7 @@ namespace tea::frontend::analysis {
 					node->line, node->column
 				).c_str());
 				type = Type::Void();
-			} else if (!lhsType->isNumeric() && lhsType->kind != TypeKind::Char && lhsType->kind != TypeKind::String) {
+			} else if (!lhsType->isNumeric() && lhsType->kind != TypeKind::Char) {
 				errors.emplace(std::format("Function '{}': operator '{}' cannot be applied to type '{}'. line {}, column {}",
 					func->name,
 					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
@@ -311,18 +338,29 @@ namespace tea::frontend::analysis {
 		} break;
 
 		case AST::ExprKind::Ref:
-			type = Type::Pointer(visitExpression(((AST::ReferenceNode*)node)->value.get()));
+			type = Type::Pointer(visitExpression(((AST::UnaryExprNode*)node)->value.get()));
 			break;
 
 		case AST::ExprKind::Deref: {
-			Type* valueType = visitExpression(((AST::ReferenceNode*)node)->value.get());
-			if (valueType->kind != TypeKind::Pointer)
+			Type* valueType = visitExpression(((AST::UnaryExprNode*)node)->value.get());
+			if (valueType->kind != TypeKind::Pointer) {
 				errors.emplace(std::format("Function '{}': cannot dereference non-pointer type '{}'. line {}, column {}",
-					func->name,
-					valueType->str().data(),
+					func->name, valueType->str(),
 					node->line, node->column
 				).c_str());
-			return ((PointerType*)valueType)->pointee;
+				type = Type::Void();
+			} else
+				return ((PointerType*)valueType)->pointee;
+		} break;
+
+		case AST::ExprKind::Not: {
+			Type* valueType = visitExpression(((AST::UnaryExprNode*)node)->value.get());
+			if (!valueType->isNumeric() && !valueType->isFloat() && valueType->kind != TypeKind::Pointer)
+				errors.emplace(std::format("Function '{}': operator '!' cannot be applied to type '{}'. line {}, column {}",
+					func->name, valueType->str(),
+					node->line, node->column
+				).c_str());
+			type = Type::Bool();
 		} break;
 
 		default:
@@ -336,13 +374,30 @@ namespace tea::frontend::analysis {
 	}
 
 	void SemanticAnalyzer::visitVariable(AST::VariableNode* node) {
-		Type* initType = visitExpression(node->initializer.get());
+		Type* initType = nullptr;
+		if (node->initializer)
+			initType = visitExpression(node->initializer.get());
+
 		if (node->type) {
-			if (node->type != initType)
-				TEA_PANIC("variable initializer type (%s) doesn't match variable type (%s). line %d, column %d",
-					initType->str().data(), node->type->str().data(), node->line, node->column);
-		} else
-			node->type = initType;
+			if (initType && node->type != initType) {
+				errors.emplace(std::format(
+					"Function '{}': variable initializer type ({}) doesn't match variable type ({}). line {}, column {}",
+					func->name,
+					initType->str(), node->type->str(),
+					node->line, node->column
+				).c_str());
+			}
+		} else {
+			if (initType)
+				node->type = initType;
+			else {
+				errors.emplace(std::format(
+					"Function '{}': variable '{}' declared without a type or initializer. line {}, column {}",
+					func->name, node->name, node->line, node->column
+				).c_str());
+				return;
+			}
+		}
 
 		#pragma warning(push)
 		#pragma warning(disable : 6011)

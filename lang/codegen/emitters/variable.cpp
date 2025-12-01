@@ -1,14 +1,5 @@
 #include "codegen/codegen.h"
 
-#include <fstream>
-#include <filesystem>
-
-#include "common/tea.h"
-#include "frontend/lexer/Lexer.h"
-#include "frontend/parser/Parser.h"
-
-namespace fs = std::filesystem;
-
 namespace tea {
 
 	void CodeGen::emitVariable(const AST::VariableNode* node) {

@@ -104,6 +104,32 @@ namespace tea {
 				//builder.insertInto(merge);
 			} break;
 
+			case AST::NodeKind::WhileLoop: {
+				AST::WhileLoopNode* loop = (AST::WhileLoopNode*)node.get();
+				mir::Function* func = builder.getInsertBlock()->parent;
+
+				mir::BasicBlock* pred = func->appendBlock("loop.pred");
+				mir::BasicBlock* body = func->appendBlock("loop.body");
+				mir::BasicBlock* merge = func->appendBlock("loop.merge");
+
+				builder.br(pred);
+				builder.cbr(
+					expr2bool(&builder, module.get(), emitExpression(loop->pred.get())),
+					body, merge
+				);
+
+				builder.insertInto(body);
+				emitBlock(&loop->body);
+
+				if (!builder.getInsertBlock()->getTerminator())
+					builder.br(pred);
+				builder.insertInto(merge);
+			} break;
+
+			case AST::NodeKind::Assignment:
+				emitAssignment((const AST::AssignmentNode*)node.get());
+				break;
+
 			default:
 				TEA_PANIC("unknown statement %d", node->kind);
 			}

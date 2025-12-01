@@ -69,7 +69,7 @@ namespace tea::mir {
 	}
 
 	Value* Builder::binop(OpCode op, Value* lhs, Value* rhs, const char* name) {
-		if (op < OpCode::Not || op > OpCode::Shr || lhs->type != rhs->type)
+		if (op < OpCode::Not || op > OpCode::Shr || (rhs && lhs->type != rhs->type))
 			return nullptr;
 
 		Instruction* insn = block->body.emplace();

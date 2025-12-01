@@ -3,7 +3,11 @@
 #include "common/map.h"
 #include "common/tea.h"
 
+#include "frontend/lexer/Lexer.h"
+
 namespace tea {
+
+	extern mir::Value* expr2bool(mir::Builder* builder, mir::Module* module, mir::Value* pred);
 
 	mir::Value* CodeGen::emitExpression(const AST::ExpressionNode* node, EmissionFlags flags, bool* asRef) {
 		switch (node->getEKind()) {
@@ -223,7 +227,7 @@ namespace tea {
 		case AST::ExprKind::Sub:
 		case AST::ExprKind::Mul:
 		case AST::ExprKind::Div: {
-			const AST::BinaryExpr* be = (const AST::BinaryExpr*)node;
+			const AST::BinaryExprNode* be = (const AST::BinaryExprNode*)node;
 
 			mir::Value* lhs = emitExpression(be->lhs.get());
 			mir::Value* rhs = emitExpression(be->rhs.get());
@@ -251,7 +255,7 @@ namespace tea {
 		case AST::ExprKind::Le:
 		case AST::ExprKind::Gt:
 		case AST::ExprKind::Ge: {
-			const AST::BinaryExpr* be = (const AST::BinaryExpr*)node;
+			const AST::BinaryExprNode* be = (const AST::BinaryExprNode*)node;
 
 			mir::Value* lhs = emitExpression(be->lhs.get());
 			mir::Value* rhs = emitExpression(be->rhs.get());
@@ -287,17 +291,30 @@ namespace tea {
 		} break;
 
 		case AST::ExprKind::Ref: {
-			bool isRef;
-			mir::Value* ref = emitExpression(((AST::ReferenceNode*)node)->value.get(), EmissionFlags::None, &isRef);
+			bool isRef = false;
+			mir::Value* ref = emitExpression(((AST::UnaryExprNode*)node)->value.get(), EmissionFlags::None, &isRef);
 			if (!isRef)
 				TEA_PANIC("cannot reference value. line %d, column %d", node->line, node->column);
 
 			return ref;
 		} break;
-
-		case AST::ExprKind::Deref: {
-			return builder.load(emitExpression(((AST::DereferenceNode*)node)->value.get()), "");
-		} break;
+		case AST::ExprKind::Deref:
+			return builder.load(emitExpression(((AST::UnaryExprNode*)node)->value.get()), "");
+		
+		case AST::ExprKind::Not:
+			return builder.binop(mir::OpCode::Not, expr2bool(&builder, module.get(), emitExpression(((AST::UnaryExprNode*)node)->value.get())), nullptr, "");
+		case AST::ExprKind::And:
+			return builder.binop(mir::OpCode::And,
+				emitExpression(((AST::BinaryExprNode*)node)->lhs.get()),
+				emitExpression(((AST::BinaryExprNode*)node)->rhs.get()),
+				""
+			);
+		case AST::ExprKind::Or:
+			return builder.binop(mir::OpCode::Or,
+				emitExpression(((AST::BinaryExprNode*)node)->lhs.get()),
+				emitExpression(((AST::BinaryExprNode*)node)->rhs.get()),
+				""
+			);
 
 		default:
 			TEA_PANIC("unknown expression kind %d", node->getEKind());
