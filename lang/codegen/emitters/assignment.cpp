@@ -10,7 +10,7 @@ namespace tea {
 		mir::Value* lhs = emitExpression(node->lhs.get(), EmissionFlags::None, &isRef);
 		mir::Value* rhs = emitExpression(node->rhs.get());
 
-		if (!isRef)
+		if (!isRef || lhs->type->constant)
 			TEA_PANIC("cannot assign to a value of type '%s'. line %d, column %d",
 				lhs->type->str().data(), node->line, node->column);
 

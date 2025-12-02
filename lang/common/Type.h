@@ -9,7 +9,7 @@ namespace tea {
 		class Context;
 	}
 
-	enum class TypeKind : uint32_t {
+	enum class TypeKind : uint8_t {
 		// Primitive
 		Void, Bool, Char, Short, Float, Int, Double, Long, String,
 
@@ -29,11 +29,11 @@ namespace tea {
 		uint32_t extra;
 
 		Type()
-			: kind(TypeKind::Void), constant(false), sign(true) {
+			: kind(TypeKind::Void), constant(false), sign(true), extra(0) {
 		}
 
-		explicit Type(TypeKind b, bool constant = false, bool sign = true)
-			: kind(b), constant(constant), sign(sign) {
+		explicit Type(TypeKind kind, bool constant = false, bool sign = true)
+			: kind(kind), constant(constant), sign(sign), extra(0) {
 		}
 
 		virtual ~Type() = default;

@@ -79,7 +79,7 @@ namespace tea::mir {
 	ConstantString* ConstantString::get(const tea::string& val, Context* ctx) {
 		if (!ctx) ctx = getGlobalContext();
 
-		auto& entry = ctx->strConst[val];
+		auto& entry = ctx->strConst[std::hash<tea::string>()(val)];
 		if (!entry)
 			entry.reset(new ConstantString(val));
 		return entry.get();

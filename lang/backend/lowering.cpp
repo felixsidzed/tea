@@ -57,7 +57,7 @@ namespace tea::backend {
 		}
 	}
 
-	std::pair<std::unique_ptr<uint8_t[]>, size_t> MIRLowering::lower(const mir::Module* module, Options options) {
+	void MIRLowering::lower(const mir::Module* module, Options options) {
 		LLVMInitializeAllTargets();
 		LLVMInitializeAllTargetMCs();
 		LLVMInitializeAllTargetInfos();
@@ -128,20 +128,15 @@ namespace tea::backend {
 			LLVMPassManagerBuilderSetOptLevel(pmb, options.OptimizationLevel);
 			LLVMPassManagerBuilderPopulateModulePassManager(pmb, pm);
 			LLVMRunPassManager(pm, M);
+			LLVMDisposePassManager(pm);
 		}
 		if (options.DumpLLVMModule) LLVMDumpModule(M);
 
-		LLVMMemoryBufferRef buf;
-		if (LLVMTargetMachineEmitToMemoryBuffer(TM, M, LLVMObjectFile, &err, &buf))
+		if (LLVMTargetMachineEmitToFile(TM, M, options.OutputFile, LLVMObjectFile, &err))
 			TEA_PANIC("%s", err);
 
 		LLVMDisposeModule(M);
 		LLVMDisposeTargetMachine(TM);
-
-		size_t size = LLVMGetBufferSize(buf);
-		auto mc = std::make_unique<uint8_t[]>(size);
-		memcpy_s(mc.get(), size, LLVMGetBufferStart(buf), size);
-		return { std::move(mc), size };
 	}
 
 	LLVMTypeRef MIRLowering::lowerType(const Type* ty) {
@@ -421,10 +416,10 @@ namespace tea::backend {
 			case mir::OpCode::Cast: {
 				LLVMValueRef value = lowerValue(insn.operands[0]);
 				LLVMTypeRef destType = lowerType(insn.result->type);
-				
+
 				const Type* src = insn.operands[0]->type;
 				const Type* dst = insn.result->type;
-				
+
 				if (src->isFloat() && dst->isNumeric()) {
 					if (dst->sign)
 						result = LLVMBuildFPToSI(builder, value, destType, insn.result->name);
@@ -436,8 +431,12 @@ namespace tea::backend {
 					else
 						result = LLVMBuildUIToFP(builder, value, destType, insn.result->name);
 				} else if (src->isNumeric() && dst->isNumeric())
-					result = LLVMBuildIntCast(builder, value, destType, insn.result->name);
-				else
+					result = LLVMBuildIntCast2(builder, value, destType, dst->sign, insn.result->name);
+				else if ((src->kind == TypeKind::Pointer || src->kind == TypeKind::Function) && dst->isNumeric()) {
+					result = LLVMBuildPtrToInt(builder, value, destType, insn.result->name);
+				} else if (src->isNumeric() && (dst->kind == TypeKind::Pointer || dst->kind == TypeKind::Function)) {
+					result = LLVMBuildIntToPtr(builder, value, destType, insn.result->name);
+				} else
 					result = LLVMBuildBitCast(builder, value, destType, insn.result->name);
 			} break;
 

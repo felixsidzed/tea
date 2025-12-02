@@ -16,11 +16,13 @@ namespace tea::mir {
 		friend class ConstantString;
 		friend class ConstantPointer;
 
+		// TODO ASAP: migrate to hash map
 		tea::vector<std::unique_ptr<tea::Type>> types;
 		tea::map<size_t, std::unique_ptr<tea::StructType>> structTypes;
+		tea::map<size_t, std::unique_ptr<tea::FunctionType>> funcTypes;
 
 		tea::map<size_t, std::unique_ptr<ConstantArray>> arrConst;
-		tea::map<tea::string, std::unique_ptr<ConstantString>> strConst;
+		tea::map<size_t, std::unique_ptr<ConstantString>> strConst;
 
 		tea::map<uint8_t, std::unique_ptr<ConstantNumber>> num0Const;
 		tea::map<uint8_t, std::unique_ptr<ConstantNumber>> num1Const;
@@ -32,6 +34,7 @@ namespace tea::mir {
 		Context() {
 		}
 
+		// TODO ASAP: migrate to hash map
 		template<typename T = tea::Type, typename ...Args>
 		T* getType(Args&&... args) {
 			auto created = std::make_unique<T>(args...);
@@ -41,6 +44,12 @@ namespace tea::mir {
 			}
 			return (T*)types.emplace(std::move(created))->get();
 		};
+
+		template<>
+		tea::StructType* getType<tea::StructType>() = delete;
+
+		template<>
+		tea::FunctionType* getType<tea::FunctionType>() = delete;
 	};
 
 	Context* getGlobalContext();

@@ -174,7 +174,7 @@ namespace tea::mir {
 			ty = ty->getElementType();
 		}
 
-		insn->result = std::make_unique<Value>(ValueKind::Instruction, ty);
+		insn->result = std::make_unique<Value>(ValueKind::Instruction, Type::Pointer(ty));
 		insn->result->name = block->scope.add(name);
 
 		return insn->result.get();

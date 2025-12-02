@@ -23,8 +23,59 @@ namespace tea {
 		std::string s = { name.data(), name.length() };
 		s.erase(std::remove_if(s.begin(), s.end(), isspace), s.end());
 
+		if (s.rfind("func(", 0) == 0) {
+			size_t firstClose = s.find(')');
+			if (firstClose == std::string::npos || firstClose + 1 >= s.size() || s[firstClose + 1] != '(')
+				return nullptr;
+
+			size_t secondClose = s.find(')', firstClose + 2);
+			if (secondClose == std::string::npos)
+				return nullptr;
+			
+			std::string params = s.substr(firstClose + 2, secondClose - (firstClose + 2));
+
+			std::string retTypeName = s.substr(5, firstClose - 5);
+			Type* retType = Type::get({ retTypeName.data(), (uint32_t)retTypeName.size() });
+			if (!retType)
+				return nullptr;
+
+			bool vararg = false;
+			tea::vector<Type*> argTypes; {
+				std::stringstream ss(params);
+				std::string tok;
+				while (std::getline(ss, tok, ',')) {
+					size_t a = tok.find_first_not_of(" \t\n\r");
+					if (a == std::string::npos)
+						continue;
+					tok = tok.substr(a, tok.find_last_not_of(" \t\n\r") - a + 1);
+					if (tok.empty())
+						continue;
+
+					Type* arg = Type::get({ tok.data(), (uint32_t)tok.size() });
+					if (!arg)
+						return nullptr;
+
+					argTypes.push(arg);
+				}
+			}
+
+			return Type::Pointer(Type::Function(retType, argTypes, vararg));
+		}
+
 		size_t nptr = std::count(s.begin(), s.end(), '*');
 		s.erase(std::remove(s.begin(), s.end(), '*'), s.end());
+
+		tea::vector<size_t> dims; {
+			size_t pos = 0;
+			while ((pos = s.find('[', pos)) != std::string::npos) {
+				size_t end = s.find(']', pos);
+				if (end == std::string::npos)
+					return nullptr;
+
+				dims.emplace(std::stoull(s.substr(pos + 1, end - pos - 1)));
+				s.erase(pos, end - pos + 1);
+			}
+		}
 
 		tea::vector<tea::string> tokens; {
 			std::stringstream ss(s);
@@ -64,6 +115,9 @@ namespace tea {
 			
 			current = mir::getGlobalContext()->getType<PointerType>(current, constp);
 		}
+
+		for (const auto& dim : dims)
+			current = mir::getGlobalContext()->getType<ArrayType>(current, (uint32_t)dim);
 
 		return current;
 	}
@@ -111,7 +165,16 @@ namespace tea {
 	}
 	FunctionType* Type::Function(Type* returnType, const tea::vector<Type*>& params, bool vararg, mir::Context* ctx) {
 		if (!ctx) ctx = mir::getGlobalContext();
-		return ctx->getType<FunctionType>(returnType, params, vararg);
+		size_t h = 1469598103934665603ull;
+		h = (h ^ (uintptr_t)returnType) * 1099511628211ull;
+		for (const auto& param : params)
+			h = (h ^ (uintptr_t)param) * 1099511628211ull;
+		h = (h ^ (size_t)vararg) * 1099511628211ull;
+
+		auto& entry = mir::getGlobalContext()->funcTypes[h];
+		if (!entry)
+			entry.reset(new FunctionType(returnType, params, vararg));
+		return entry.get();
 	}
 
 	ArrayType* Type::Array(Type* elementType, uint32_t size, bool constant, mir::Context* ctx) {

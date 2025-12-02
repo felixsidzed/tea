@@ -1,0 +1,5 @@
+@noreturn
+import func exit(int exitCode) -> void;
+
+import func time() -> long;
+import func sleep(int milliseconds) -> void;

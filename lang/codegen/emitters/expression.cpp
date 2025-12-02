@@ -101,8 +101,17 @@ namespace tea {
 						if (asRef) {
 							*asRef = true;
 							return g;
-						} else
-							return builder.load(g, "");
+						} else {
+							mir::Value* value = nullptr;
+							if (g->type->kind == TypeKind::Array) {
+								mir::ConstantNumber* zero = mir::ConstantNumber::get(0, 32);
+								mir::Value* idx[] = { zero, zero };
+								value = builder.gep(g, idx, 2, "");
+							} else
+								value = builder.load(g, "");
+
+							return value;
+						}
 					}
 				} if (curParams) {
 					uint32_t i = 0;
@@ -117,8 +126,15 @@ namespace tea {
 							*asRef = true;
 							return it->allocated;
 						} else {
-							if (!it->load)
-								it->load = builder.load(it->allocated, literal->value.data());
+							if (!it->load) {
+								if (it->allocated->type->getElementType()->kind == TypeKind::Array) {
+									mir::ConstantNumber* zero = mir::ConstantNumber::get(0, 32);
+									mir::Value* idx[] = { zero, zero };
+									it->load = builder.gep(it->allocated, idx, 2, "");
+								} else
+									it->load = builder.load(it->allocated, literal->value.data());
+
+							}
 							return it->load;
 						}
 					}
@@ -318,6 +334,41 @@ namespace tea {
 
 		case AST::ExprKind::Cast:
 			return builder.cast(emitExpression(((AST::UnaryExprNode*)node)->value.get()), node->type, "");
+
+		case AST::ExprKind::Index: {
+			AST::BinaryExprNode* be = (AST::BinaryExprNode*)node;
+
+			tea::vector<mir::Value*> indices;
+			AST::ExpressionNode* lhs = be->lhs.get();
+
+			while (lhs->getEKind() == AST::ExprKind::Index) {
+				auto* nested = (AST::BinaryExprNode*)lhs;
+				indices.emplace(emitExpression(nested->rhs.get()));
+				lhs = nested->lhs.get();
+			}
+
+			mir::Value* base = emitExpression(lhs);
+			indices.emplace(emitExpression(be->rhs.get()));
+
+			std::reverse(indices.begin(), indices.end());
+
+			mir::Value* el = builder.gep(base, indices.data, indices.size, "");
+			if (asRef) {
+				*asRef = true;
+				return el;
+			}
+			return builder.load(el, "");
+		} break;
+
+		case AST::ExprKind::Array: {
+			AST::ArrayNode* arr = (AST::ArrayNode*)node;
+
+			tea::vector<mir::Value*> values;
+			for (const auto& val : arr->values)
+				values.emplace(emitExpression(val.get()));
+
+			return mir::ConstantArray::get(arr->type->getElementType(), values.data, values.size);
+		} break;
 
 		default:
 			TEA_PANIC("unknown expression kind %d", node->getEKind());

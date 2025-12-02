@@ -89,9 +89,8 @@ namespace tea::frontend {
 					next();
 
 					const tea::string& path = consume(TokenKind::String).text;
-					auto node = mknode(AST::ModuleImportNode, path);
 					consume(TokenKind::Semicolon);
-					tree->emplace(std::move(node));
+					tree->emplace(mknode(AST::ModuleImportNode, path));
 				} break;
 
 				default:
@@ -361,7 +360,7 @@ namespace tea::frontend {
 			return { vararg, result };
 
 		while (true) {
-			if (cur->kind == TokenKind::Dot && (cur + 3)->kind == TokenKind::Dot && (cur + 2)->kind == TokenKind::Dot) {
+			if (cur->kind == TokenKind::Dot && (cur + 1)->kind == TokenKind::Dot && (cur + 2)->kind == TokenKind::Dot) {
 				cur += 3;
 				vararg = true;
 				consume(TokenKind::Rpar);
@@ -387,7 +386,7 @@ namespace tea::frontend {
 		tea::string typeName;
 		tea::string first;
 
-		if (cur->kind == TokenKind::Identf)
+		if (cur->kind == TokenKind::Identf || cur->kind == TokenKind::Keyword)
 			first = cur->text;
 		else
 			unexpected();
@@ -419,6 +418,56 @@ namespace tea::frontend {
 				typeName += " const";
 				next();
 			}
+		}
+
+		// TODO: array size deduction
+		while (cur->kind == TokenKind::Lbrac) {
+			next();
+
+			if (cur->kind != TokenKind::Int)
+				unexpected();
+			tea::string dim = cur->text;
+			next();
+
+			consume(TokenKind::Rbrac);
+
+			typeName += '[';
+			typeName += dim;
+			typeName += ']';
+		}
+
+		while (cur->kind == TokenKind::Lpar) {
+			next();
+
+			tea::string funcPart = "(";
+			if (cur->kind == TokenKind::Rpar) {
+				next();
+				funcPart += ")";
+				typeName += funcPart;
+				continue;
+			}
+
+			while (true) {
+				if (cur->kind == TokenKind::Dot && (cur + 1)->kind == TokenKind::Dot && (cur + 2)->kind == TokenKind::Dot) {
+					cur += 3;
+					funcPart += "...";
+					next();
+				} else
+					funcPart += parseType();
+
+				if (cur->kind == TokenKind::Comma) {
+					funcPart += ", ";
+					next();
+					continue;
+				}
+
+				break;
+			}
+
+			consume(TokenKind::Rpar);
+			funcPart += ")";
+
+			typeName += funcPart;
 		}
 
 		return typeName;
@@ -485,13 +534,26 @@ namespace tea::frontend {
 			next();
 			node = mknode(AST::UnaryExprNode, AST::ExprKind::Not, parseExpression());
 		} break;
+		case TokenKind::Lbrac: {
+			next();
+			tea::vector<std::unique_ptr<AST::ExpressionNode>> values;
+			while (true) {
+				values.emplace(parseExpression());
+				if (cur->kind == TokenKind::Comma)
+					next();
+				else if (cur->kind == TokenKind::Rbrac)
+					break;
+			}
+			node = mknode(AST::ArrayNode, std::move(values));
+			consume(TokenKind::Rbrac);
+		} break;
 		default:
 			unexpected();
 		}
 
 		while (true) {
+			uint32_t _line2 = cur->line, _column2 = cur->column;
 			if (match(TokenKind::Lpar)) {
-				uint32_t _line2 = cur->line, _column2 = cur->column;
 				tea::vector<std::unique_ptr<AST::ExpressionNode>> args;
 				if (cur->kind != TokenKind::Rpar) {
 					while (true) {
@@ -506,6 +568,10 @@ namespace tea::frontend {
 
 				consume(TokenKind::Rpar);
 				node = mknodei(AST::CallNode, 2, std::move(node), std::move(args));
+				continue;
+			} else if (match(TokenKind::Lbrac)) {
+				node = mknodei(AST::BinaryExprNode, 2, AST::ExprKind::Index, std::move(node), parseExpression());
+				consume(TokenKind::Rbrac);
 				continue;
 			}
 			
@@ -523,7 +589,7 @@ namespace tea::frontend {
 		case TokenKind::And:
 			return 2;
 
-			/*case TokenKind::Bor:
+		/*case TokenKind::Bor:
 			return 3;
 
 		case TokenKind::Bxor:

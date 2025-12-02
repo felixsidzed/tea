@@ -253,19 +253,20 @@ namespace tea::frontend {
 					const char* start = ++pos;
 					char value = 0;
 					if (!*pos)
-						TEA_PANIC("unterminated char");
+						TEA_PANIC("unterminated char. line %d, column %d", line, col);
 					if (*pos == '\\')
 						value = unescape(pos);
 					else
 						value = *pos;
 					pos++; col++;
 					if (*pos != '\'')
-						TEA_PANIC("bad char literal");
+						TEA_PANIC("bad char literal. line %d, column %d", line, col);
 					tokens.push(Token(TokenKind::Char, 0, tea::string(&value, 1), line, col));
 				} break;
 
 				default:
-					TEA_PANIC("unexpected character");
+					TEA_PANIC("unexpected character '%c'. line %d, column %d", *pos, line, col);
+					TEA_UNREACHABLE();
 				}
 			}
 

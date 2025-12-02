@@ -1,0 +1,6 @@
+import func spawn(void* f) -> void*;
+import func join(void* thread) -> void;
+import func close(void* thread) -> void;
+
+@noreturn
+import func exit(int exitCode) -> void;

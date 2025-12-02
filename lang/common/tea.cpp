@@ -101,11 +101,11 @@ namespace tea {
 		auto module = codegen.emit(ast, coptions);
 
 		tea::backend::MIRLowering lowering;
-		auto [mc, size] = lowering.lower(module.get(), { .DumpLLVMModule = verbose, .OptimizationLevel = optLevel });
-
-		std::ofstream stream(outFile);
-		stream.write((char*)mc.get(), size);
-		stream.close();
+		lowering.lower(module.get(), {
+			.OutputFile = outFile,
+			.DumpLLVMModule = verbose,
+			.OptimizationLevel = optLevel,
+		});
 
 		double diff = (clock() - start) / (double)CLOCKS_PER_SEC;
 		printf("Compilation took %ldm %lds %ldms\n",

@@ -25,8 +25,8 @@ namespace tea::frontend::AST {
 		Eq, Neq, Lt, Gt, Le, Ge,
 		Not, And, Or,
 		Ref, Deref, Cast,
-		/*Array, Index,
-		Band, Bor, Bxor, Shr, Shl*/
+		Array, Index,
+		//Band, Bor, Bxor, Shr, Shl
 	};
 
 	enum class StorageClass : uint8_t {
@@ -83,9 +83,13 @@ namespace tea::frontend::AST {
 		std::unique_ptr<ExpressionNode> lhs;
 		std::unique_ptr<ExpressionNode> rhs;
 
-		BinaryExprNode(ExprKind ekind, std::unique_ptr<ExpressionNode> lhs, std::unique_ptr<ExpressionNode> rhs,
-				   uint32_t line, uint32_t column)
-			: ExpressionNode(ekind, line, column), lhs(std::move(lhs)), rhs(std::move(rhs)) {}
+		BinaryExprNode(
+			ExprKind ekind,
+			std::unique_ptr<ExpressionNode> lhs,
+			std::unique_ptr<ExpressionNode> rhs,
+			uint32_t line, uint32_t column
+		) : ExpressionNode(ekind, line, column), lhs(std::move(lhs)), rhs(std::move(rhs)) {
+		}
 	};
 
 	struct FunctionNode : Node {
@@ -279,6 +283,16 @@ namespace tea::frontend::AST {
 			uint32_t extra,
 			uint32_t line, uint32_t column
 		) : Node(NodeKind::Assignment, line, column, extra), lhs(std::move(lhs)), rhs(std::move(rhs)) {
+		}
+	};
+
+	struct ArrayNode : ExpressionNode {
+		tea::vector<std::unique_ptr<ExpressionNode>> values;
+
+		ArrayNode(
+			tea::vector<std::unique_ptr<ExpressionNode>>&& values,
+			uint32_t line, uint32_t column
+		) : ExpressionNode(ExprKind::Array, line, column), values(std::move(values)) {
 		}
 	};
 }

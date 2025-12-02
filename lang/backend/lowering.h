@@ -14,13 +14,14 @@ namespace tea::backend {
 
 	public:
 		struct Options {
+			const char* OutputFile = ".";
 			bool DumpLLVMModule : 1 = true;
 			uint8_t OptimizationLevel : 2 = 0;
 		};
 
 		Options options;
 
-		std::pair<std::unique_ptr<uint8_t[]>, size_t> lower(const mir::Module* module, Options options = {});
+		void lower(const mir::Module* module, Options options = {});
 
 	private:
 		LLVMTypeRef lowerType(const Type* ty);

@@ -1,0 +1,7 @@
+import func print(string message) -> void;
+import func printf(string fmt, ...) -> void;
+
+import func readf(string path) -> string; // result is on heap
+import func writef(string path, string data, int size) -> void;
+
+import func readline() -> string; // result is on heap
