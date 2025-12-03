@@ -76,12 +76,12 @@ namespace tea {
 	};
 
 	struct FunctionType : Type {
-		bool vararg;
 		Type* returnType;
 		tea::vector<Type*> params;
 
 		FunctionType(Type* returnType, const tea::vector<Type*>& params, bool vararg = false)
-			: Type(TypeKind::Function, false), returnType(returnType), params(params), vararg(vararg) {
+			: Type(TypeKind::Function, false), returnType(returnType), params(params) {
+			extra = vararg;
 		}
 	};
 

@@ -159,12 +159,12 @@ namespace tea::frontend::analysis {
 		return nullptr;
 	}
 
-	void SemanticAnalyzer::visitBlock(const AST::Tree& tree) {
+	void SemanticAnalyzer::visitBlock(const AST::Tree& tree, bool inLoop) {
 		for (const auto& node : tree)
-			visitStat(node.get());
+			visitStat(node.get(), inLoop);
 	}
 
-	void SemanticAnalyzer::visitStat(const AST::Node* node) {
+	void SemanticAnalyzer::visitStat(const AST::Node* node, bool inLoop) {
 		switch (node->kind) {
 		case AST::NodeKind::Return: {
 			Type* returnedType = visitExpression(((AST::ReturnNode*)node)->value.get());
@@ -180,14 +180,14 @@ namespace tea::frontend::analysis {
 		case AST::NodeKind::If: {
 			AST::IfNode* ifNode = (AST::IfNode*)node;
 			visitExpression(ifNode->pred.get());
-			visitBlock(ifNode->body);
+			visitBlock(ifNode->body, inLoop);
 			if (ifNode->otherwise)
-				visitBlock(ifNode->otherwise->body);
+				visitBlock(ifNode->otherwise->body, inLoop);
 
 			AST::ElseIfNode* elseIf = ifNode->elseIf.get();
 			while (elseIf) {
 				visitExpression(elseIf->pred.get());
-				visitBlock(elseIf->body);
+				visitBlock(elseIf->body, inLoop);
 
 				elseIf = elseIf->next.get();
 			}
@@ -197,20 +197,27 @@ namespace tea::frontend::analysis {
 			AST::WhileLoopNode* loop = (AST::WhileLoopNode*)node;
 
 			visitExpression(loop->pred.get());
-			visitBlock(loop->body);
+			visitBlock(loop->body, true);
 		} break;
 
-		case AST::NodeKind::Assignment: {
-			AST::AssignmentNode* assign = (AST::AssignmentNode*)node;
-
-			Type* lhsType = visitExpression(assign->lhs.get());
-			Type* rhsType = visitExpression(assign->rhs.get());
-			if (rhsType != lhsType)
-				errors.emplace(std::format("Function: '{}': assignment type mismatch: '{}' vs '{}'. line {}, column {}",
+		case AST::NodeKind::LoopInterrupt:
+			if (!inLoop)
+				errors.emplace(std::format("Function '{}': cannot '{}' outside of a loop. line {}, column {}",
 					func->name,
-					lhsType->str(), rhsType->str(),
+					node->extra ? "continue" : "break",
 					node->line, node->column
 				).c_str());
+			break;
+
+		case AST::NodeKind::ForLoop: {
+			AST::ForLoopNode* loop = (AST::ForLoopNode*)node;
+			if (loop->var)
+				visitVariable(loop->var.get());
+			if (loop->pred)
+				visitExpression(loop->pred.get());
+			if (loop->step)
+				visitExpression(loop->step.get());
+			visitBlock(loop->body, true);
 		} break;
 
 		default:
@@ -277,17 +284,23 @@ namespace tea::frontend::analysis {
 				FunctionType* ftype = (FunctionType*)type;
 				type = ftype->returnType;
 
-				uint32_t i = 0;
-				for (const auto& arg : call->args) {
-					Type* argType = visitExpression(arg.get());
-					Type* paramType = ftype->params[i];
+				if ((ftype->extra && ftype->params.size > call->args.size) || (!ftype->extra && ftype->params.size != call->args.size))
+					errors.emplace(std::format("Function '{}': argument count mismatch. expected{} {}, got {}. line {}, column {}",
+						func->name,
+						ftype->extra ? " atleast" : "",
+						ftype->params.size, call->args.size,
+						node->line, node->column
+					).c_str());
+				else
+					for (uint32_t i = 0; i < ftype->params.size; i++) {
+						Type* argType = visitExpression(call->args[i].get());
+						Type* paramType = ftype->params[i];
 
-					if (argType != paramType)
-						errors.emplace(std::format("Function '{}': argument {}: expected type {}, got {}. line {}, column {}",
-							func->name, i, paramType->str(), argType->str(), node->line, node->column
-						).c_str());
-					i++;
-				}
+						if (argType != paramType)
+							errors.emplace(std::format("Function '{}': argument {}: expected type {}, got {}. line {}, column {}",
+								func->name, i, paramType->str(), argType->str(), node->line, node->column
+							).c_str());
+					}
 			}
 		} break;
 
@@ -418,6 +431,19 @@ namespace tea::frontend::analysis {
 				}
 				type = Type::Array(elementType, arr->values.size);
 			}
+		} break;
+
+		case AST::ExprKind::Assignment: {
+			AST::AssignmentNode* assign = (AST::AssignmentNode*)node;
+
+			type = visitExpression(assign->lhs.get());
+			Type* rhsType = visitExpression(assign->rhs.get());
+			if (rhsType != type)
+				errors.emplace(std::format("Function: '{}': assignment type mismatch: '{}' vs '{}'. line {}, column {}",
+					func->name,
+					type->str(), rhsType->str(),
+					node->line, node->column
+				).c_str());
 		} break;
 
 		default:

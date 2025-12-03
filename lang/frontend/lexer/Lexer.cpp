@@ -10,7 +10,7 @@ static const char* keywords[] = {
 	"public", "private",
 	"using", "import",
 	//"macro",
-	"if", "else", "elseif", "do", "while", //"for", "break", "continue",
+	"if", "else", "elseif", "do", "while", "for", "break", "continue",
 	"func", "return", "end",
 	"var",
 	"__stdcall", "__fastcall", "__cdecl", "__auto",
@@ -18,7 +18,7 @@ static const char* keywords[] = {
 };
 
 static bool isKeyword(const char* word, unsigned int len, int* idx) {
-	for (int i = 0; i < sizeof(keywords) / sizeof(const char*); i++)
+	for (int i = 0; i < _countof(keywords); i++)
 		if (strlen(keywords[i]) == len && !strncmp(word, keywords[i], len)) {
 			*idx = i;
 			return true;

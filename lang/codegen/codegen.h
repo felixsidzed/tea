@@ -19,10 +19,11 @@ namespace tea {
 		std::unique_ptr<mir::Module> module = nullptr;
 		tea::vector<std::pair<Type*, tea::string>>* curParams = nullptr;
 
-		// TODO: hash the keys
-		tea::map<tea::string, ImportedModule> importedModules;
-
 		tea::map<size_t, Local> locals;
+		tea::map<size_t, ImportedModule> importedModules;
+
+		mir::BasicBlock* contTarget = nullptr;
+		mir::BasicBlock* breakTarget = nullptr;
 
 	public:
 		struct Options {
@@ -37,7 +38,6 @@ namespace tea {
 	private:
 		void emitBlock(const AST::Tree* tree);
 		void emitVariable(const AST::VariableNode* node);
-		void emitAssignment(const AST::AssignmentNode* node);
 		void emitModuleImport(const AST::ModuleImportNode* node);
 		mir::Function* emitFunctionImport(const AST::FunctionImportNode* node);
 		mir::Value* emitExpression(const AST::ExpressionNode* expr, EmissionFlags flags = EmissionFlags::None, bool* asRef = nullptr);

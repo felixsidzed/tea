@@ -71,7 +71,7 @@ namespace tea {
 			}
 		}
 
-		//builder.insertInto(nullptr);
+		builder.insertInto(nullptr);
 		return std::move(module);
 	}
 

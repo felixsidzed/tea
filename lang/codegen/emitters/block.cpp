@@ -97,7 +97,7 @@ namespace tea {
 						builder.br(merge);
 				}
 
-				//builder.insertInto(merge);
+				builder.insertInto(merge);
 			} break;
 
 			case AST::NodeKind::WhileLoop: {
@@ -107,6 +107,9 @@ namespace tea {
 				mir::BasicBlock* pred = func->appendBlock("loop.pred");
 				mir::BasicBlock* body = func->appendBlock("loop.body");
 				mir::BasicBlock* merge = func->appendBlock("loop.merge");
+
+				contTarget = pred;
+				breakTarget = merge;
 
 				builder.br(pred);
 				builder.cbr(
@@ -120,11 +123,67 @@ namespace tea {
 				if (!builder.getInsertBlock()->getTerminator())
 					builder.br(pred);
 				builder.insertInto(merge);
+
+				contTarget = nullptr;
+				breakTarget = nullptr;
 			} break;
 
-			case AST::NodeKind::Assignment:
-				emitAssignment((const AST::AssignmentNode*)node.get());
-				break;
+			case AST::NodeKind::LoopInterrupt: {
+				uint32_t extra = node->extra;
+
+				switch (extra) {
+				case 0:
+					builder.br(breakTarget, false);
+					break;
+				case 1:
+					builder.br(contTarget, false);
+					break;
+				default:
+					TEA_UNREACHABLE();
+				}
+			} break;
+
+			case AST::NodeKind::ForLoop: {
+				AST::ForLoopNode* loop = (AST::ForLoopNode*)node.get();
+				mir::Function* func = builder.getInsertBlock()->parent;
+
+				mir::BasicBlock* pred = func->appendBlock("loop.pred");
+				mir::BasicBlock* body = func->appendBlock("loop.body");
+				mir::BasicBlock* merge = func->appendBlock("loop.merge");
+
+				contTarget = pred;
+				breakTarget = merge;
+
+				emitVariable(loop->var.get());
+
+				builder.br(pred);
+				if (loop->pred)
+					builder.cbr(
+						expr2bool(&builder, module.get(), emitExpression(loop->pred.get())),
+						body, merge
+					);
+				else
+					builder.br(body);
+
+				builder.insertInto(body);
+				emitBlock(&loop->body);
+
+				mir::Instruction* term = (mir::Instruction*)builder.getInsertBlock()->getTerminator();
+				if (!term) {
+					emitExpression(loop->step.get());
+					builder.br(pred);
+				} else if (term->op == mir::OpCode::Br && ((mir::BasicBlock*)term->operands[0]) == contTarget) {
+					term->op = mir::OpCode::Nop;
+					term->operands.clear();
+
+					emitExpression(loop->step.get());
+					builder.br(pred);
+				}
+				builder.insertInto(merge);
+
+				contTarget = nullptr;
+				breakTarget = nullptr;
+			} break;
 
 			default:
 				TEA_PANIC("unknown statement %d", node->kind);

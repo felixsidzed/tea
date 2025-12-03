@@ -55,7 +55,7 @@ namespace tea {
 			} else
 				TEA_PANIC("invalid root statement in module. line %d, column %d", node_->line, node_->column);
 		}
-		importedModules[moduleName] = importedModule;
+		importedModules[std::hash<tea::string>()(moduleName)] = importedModule;
 
 		file.close();
 	}

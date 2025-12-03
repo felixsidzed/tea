@@ -47,8 +47,8 @@ namespace tea::frontend::analysis {
 		Symbol* lookup(const tea::string& name);
 
 		void visitVariable(AST::VariableNode* node);
-		void visitStat(const frontend::AST::Node* node);
-		void visitBlock(const frontend::AST::Tree& tree);
+		void visitStat(const frontend::AST::Node* node, bool inLoop = false);
+		void visitBlock(const frontend::AST::Tree& tree, bool inLoop = false);
 
 		Type* visitExpression(frontend::AST::ExpressionNode* node, bool isCallee = false);
 	};

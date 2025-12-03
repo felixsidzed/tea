@@ -62,7 +62,7 @@ namespace tea {
 					if (!first)
 						TEA_PANIC("deep scopes are not yet implemented. line %d, column %d", node->line, node->column);
 					else {
-						if (auto* modIt = importedModules.find(part)) {
+						if (auto* modIt = importedModules.find(std::hash<tea::string>()(part))) {
 							if (i + 1 < parts.size) {
 								const tea::string& next = parts[i + 1];
 								if (auto* it = modIt->find(next))
@@ -368,6 +368,33 @@ namespace tea {
 				values.emplace(emitExpression(val.get()));
 
 			return mir::ConstantArray::get(arr->type->getElementType(), values.data, values.size);
+		} break;
+
+		case AST::ExprKind::Assignment: {
+			AST::AssignmentNode* assign = (AST::AssignmentNode*)node;
+
+			bool isRef = false;
+			mir::Value* lhs = emitExpression(assign->lhs.get(), EmissionFlags::None, &isRef);
+			mir::Value* rhs = emitExpression(assign->rhs.get());
+
+			if (!isRef || lhs->type->constant)
+				TEA_PANIC("cannot assign to a value of type '%s'. line %d, column %d",
+					lhs->type->str().data(), node->line, node->column);
+
+			if (assign->extraOp != 0) {
+				mir::Value* cur = builder.load(lhs, "");
+				switch ((TokenKind)assign->extraOp) {
+				case TokenKind::Add: rhs = builder.arithm(mir::OpCode::Add, cur, rhs, ""); break;
+				case TokenKind::Sub: rhs = builder.arithm(mir::OpCode::Sub, cur, rhs, ""); break;
+				case TokenKind::Div: rhs = builder.arithm(mir::OpCode::Div, cur, rhs, ""); break;
+				case TokenKind::Star: rhs = builder.arithm(mir::OpCode::Mul, cur, rhs, ""); break;
+				default:
+					TEA_PANIC("invalid extra operator in assignment. line %d, column %d", node->line, node->column);
+				}
+			}
+
+			builder.store(lhs, rhs);
+			return lhs;
 		} break;
 
 		default:

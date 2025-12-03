@@ -32,9 +32,10 @@ namespace tea::frontend {
 		const Token& consume(TokenKind kind);
 		const Token& consume(KeywordKind kind);
 
-		bool tryParseAssignment();
 		std::unique_ptr<AST::Node> parseStat();
+		std::unique_ptr<AST::ExpressionNode> tryParseAssignment();
 		void parseBlock(const tea::vector<KeywordKind>& extraTerminators = {});
+		std::unique_ptr<AST::VariableNode> parseVariable(uint32_t _line, uint32_t _column);
 
 		void parseFuncImport(uint32_t _line, uint32_t _column);
 		void parseFunc(AST::StorageClass vis, uint32_t _line, uint32_t _column);
@@ -43,8 +44,8 @@ namespace tea::frontend {
 
 		tea::string parseType();
 
-		std::unique_ptr<AST::ExpressionNode> parsePrimary();
 		std::unique_ptr<AST::ExpressionNode> parseExpression();
+		std::unique_ptr<AST::ExpressionNode> parsePrimary(bool isAssignmentLhs = false);
 		std::unique_ptr<AST::ExpressionNode> parseRhs(int exprPrec, std::unique_ptr<AST::ExpressionNode> lhs);
 	};
 

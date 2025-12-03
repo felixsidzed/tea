@@ -192,28 +192,10 @@ namespace tea::frontend {
 				return std::move(node);
 			} break;
 
-			case KeywordKind::Var: {
-				next();
-				const tea::string& name = consume(TokenKind::Identf).text;
-
-				Type* type = nullptr;
-				if (match(TokenKind::Colon)) {
-					const tea::string& typeName = parseType();
-					type = Type::get(typeName);
-					if (!type)
-						TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
-				}
-
-				std::unique_ptr<AST::ExpressionNode> initializer = nullptr;
-				if (match(TokenKind::Assign))
-					initializer = parseExpression();
-
-				if (!type && !initializer)
-					TEA_PANIC("can't deduce a type without an initializer. line %d, column %d", cur->line, cur->column);
-
+			case KeywordKind::Var:
+				func->variables.emplace(parseVariable(_line, _column));
 				consume(TokenKind::Semicolon);
-				func->variables.emplace(mknode(AST::VariableNode, name, type, std::move(initializer)));
-			} break;
+				break;
 
 			case KeywordKind::If: {
 				next();
@@ -278,20 +260,52 @@ namespace tea::frontend {
 				parseBlock();
 			} break;
 
+			case KeywordKind::Break:
+				next();
+				consume(TokenKind::Semicolon);
+				return std::make_unique<AST::Node>(AST::NodeKind::LoopInterrupt, _line, _column, 0);
+
+			case KeywordKind::Continue:
+				next();
+				consume(TokenKind::Semicolon);
+				return std::make_unique<AST::Node>(AST::NodeKind::LoopInterrupt, _line, _column, 1);
+
+			case KeywordKind::For: {
+				next();
+
+				std::unique_ptr<AST::VariableNode> var = nullptr;
+				std::unique_ptr<AST::ExpressionNode> pred = nullptr;
+				std::unique_ptr<AST::ExpressionNode> step = nullptr;
+
+				consume(TokenKind::Lpar);
+				if (!match(TokenKind::Semicolon)) {
+					var = parseVariable(cur->line, cur->column);
+					consume(TokenKind::Semicolon);
+				}
+				if (!match(TokenKind::Semicolon)) {
+					pred = parseExpression();
+					consume(TokenKind::Semicolon);
+				}
+				if (!match(TokenKind::Semicolon))
+					step = parseExpression();
+				consume(TokenKind::Rpar);
+				consume(KeywordKind::Do);
+
+				pushtree(AST::ForLoopNode, std::move(var), std::move(pred), std::move(step));
+				parseBlock();
+			} break;
+
 			default:
 				unexpected();
 				TEA_UNREACHABLE();
 			}
 		} break;
 
-		default:
-			if (tryParseAssignment())
-				consume(TokenKind::Semicolon);
-			else {
-				auto node = parseExpression();
-				consume(TokenKind::Semicolon);
-				return std::move(node);
-			}
+		default: {
+			auto node = parseExpression();
+			consume(TokenKind::Semicolon);
+			return node;
+		}
 		}
 		return nullptr;
 	};
@@ -473,9 +487,13 @@ namespace tea::frontend {
 		return typeName;
 	}
 
-	std::unique_ptr<AST::ExpressionNode> Parser::parsePrimary() {
+	std::unique_ptr<AST::ExpressionNode> Parser::parsePrimary(bool isAssignmentLhs) {
 		uint32_t _line = cur->line, _column = cur->column;
 		std::unique_ptr<AST::ExpressionNode> node = nullptr;
+
+		if (!isAssignmentLhs)
+			if (auto assign = tryParseAssignment())
+				return assign;
 
 		switch (cur->kind) {
 		case TokenKind::Int: {
@@ -662,15 +680,15 @@ namespace tea::frontend {
 		return parseRhs(0, std::move(lhs));
 	}
 
-	bool Parser::tryParseAssignment() {
+	std::unique_ptr<AST::ExpressionNode> Parser::tryParseAssignment() {
 		const Token* old = cur;
 		uint32_t _line = cur->line, _column = cur->column;
 
 		if (cur->kind != TokenKind::Identf && cur->kind != TokenKind::Star)
-			return false;
+			return nullptr;
 
 		uint32_t extra = 0;
-		auto lhs = parsePrimary();
+		auto lhs = parsePrimary(true);
 
 		switch (cur->kind) {
 		case TokenKind::Add:
@@ -686,12 +704,33 @@ namespace tea::frontend {
 
 		if (cur->kind != TokenKind::Assign) {
 			cur = old;
-			return false;
+			return nullptr;
 		}
 		next();
 		
-		tree->emplace(mknode(AST::AssignmentNode, std::move(lhs), parseExpression(), extra));
-		return true;
+		return mknode(AST::AssignmentNode, std::move(lhs), parseExpression(), extra);
+	}
+
+	std::unique_ptr<AST::VariableNode> Parser::parseVariable(uint32_t _line, uint32_t _column) {
+		next();
+		const tea::string& name = consume(TokenKind::Identf).text;
+
+		Type* type = nullptr;
+		if (match(TokenKind::Colon)) {
+			const tea::string& typeName = parseType();
+			type = Type::get(typeName);
+			if (!type)
+				TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
+		}
+
+		std::unique_ptr<AST::ExpressionNode> initializer = nullptr;
+		if (match(TokenKind::Assign))
+			initializer = parseExpression();
+
+		if (!type && !initializer)
+			TEA_PANIC("can't deduce a type without an initializer. line %d, column %d", cur->line, cur->column);
+
+		return mknode(AST::VariableNode, name, type, std::move(initializer));
 	}
 
 } // tea::frontend

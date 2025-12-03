@@ -225,7 +225,7 @@ namespace tea {
 				result += ftype->params[i]->str().data();
 			}
 
-			if (ftype->vararg) {
+			if (ftype->extra) {
 				if (ftype->params.size > 0)
 					result += ", ";
 				result += "...";

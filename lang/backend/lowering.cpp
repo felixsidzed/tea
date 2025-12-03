@@ -167,7 +167,7 @@ namespace tea::backend {
 			tea::vector<LLVMTypeRef> params;
 			for (const auto& ty : ftype->params)
 				params.emplace(lowerType(ty));
-			return LLVMFunctionType(lowerType(ftype->returnType), params.data, params.size, ftype->vararg);
+			return LLVMFunctionType(lowerType(ftype->returnType), params.data, params.size, ftype->extra);
 		}
 		case TypeKind::Array: {
 			ArrayType* arr = (ArrayType*)ty;

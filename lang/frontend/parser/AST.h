@@ -14,8 +14,7 @@ namespace tea::frontend::AST {
 		FunctionImport, ModuleImport,
 		Variable, GlobalVariable,
 		If, Else, ElseIf,
-		WhileLoop,
-		Assignment
+		WhileLoop, ForLoop, LoopInterrupt
 	};
 
 	enum class ExprKind : uint32_t {
@@ -26,7 +25,8 @@ namespace tea::frontend::AST {
 		Not, And, Or,
 		Ref, Deref, Cast,
 		Array, Index,
-		//Band, Bor, Bxor, Shr, Shl
+		//Band, Bor, Bxor, Shr, Shl,
+		Assignment
 	};
 
 	enum class StorageClass : uint8_t {
@@ -273,16 +273,17 @@ namespace tea::frontend::AST {
 		}
 	};
 
-	struct AssignmentNode : Node {
+	struct AssignmentNode : ExpressionNode {
 		std::unique_ptr<ExpressionNode> lhs;
 		std::unique_ptr<ExpressionNode> rhs;
+		uint32_t extraOp;
 
 		AssignmentNode(
 			std::unique_ptr<ExpressionNode> lhs,
 			std::unique_ptr<ExpressionNode> rhs,
-			uint32_t extra,
+			uint32_t extraOp,
 			uint32_t line, uint32_t column
-		) : Node(NodeKind::Assignment, line, column, extra), lhs(std::move(lhs)), rhs(std::move(rhs)) {
+		) : ExpressionNode(ExprKind::Assignment, line, column), lhs(std::move(lhs)), rhs(std::move(rhs)), extraOp(extraOp) {
 		}
 	};
 
@@ -293,6 +294,22 @@ namespace tea::frontend::AST {
 			tea::vector<std::unique_ptr<ExpressionNode>>&& values,
 			uint32_t line, uint32_t column
 		) : ExpressionNode(ExprKind::Array, line, column), values(std::move(values)) {
+		}
+	};
+
+	struct ForLoopNode : Node {
+		std::unique_ptr<VariableNode> var;
+		std::unique_ptr<ExpressionNode> pred;
+		std::unique_ptr<ExpressionNode> step;
+		
+		Tree body;
+
+		ForLoopNode(
+			std::unique_ptr<VariableNode> var,
+			std::unique_ptr<ExpressionNode> pred,
+			std::unique_ptr<ExpressionNode> step,
+			uint32_t line, uint32_t column
+		) : Node(NodeKind::ForLoop, line, column), var(std::move(var)), pred(std::move(pred)), step(std::move(step)) {
 		}
 	};
 }
