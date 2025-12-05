@@ -24,9 +24,9 @@ namespace tea::mir {
 		tea::map<size_t, std::unique_ptr<ConstantArray>> arrConst;
 		tea::map<size_t, std::unique_ptr<ConstantString>> strConst;
 
+		tea::map<size_t, std::unique_ptr<ConstantNumber>> numConst;
 		tea::map<uint8_t, std::unique_ptr<ConstantNumber>> num0Const;
 		tea::map<uint8_t, std::unique_ptr<ConstantNumber>> num1Const;
-		tea::map<uint64_t, std::unique_ptr<ConstantNumber>> numConst;
 
 		tea::map<size_t, std::unique_ptr<ConstantPointer>> ptrConst;
 

@@ -2,6 +2,9 @@
 
 #include "frontend/parser/AST.h"
 
+// TODO:	more constant folding
+//			more safety checks
+
 namespace tea::mir {
 
 	Instruction* Builder::ret(Value* val) {
@@ -49,6 +52,53 @@ namespace tea::mir {
 	Value* Builder::cast(Value* val, Type* targetType, const char* name) {
 		if (val->type == targetType)
 			return val;
+
+		if (val->kind == ValueKind::Constant) {
+			ConstantKind ck = (ConstantKind)val->subclassData;
+
+			if (ck == ConstantKind::Number) {
+				ConstantNumber* num = (ConstantNumber*)val;
+
+				if (val->type->isFloat()) {
+					if (targetType->isFloat())
+						return ConstantNumber::get<double>(num->getDouble(), targetType->kind == TypeKind::Float ? 32 : 64);
+					else if (targetType->isNumeric())
+						return ConstantNumber::get(num->getInteger(), num->getBitwidth(), targetType->sign);
+				} else if (val->type->isNumeric()) {
+					if (targetType->isFloat())
+						return ConstantNumber::get<double>(num->getDouble(), targetType->kind == TypeKind::Float ? 32 : 64);
+					else if (targetType->isNumeric()) {
+						uint8_t width = 0;
+						switch (targetType->kind) {
+							case TypeKind::Bool:  width = 1;   break;
+							case TypeKind::Char:  width = 8;   break;
+							case TypeKind::Short: width = 16;  break;
+							case TypeKind::Int:   width = 32;  break;
+							case TypeKind::Long:  width = 64;  break;
+							default:                         break;
+						}
+						return ConstantNumber::get(num->getInteger(), width, targetType->sign);
+					} else if (targetType->kind == TypeKind::Pointer)
+						return ConstantPointer::get(((PointerType*)targetType)->pointee, num->getInteger());
+				}
+			} else if (ck == ConstantKind::Pointer) {
+				uintptr_t value = ((ConstantPointer*)val)->value;
+				if (targetType->kind == TypeKind::Pointer)
+					return ConstantPointer::get(((PointerType*)targetType)->pointee, value);
+				else if (targetType->isNumeric()) {
+					uint8_t width = 0;
+					switch (targetType->kind) {
+						case TypeKind::Bool:  width = 1;   break;
+						case TypeKind::Char:  width = 8;   break;
+						case TypeKind::Short: width = 16;  break;
+						case TypeKind::Int:   width = 32;  break;
+						case TypeKind::Long:  width = 64;  break;
+						default:                         break;
+					}
+					return ConstantNumber::get(value, width, targetType->sign);
+				}
+			}
+		}
 
 		Instruction* insn = block->body.emplace();
 		insn->op = OpCode::Cast;

@@ -9,14 +9,16 @@
 
 namespace tea {
 	static std::unordered_map<tea::string, TypeKind> name2kind = {
-		{"int", TypeKind::Int},
-		{"float", TypeKind::Float},
-		{"double", TypeKind::Double},
-		{"char", TypeKind::Char},
-		{"string", TypeKind::String},
 		{"void", TypeKind::Void},
 		{"bool", TypeKind::Bool},
-		{"long", TypeKind::Long}
+		{"char", TypeKind::Char},
+		{"short", TypeKind::Short},
+		{"int", TypeKind::Int},
+		{"float", TypeKind::Float},
+		{"long", TypeKind::Long},
+		{"double", TypeKind::Double},
+
+		{"string", TypeKind::String},
 	};
 
 	Type* Type::get(const tea::string& name) {

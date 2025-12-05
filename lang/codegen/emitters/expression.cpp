@@ -7,7 +7,30 @@
 
 namespace tea {
 
-	extern mir::Value* expr2bool(mir::Builder* builder, mir::Module* module, mir::Value* pred);
+	mir::Value* CodeGen::expr2bool(mir::Value* pred) {
+		if (pred->type->kind != TypeKind::Bool) {
+			switch (pred->type->kind) {
+			case TypeKind::Int:
+				pred = builder.icmp(
+					mir::ICmpPredicate::NEQ, pred,
+					mir::ConstantNumber::get(0, module->getSize(pred->type) * 8, pred->type->sign), ""
+				);
+				break;
+
+			case TypeKind::Float:
+			case TypeKind::Double:
+				pred = builder.fcmp(
+					mir::FCmpPredicate::ONEQ, pred,
+					mir::ConstantNumber::get<double>(0.0, module->getSize(pred->type) * 8, pred->type->sign), ""
+				);
+				break;
+
+			default:
+				break;
+			}
+		}
+		return pred;
+	}
 
 	mir::Value* CodeGen::emitExpression(const AST::ExpressionNode* node, EmissionFlags flags, bool* asRef) {
 		switch (node->getEKind()) {
@@ -314,11 +337,17 @@ namespace tea {
 
 			return ref;
 		} break;
-		case AST::ExprKind::Deref:
-			return builder.load(emitExpression(((AST::UnaryExprNode*)node)->value.get()), "");
+		case AST::ExprKind::Deref: {
+			mir::Value* value = emitExpression(((AST::UnaryExprNode*)node)->value.get());
+			if (asRef) {
+				*asRef = true;
+				return value;
+			}
+			return builder.load(value , "");
+		}
 		
 		case AST::ExprKind::Not:
-			return builder.binop(mir::OpCode::Not, expr2bool(&builder, module.get(), emitExpression(((AST::UnaryExprNode*)node)->value.get())), nullptr, "");
+			return builder.binop(mir::OpCode::Not, expr2bool(emitExpression(((AST::UnaryExprNode*)node)->value.get())), nullptr, "");
 		case AST::ExprKind::And:
 			return builder.binop(mir::OpCode::And,
 				emitExpression(((AST::BinaryExprNode*)node)->lhs.get()),
@@ -332,8 +361,12 @@ namespace tea {
 				""
 			);
 
-		case AST::ExprKind::Cast:
-			return builder.cast(emitExpression(((AST::UnaryExprNode*)node)->value.get()), node->type, "");
+		case AST::ExprKind::Cast: {
+			mir::Value* val = emitExpression(((AST::UnaryExprNode*)node)->value.get());
+			if (flags.has(EmissionFlags::Constant) && val->kind != mir::ValueKind::Constant)
+				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
+			return builder.cast(val, node->type, "");
+		} break;
 
 		case AST::ExprKind::Index: {
 			AST::BinaryExprNode* be = (AST::BinaryExprNode*)node;

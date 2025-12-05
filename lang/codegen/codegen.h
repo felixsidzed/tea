@@ -41,6 +41,8 @@ namespace tea {
 		void emitModuleImport(const AST::ModuleImportNode* node);
 		mir::Function* emitFunctionImport(const AST::FunctionImportNode* node);
 		mir::Value* emitExpression(const AST::ExpressionNode* expr, EmissionFlags flags = EmissionFlags::None, bool* asRef = nullptr);
+
+		mir::Value* expr2bool(mir::Value* pred);
 	};
 
 } // namespace tea

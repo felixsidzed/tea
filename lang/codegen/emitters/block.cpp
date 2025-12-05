@@ -4,31 +4,6 @@
 
 namespace tea {
 
-	mir::Value* expr2bool(mir::Builder* builder, mir::Module* module, mir::Value* pred) {
-		if (pred->type->kind != TypeKind::Bool) {
-			switch (pred->type->kind) {
-			case TypeKind::Int:
-				pred = builder->icmp(
-					mir::ICmpPredicate::NEQ, pred,
-					mir::ConstantNumber::get(0, module->getSize(pred->type) * 8, pred->type->sign), ""
-				);
-				break;
-
-			case TypeKind::Float:
-			case TypeKind::Double:
-				pred = builder->fcmp(
-					mir::FCmpPredicate::ONEQ, pred,
-					mir::ConstantNumber::get<double>(0.0, module->getSize(pred->type) * 8, pred->type->sign), ""
-				);
-				break;
-
-			default:
-				break;
-			}
-		}
-		return pred;
-	}
-
 	void CodeGen::emitBlock(const AST::Tree* tree) {
 		tea::map<size_t, Local> oldLocals = locals;
 
@@ -48,7 +23,7 @@ namespace tea {
 				mir::Function* func = builder.getInsertBlock()->parent;
 				mir::BasicBlock* merge = func->appendBlock("if.merge");
 				
-				mir::Value* pred = expr2bool(&builder, module.get(), emitExpression(ifNode->pred.get()));
+				mir::Value* pred = expr2bool(emitExpression(ifNode->pred.get()));
 
 				mir::BasicBlock* falseTarget = nullptr;
 				mir::BasicBlock* thenBlock = func->appendBlock("if.then");
@@ -71,7 +46,7 @@ namespace tea {
 				while (elseifNode) {
 					builder.insertInto(curCondBlock);
 
-					mir::Value* elifPred = expr2bool(&builder, module.get(), emitExpression(elseifNode->pred.get()));
+					mir::Value* elifPred = expr2bool(emitExpression(elseifNode->pred.get()));
 					mir::BasicBlock* elifThenBlock = func->appendBlock("if.elseif.then");
 
 					if (elseifNode->next)
@@ -113,7 +88,7 @@ namespace tea {
 
 				builder.br(pred);
 				builder.cbr(
-					expr2bool(&builder, module.get(), emitExpression(loop->pred.get())),
+					expr2bool(emitExpression(loop->pred.get())),
 					body, merge
 				);
 
@@ -159,7 +134,7 @@ namespace tea {
 				builder.br(pred);
 				if (loop->pred)
 					builder.cbr(
-						expr2bool(&builder, module.get(), emitExpression(loop->pred.get())),
+						expr2bool(emitExpression(loop->pred.get())),
 						body, merge
 					);
 				else

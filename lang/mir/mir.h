@@ -70,6 +70,7 @@ namespace tea::mir {
 
 	class Value {
 	protected:
+		friend class Builder;
 		friend class CodeGen;
 		friend class backend::MIRLowering;
 		friend void dump(const tea::mir::Value* value);
@@ -240,7 +241,7 @@ namespace tea::mir {
 	public:
 		uintptr_t value;
 
-		ConstantPointer(tea::Type* pointee, uintptr_t value) : Value(ValueKind::Constant, Type::Pointer(pointee, true)), value(value) {
+		ConstantPointer(tea::Type* pointee, uintptr_t value) : Value(ValueKind::Constant, Type::Pointer(pointee, false)), value(value) {
 			subclassData = (uint32_t)ConstantKind::Pointer;
 		}
 

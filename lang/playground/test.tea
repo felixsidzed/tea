@@ -1,11 +1,4 @@
-using "io";
-
 public func main() -> int
-	for (var i = 0; i < 5; i += 1) do
-		if (i == 2) do
-			continue;
-		end
-		io::print("Hello, World!\n");
-	end
+	*(int*)0xB8000 = 67;
 	return 0;
 end

@@ -26,7 +26,6 @@ namespace tea::mir {
 			return nullptr;
 		}
 
-		std::unique_ptr<ConstantNumber>* entry = nullptr;
 		if (val == 0 || val == 1) {
 			auto& map = val == 0 ? ctx->num0Const : ctx->num1Const;
 			auto& entry = map[width];
@@ -34,7 +33,11 @@ namespace tea::mir {
 				entry.reset(new ConstantNumber(type, val));
 			return entry.get();
 		} else {
-			auto& entry = ctx->numConst[val];
+			size_t h = 14695981039346656037uLL;
+			h = (h ^ val) * 1099511628211uLL;
+			h = (h ^ width) * 1099511628211uLL;
+
+			auto& entry = ctx->numConst[h];
 			if (!entry)
 				entry.reset(new ConstantNumber(type, val));
 			return entry.get();

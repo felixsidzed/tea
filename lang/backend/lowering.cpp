@@ -504,7 +504,7 @@ namespace tea::backend {
 				mir::ConstantPointer* p = (mir::ConstantPointer*)val;
 				return LLVMConstIntToPtr(
 					LLVMConstInt(LLVMIntPtrType(LLVMGetModuleDataLayout(M)), p->value, false),
-					LLVMPointerType(lowerType(p->type), 0)
+					lowerType((PointerType*)p->type)
 				);
 			}
 

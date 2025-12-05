@@ -272,7 +272,7 @@ namespace tea::frontend {
 
 			case KeywordKind::For: {
 				next();
-
+				
 				std::unique_ptr<AST::VariableNode> var = nullptr;
 				std::unique_ptr<AST::ExpressionNode> pred = nullptr;
 				std::unique_ptr<AST::ExpressionNode> step = nullptr;
@@ -397,6 +397,8 @@ namespace tea::frontend {
 	}
 
 	tea::string Parser::parseType() {
+		uint32_t line = cur->line;
+
 		tea::string typeName;
 		tea::string first;
 
@@ -425,7 +427,7 @@ namespace tea::frontend {
 		} else
 			typeName = first;
 
-		while (cur->kind == TokenKind::Star) {
+		while (cur->kind == TokenKind::Star && cur->line == line) {
 			typeName += '*';
 			next();
 			if (cur->kind == TokenKind::Identf && cur->text == "const") {
@@ -435,7 +437,7 @@ namespace tea::frontend {
 		}
 
 		// TODO: array size deduction
-		while (cur->kind == TokenKind::Lbrac) {
+		while (cur->kind == TokenKind::Lbrac && cur->line == line) {
 			next();
 
 			if (cur->kind != TokenKind::Int)
@@ -487,13 +489,9 @@ namespace tea::frontend {
 		return typeName;
 	}
 
-	std::unique_ptr<AST::ExpressionNode> Parser::parsePrimary(bool isAssignmentLhs) {
+	std::unique_ptr<AST::ExpressionNode> Parser::parsePrimary(bool allowAssignments) {
 		uint32_t _line = cur->line, _column = cur->column;
 		std::unique_ptr<AST::ExpressionNode> node = nullptr;
-
-		if (!isAssignmentLhs)
-			if (auto assign = tryParseAssignment())
-				return assign;
 
 		switch (cur->kind) {
 		case TokenKind::Int: {
@@ -542,11 +540,11 @@ namespace tea::frontend {
 		} break;
 		case TokenKind::Amp: {
 			next();
-			node = mknode(AST::UnaryExprNode, AST::ExprKind::Ref, parseExpression());
+			node = mknode(AST::UnaryExprNode, AST::ExprKind::Ref, parsePrimary());
 		} break;
 		case TokenKind::Star: {
 			next();
-			node = mknode(AST::UnaryExprNode, AST::ExprKind::Deref, parseExpression());
+			node = mknode(AST::UnaryExprNode, AST::ExprKind::Deref, parseExpression(false));
 		} break;
 		case TokenKind::Not: {
 			next();
@@ -590,6 +588,22 @@ namespace tea::frontend {
 			} else if (match(TokenKind::Lbrac)) {
 				node = mknodei(AST::BinaryExprNode, 2, AST::ExprKind::Index, std::move(node), parseExpression());
 				consume(TokenKind::Rbrac);
+				continue;
+			} else if (
+				allowAssignments &&
+				(cur->kind == TokenKind::Assign || (cur->kind >= TokenKind::Star && cur->kind <= TokenKind::Div && (cur + 1)->kind == TokenKind::Assign))
+			) {
+				if (node->getEKind() != AST::ExprKind::Identf && node->getEKind() != AST::ExprKind::Deref)
+					break;
+
+				uint32_t extra = 0;
+				if (cur->kind != TokenKind::Assign) {
+					extra = (uint32_t)cur->kind;
+					next();
+				}
+				next();
+
+				node = mknode(AST::AssignmentNode, std::move(node), parseExpression(), extra);
 				continue;
 			}
 			
@@ -675,40 +689,9 @@ namespace tea::frontend {
 		}
 	}
 
-	std::unique_ptr<AST::ExpressionNode> Parser::parseExpression() {
-		auto lhs = parsePrimary();
+	std::unique_ptr<AST::ExpressionNode> Parser::parseExpression(bool allowAssignments) {
+		auto lhs = parsePrimary(allowAssignments);
 		return parseRhs(0, std::move(lhs));
-	}
-
-	std::unique_ptr<AST::ExpressionNode> Parser::tryParseAssignment() {
-		const Token* old = cur;
-		uint32_t _line = cur->line, _column = cur->column;
-
-		if (cur->kind != TokenKind::Identf && cur->kind != TokenKind::Star)
-			return nullptr;
-
-		uint32_t extra = 0;
-		auto lhs = parsePrimary(true);
-
-		switch (cur->kind) {
-		case TokenKind::Add:
-		case TokenKind::Sub:
-		case TokenKind::Div:
-		case TokenKind::Star:
-			extra = (uint32_t)cur->kind;
-			next();
-			break;
-		default:
-			break;
-		}
-
-		if (cur->kind != TokenKind::Assign) {
-			cur = old;
-			return nullptr;
-		}
-		next();
-		
-		return mknode(AST::AssignmentNode, std::move(lhs), parseExpression(), extra);
 	}
 
 	std::unique_ptr<AST::VariableNode> Parser::parseVariable(uint32_t _line, uint32_t _column) {
