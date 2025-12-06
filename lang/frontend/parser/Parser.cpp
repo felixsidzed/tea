@@ -32,6 +32,10 @@ namespace tea::frontend {
 		{"nonamespace", AST::FunctionAttribute::NoNamespace},
 	};
 
+	static const tea::map<tea::string, AST::GlobalAttribute> name2globalAttr = {
+		{"threadlocal", AST::GlobalAttribute::ThreadLocal}
+	};
+
 	AST::Tree Parser::parse() {
 		treeHistory.clear();
 
@@ -69,7 +73,7 @@ namespace tea::frontend {
 						consume(TokenKind::Semicolon);
 
 						if (!type && !initializer)
-							TEA_PANIC("can't deduct a type without an initializer");
+							TEA_PANIC("can't deduce a type without an initializer");
 
 						tree->emplace(mknode(AST::GlobalVariableNode, name, type, std::move(initializer), vis));
 					} else
@@ -100,33 +104,67 @@ namespace tea::frontend {
 
 			} else if (cur->kind == TokenKind::At) {
 				next();
-				uint32_t attr = 0;
-				
+
+				uint32_t fnAttr = 0, globalAttr = 0;
 				while (true) {
 					const tea::string& attrName = consume(TokenKind::Identf).text;
-					auto it = name2fnAttr.find(attrName);
-					if (!it)
-						TEA_PANIC("'%s' is not a valid attribute. line %d, column %d", attrName.data(), cur->line, cur->column);
+
+					if (auto it = name2fnAttr.find(attrName))
+						fnAttr |= (uint32_t)*it;
+					else if (auto it2 = name2globalAttr.find(attrName))
+						globalAttr |= (uint32_t)*it2;
 					else
-						attr |= (uint32_t)*it;
+						TEA_PANIC("'%s' is not a valid attribute. line %d, column %d", attrName.data(), cur->line, cur->column);
 
 					if ((cur + 1)->kind == TokenKind::Comma) {
 						consume(TokenKind::At);
 						continue;
-					} else
-						break;
+					}
+					break;
 				}
 
+				uint32_t _line = cur->line, _column = cur->column;
+
 				if (cur->kind == TokenKind::Keyword && (cur->extra == (uint32_t)KeywordKind::Public || cur->extra == (uint32_t)KeywordKind::Private)) {
+					AST::StorageClass vis = (AST::StorageClass)cur->extra;
 					next();
-					parseFunc((AST::StorageClass)cur->extra, _line, _column);
-				} else if (match(KeywordKind::Import))
+
+					if (match(KeywordKind::Var)) {
+						const tea::string& name = consume(TokenKind::Identf).text;
+
+						Type* type = nullptr;
+						if (match(TokenKind::Colon)) {
+							const tea::string& typeName = parseType();
+							type = Type::get(typeName);
+							if (!type)
+								TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
+						}
+
+						std::unique_ptr<AST::ExpressionNode> initializer = nullptr;
+						if (match(TokenKind::Assign))
+							initializer = parseExpression();
+						consume(TokenKind::Semicolon);
+
+						if (!type && !initializer)
+							TEA_PANIC("can't deduce a type without an initializer");
+
+						auto node = mknode(AST::GlobalVariableNode, name, type,
+										   std::move(initializer), vis);
+						node->extra = globalAttr;
+						tree->emplace(std::move(node));
+
+					} else if (isCC((KeywordKind)cur->extra) || (KeywordKind)cur->extra == KeywordKind::Func) {
+						parseFunc(vis, _line, _column);
+						tree->data[tree->size - 1]->extra = fnAttr;
+
+					} else
+						unexpected();
+
+				} else if (match(KeywordKind::Import)) {
 					parseFuncImport(_line, _column);
-				else
-					unexpected();
+					tree->data[tree->size - 1]->extra = fnAttr;
 
-				tree->data[tree->size - 1]->extra = attr;
-
+				} else unexpected();
 			} else
 				unexpected();
 		}
@@ -621,14 +659,14 @@ namespace tea::frontend {
 		case TokenKind::And:
 			return 2;
 
-		/*case TokenKind::Bor:
+		case TokenKind::Bor:
 			return 3;
 
 		case TokenKind::Bxor:
 			return 4;
 
 		case TokenKind::Amp:
-			return 5;*/
+			return 5;
 
 		case TokenKind::Eq:
 		case TokenKind::Neq:
@@ -640,9 +678,9 @@ namespace tea::frontend {
 		case TokenKind::Ge:
 			return 7;
 
-		/*case TokenKind::Shl:
+		case TokenKind::Shl:
 		case TokenKind::Shr:
-			return 8;*/
+			return 8;
 
 		case TokenKind::Add:
 		case TokenKind::Sub:
@@ -672,6 +710,12 @@ namespace tea::frontend {
 
 		{TokenKind::And, AST::ExprKind::And},
 		{TokenKind::Or, AST::ExprKind::Or},
+
+		{TokenKind::Bor, AST::ExprKind::Bor},
+		{TokenKind::Bxor, AST::ExprKind::Bxor},
+		{TokenKind::Amp, AST::ExprKind::Band},
+		{TokenKind::Shl, AST::ExprKind::Shl},
+		{TokenKind::Shr, AST::ExprKind::Shr},
 	};
 
 	std::unique_ptr<AST::ExpressionNode> Parser::parseRhs(int lhsPrec, std::unique_ptr<AST::ExpressionNode> lhs) {

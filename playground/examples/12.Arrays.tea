@@ -1,0 +1,22 @@
+// 12. Arrays
+
+// Import the 'io' module
+using "io";
+
+// Define our entry point
+public func main() -> int
+	// Declare an array of 5 integers
+	var nums: int[5] = [10, 20, 30, 40, 50];
+
+	// Assign a value
+	nums[4] = 67;
+
+	// Print elements
+	io::printf("nums[0] = %d\n", nums[0]);
+	io::printf("nums[1] = %d\n", nums[1]);
+	io::printf("nums[2] = %d\n", nums[2]);
+	io::printf("nums[3] = %d\n", nums[3]);
+	io::printf("nums[4] = %d\n", nums[4]);
+
+	return 0;
+end

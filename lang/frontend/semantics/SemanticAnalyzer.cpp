@@ -21,6 +21,10 @@ namespace tea::frontend::analysis {
 		"!", "&&", "||"
 	};
 
+	static const char* bitwiseExprName[] = {
+		"&", "|", "^", ">>", "<<"
+	};
+
 	tea::vector<tea::string> SemanticAnalyzer::visit(const AST::Tree& root) {
 		pushscope();
 
@@ -117,7 +121,7 @@ namespace tea::frontend::analysis {
 
 				Type* initType = visitExpression(gv->initializer.get());
 				if (gv->type) {
-					if (gv->type != initType)
+					if (!gv->type->equals(initType))
 						errors.emplace(std::format("Global variable initializer type ({}) doesn't match variable type ({}). line {}, column {}",
 							initType->str(), gv->type->str(),
 							gv->line, gv->column
@@ -168,7 +172,7 @@ namespace tea::frontend::analysis {
 		switch (node->kind) {
 		case AST::NodeKind::Return: {
 			Type* returnedType = visitExpression(((AST::ReturnNode*)node)->value.get());
-			if (func->returnType != returnedType)
+			if (!func->returnType->equals(returnedType))
 				errors.emplace(std::format("Function '{}': return type mismatch, expected '{}', got '{}'. line {}, column {}",
 					func->name, func->returnType->str(), returnedType->str(), node->line, node->column).c_str());
 		} break;
@@ -296,7 +300,7 @@ namespace tea::frontend::analysis {
 						Type* argType = visitExpression(call->args[i].get());
 						Type* paramType = ftype->params[i];
 
-						if (argType != paramType)
+						if (!argType->equals(paramType))
 							errors.emplace(std::format("Function '{}': argument {}: expected type {}, got {}. line {}, column {}",
 								func->name, i, paramType->str(), argType->str(), node->line, node->column
 							).c_str());
@@ -313,7 +317,7 @@ namespace tea::frontend::analysis {
 			Type* lhsType = visitExpression(be->lhs.get());
 			Type* rhsType = visitExpression(be->rhs.get());
 
-			if (lhsType != rhsType)
+			if (lhsType->equals(rhsType))
 				errors.emplace(std::format("Function '{}': operator '{}': type mismatch: '{}' vs '{}'. line {}, column {}",
 					func->name,
 					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
@@ -344,14 +348,14 @@ namespace tea::frontend::analysis {
 			Type* lhsType = visitExpression(be->lhs.get());
 			Type* rhsType = visitExpression(be->rhs.get());
 
-			if (lhsType != rhsType)
+			if (lhsType->equals(rhsType))
 				errors.emplace(std::format("Function '{}': operator '{}': type mismatch: '{}' vs '{}'. line {}, column {}",
 					func->name,
 					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
 					lhsType->str(), rhsType->str(),
 					node->line, node->column
 				).c_str());
-			else if (!lhsType->isNumeric() && lhsType->kind != TypeKind::Char)
+			else if (!lhsType->isNumeric())
 				errors.emplace(std::format("Function '{}': operator '{}' cannot be applied to type '{}'. line {}, column {}",
 					func->name,
 					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
@@ -426,8 +430,11 @@ namespace tea::frontend::analysis {
 					if (!elementType)
 						elementType = valType;
 
-					if (valType != elementType)
+					#pragma warning(push)
+					#pragma warning(disable : 28182)
+					if (!valType->equals(elementType))
 						errors.emplace(std::format("Function '{}': array element types do not match. line {}, column {}", func->name, node->line, node->column).c_str());
+					#pragma warning(pop)
 				}
 				type = Type::Array(elementType, arr->values.size);
 			}
@@ -438,12 +445,40 @@ namespace tea::frontend::analysis {
 
 			type = visitExpression(assign->lhs.get());
 			Type* rhsType = visitExpression(assign->rhs.get());
-			if (rhsType != type)
+			if (!rhsType->equals(type))
 				errors.emplace(std::format("Function: '{}': assignment type mismatch: '{}' vs '{}'. line {}, column {}",
 					func->name,
 					type->str(), rhsType->str(),
 					node->line, node->column
 				).c_str());
+		} break;
+
+		case AST::ExprKind::Band:
+		case AST::ExprKind::Bor:
+		case AST::ExprKind::Bxor:
+		case AST::ExprKind::Shr:
+		case AST::ExprKind::Shl: {
+			AST::BinaryExprNode* be = (AST::BinaryExprNode*)node;
+
+			Type* lhsType = visitExpression(be->lhs.get());
+			Type* rhsType = visitExpression(be->rhs.get());
+
+			if (!lhsType->equals(rhsType))
+				errors.emplace(std::format("Function '{}': operator '{}': type mismatch: '{}' vs '{}'. line {}, column {}",
+					func->name,
+					bitwiseExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Band],
+					lhsType->str(), rhsType->str(),
+					node->line, node->column
+				).c_str());
+			else if (!lhsType->isNumeric() && !lhsType->isFloat())
+				errors.emplace(std::format("Function '{}': operator '{}' cannot be applied to non-numeric type '{}'. line {}, column {}",
+					func->name,
+					bitwiseExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Band],
+					lhsType->str(),
+					node->line, node->column
+				).c_str());
+			else
+				type = lhsType;
 		} break;
 
 		default:
@@ -462,7 +497,7 @@ namespace tea::frontend::analysis {
 			initType = visitExpression(node->initializer.get());
 
 		if (node->type) {
-			if (node->type != initType) {
+			if (node->type->equals(initType)) {
 				errors.emplace(std::format(
 					"Function '{}': variable initializer type ({}) doesn't match variable type ({}). line {}, column {}",
 					func->name,

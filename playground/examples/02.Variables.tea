@@ -1,0 +1,24 @@
+// 02. Variables
+
+// Import the 'io' module
+using "io";
+
+// Global variable declaration (accessible from everywhere inside the module)
+public var globalVariable: int = 0;
+
+// Define our entry point
+public func main() -> int
+	// Declare and initialize `myVariable'
+	var myVariable: int = 67;
+
+	// Type is automatically deduced as 'int' by the compiler
+	var typeDeductedVariable = 67;
+
+	// Uninitialized variables must specify a type
+	var uninitializedVariable: int;
+
+	// Print our variable using the 'printf' function from 'io'
+	io::printf("myVariable = %d\n", myVariable);
+
+	return 0;
+end

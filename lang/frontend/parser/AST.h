@@ -9,8 +9,7 @@
 namespace tea::frontend::AST {
 	enum class NodeKind: uint32_t {
 		Function, Return,
-		Expression,
-		Call,
+		Expression, Call,
 		FunctionImport, ModuleImport,
 		Variable, GlobalVariable,
 		If, Else, ElseIf,
@@ -25,7 +24,7 @@ namespace tea::frontend::AST {
 		Not, And, Or,
 		Ref, Deref, Cast,
 		Array, Index,
-		//Band, Bor, Bxor, Shr, Shl,
+		Band, Bor, Bxor, Shr, Shl,
 		Assignment
 	};
 

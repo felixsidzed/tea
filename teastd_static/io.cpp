@@ -31,10 +31,8 @@ extern "C" {
 			DWORD written;
 			WriteFile(
 				file,
-				data,
-				size,
-				&written,
-				NULL
+				data, size,
+				&written, NULL
 			);
 
 			CloseHandle(file);

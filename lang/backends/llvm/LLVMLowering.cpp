@@ -173,7 +173,13 @@ namespace tea::backend {
 			ArrayType* arr = (ArrayType*)ty;
 			return LLVMArrayType(lowerType(arr->elementType), arr->extra);
 		}
-		// TODO: struct type lowering
+		case TypeKind::Struct: {
+			StructType* st = (StructType*)ty;
+			tea::vector<LLVMTypeRef> body;
+			for (const auto& el : st->body)
+				body.emplace(lowerType(el));
+			return LLVMStructType(body.data, body.size, st->extra);
+		}
 		default:
 			return nullptr;
 		}
@@ -186,6 +192,11 @@ namespace tea::backend {
 
 		if (g->initializer)
 			LLVMSetInitializer(global, lowerValue(g->initializer));
+
+		if (g->hasAttribute(mir::GlobalAttribute::ThreadLocal)) {
+			LLVMSetThreadLocal(global, true);
+			LLVMSetSection(global, ".tls$BBB");
+		}
 		
 		globalMap[std::hash<tea::string>()(g->name)] = global;
 	}

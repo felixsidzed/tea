@@ -2,7 +2,7 @@
 
 #include "common/tea.h"
 
-#define pushtokex(t, v, l, e) tokens.push(Token((t), (e), tea::string((v), (l)), line, col ))
+#define pushtokex(t, v, l, e) tokens.emplace((t), (e), tea::string((v), (l)), line, col )
 #define pushtokv(t, v) pushtokex(t, v, pos - (v), 0)
 #define pushtok(t) pushtokex(t, pos, 1, 0)
 
@@ -74,8 +74,10 @@ namespace tea::frontend {
 
 	tea::vector<Token> lex(const tea::string& src) {
 		tea::vector<Token> tokens;
-		if (src.empty())
+		if (src.empty()) {
+			tokens.emplace(TokenKind::EndOfFile, 0, "", 0, 0);
 			return tokens;
+		}
 
 		const char* pos = src.data();
 		uint32_t line = 1;

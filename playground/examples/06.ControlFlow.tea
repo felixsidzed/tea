@@ -1,0 +1,32 @@
+// 06. Control Flow
+
+// Import the 'io' module
+using "io";
+
+// Define our entry point
+public func main() -> int
+	var x: int = 5;
+
+	// Simple if condition
+	if (x > 0) do
+		io::printf("x is positive\n");
+	end
+
+	// If-else condition
+	if (x == 5) do
+		io::printf("x is exactly 5\n");
+	else
+		io::printf("x is not 5\n");
+	end
+
+	// If-elseif-else chain
+	if (x < 0) do
+		io::printf("x is negative\n");
+	elseif (x == 0) do
+		io::printf("x is zero\n");
+	else
+		io::printf("x is positive\n");
+	end
+
+	return 0;
+end

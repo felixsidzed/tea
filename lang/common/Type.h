@@ -17,6 +17,7 @@ namespace tea {
 		Pointer, Function, Array, Struct
 	};
 
+	struct Type;
 	struct ArrayType;
 	struct StructType;
 	struct PointerType;
@@ -65,6 +66,7 @@ namespace tea {
 		bool isNumeric() const { return kind == TypeKind::Bool || kind == TypeKind::Char || kind == TypeKind::Short || kind == TypeKind::Int || kind == TypeKind::Long; }
 
 		Type* getElementType() const;
+		bool equals(const Type* other) const;
 	};
 
 	struct PointerType : Type {

@@ -426,8 +426,37 @@ namespace tea {
 				}
 			}
 
-			builder.store(lhs, rhs);
+			builder.store(lhs, builder.cast(rhs, lhs->type->getElementType(), ""));
 			return lhs;
+		} break;
+
+		case AST::ExprKind::Band:
+		case AST::ExprKind::Bor:
+		case AST::ExprKind::Bxor:
+		case AST::ExprKind::Shl:
+		case AST::ExprKind::Shr: {
+			const AST::BinaryExprNode* be = (const AST::BinaryExprNode*)node;
+
+			mir::Value* lhs = emitExpression(be->lhs.get());
+			mir::Value* rhs = emitExpression(be->rhs.get());
+
+			if (flags.has(EmissionFlags::Constant) && (lhs->kind != mir::ValueKind::Constant || rhs->kind != mir::ValueKind::Constant))
+				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
+
+			switch (node->getEKind()) {
+			case AST::ExprKind::Band:
+				return builder.binop(mir::OpCode::And, lhs, rhs, "");
+			case AST::ExprKind::Bor:
+				return builder.binop(mir::OpCode::Or, lhs, rhs, "");
+			case AST::ExprKind::Bxor:
+				return builder.binop(mir::OpCode::Xor, lhs, rhs, "");
+			case AST::ExprKind::Shl:
+				return builder.binop(mir::OpCode::Shl, lhs, rhs, "");
+			case AST::ExprKind::Shr:
+				return builder.binop(mir::OpCode::Shr, lhs, rhs, "");
+			default:
+				break;
+			}
 		} break;
 
 		default:

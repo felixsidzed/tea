@@ -32,4 +32,10 @@ namespace tea::mir {
 	/// </summary>
 	/// <param name="ty">The struct to dump</param>
 	void dump(const struct tea::StructType* ty);
+
+	/// <summary>
+	/// Dump the provided global to stdout
+	/// </summary>
+	/// <param name="ty">The global to dump</param>
+	void dump(const Global* global);
 }

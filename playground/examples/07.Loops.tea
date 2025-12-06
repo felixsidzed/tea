@@ -1,0 +1,24 @@
+// 07. Loops
+
+// Import the 'io' module
+using "io";
+
+// Define entry point
+public func main() -> int
+	do
+		var i: int = 0;
+
+		// While loop
+		while (i < 3) do
+			io::printf("i = %d\n", i);
+			i += 1;
+		end
+	end
+
+	// For loop
+	for (var j = 0; j < 3; j += 1) do
+		io::printf("j = %d\n", j);
+	end
+
+	return 0;
+end

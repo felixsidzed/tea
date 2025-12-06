@@ -1,0 +1,19 @@
+using "io";
+using "thread";
+
+@threadlocal
+public var reek = 984;
+
+private func foo() -> void
+	io::printf("in thread before = %d\n", reek);
+	reek = 640;
+	io::printf("in thread after = %d\n", reek);
+end
+
+public func main() -> int
+	io::printf("before = %d\n", reek);
+	thread::join(thread::spawn((void*)foo));
+	io::printf("after = %d\n", reek);
+
+	return 0;
+end

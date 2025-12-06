@@ -1,6 +1,6 @@
 #include "mir.h"
 
-#include "frontend/parser/AST.h"
+#include "common/tea.h"
 
 // TODO:	more constant folding
 //			more safety checks
@@ -113,11 +113,14 @@ namespace tea::mir {
 
 	Value* Builder::globalString(const tea::string& val) {
 		ConstantString* str = ConstantString::get(val);
-		return cast(block->parent->parent->addGlobal("", str->type, str), Type::Pointer(Type::Char(true)), "");
+
+		ConstantNumber* zero = ConstantNumber::get(0, 32);
+		Value* indicies[] = { zero, zero };
+		return gep(block->parent->parent->addGlobal("", str->type, str), indicies, 2, "");
 	}
 
 	Value* Builder::binop(OpCode op, Value* lhs, Value* rhs, const char* name) {
-		if (op < OpCode::Not || op > OpCode::Shr || (rhs && lhs->type != rhs->type))
+		if (op < OpCode::Not || op > OpCode::Shr || (rhs && !lhs->type->equals(rhs->type)))
 			return nullptr;
 
 		Instruction* insn = block->body.emplace();
@@ -132,10 +135,9 @@ namespace tea::mir {
 	}
 
 	Value* Builder::arithm(OpCode op, Value* lhs, Value* rhs, const char* name) {
-		if (op < OpCode::Add || op > OpCode::Mod || lhs->type != rhs->type)
+		if (op < OpCode::Add || op > OpCode::Mod || !lhs->type->equals(rhs->type))
 			return nullptr;
 
-		// TODO fuckass
 		if (lhs->kind == ValueKind::Constant && rhs->kind == ValueKind::Constant) {
 			uint8_t width = ((ConstantNumber*)lhs)->getBitwidth();
 			if (lhs->type->isNumeric() && rhs->type->isNumeric()) {
@@ -147,7 +149,7 @@ namespace tea::mir {
 				case OpCode::Mul: return ConstantNumber::get(lnum * rnum, width, lhs->type->sign);
 				case OpCode::Div: return ConstantNumber::get(lnum / rnum, width, lhs->type->sign);
 				case OpCode::Mod: return ConstantNumber::get(lnum % rnum, width, lhs->type->sign);
-				default: __assume(0);
+				default: TEA_UNREACHABLE();
 				}
 			} else if (lhs->type->isFloat() && rhs->type->isFloat()) {
 				double lnum = ((ConstantNumber*)lhs)->getDouble();
@@ -157,8 +159,7 @@ namespace tea::mir {
 				case OpCode::Sub: return ConstantNumber::get<double>(lnum - rnum, width, lhs->type->sign);
 				case OpCode::Mul: return ConstantNumber::get<double>(lnum * rnum, width, lhs->type->sign);
 				case OpCode::Div: return ConstantNumber::get<double>(lnum / rnum, width, lhs->type->sign);
-				case OpCode::Mod: return ConstantNumber::get<double>(fmod(lnum, rnum), width, lhs->type->sign);
-				default: __assume(0);
+				default: break;
 				}
 			}
 			return nullptr;
@@ -178,7 +179,6 @@ namespace tea::mir {
 	Instruction* Builder::unreachable() {
 		Instruction* insn = block->body.emplace();
 		insn->op = OpCode::Unreachable;
-
 		return insn;
 	}
 
@@ -268,8 +268,8 @@ namespace tea::mir {
 
 		if (lhs->kind == ValueKind::Constant && rhs->kind == ValueKind::Constant) {
 			if (lhs->type->sign) {
-				int64_t lnum = ((ConstantNumber*)lhs)->getSInteger();
-				int64_t rnum = ((ConstantNumber*)rhs)->getSInteger();
+				int64_t lnum = (int64_t)((ConstantNumber*)lhs)->getInteger();
+				int64_t rnum = (int64_t)((ConstantNumber*)rhs)->getInteger();
 				switch (pred) {
 				case ICmpPredicate::EQ: return ConstantNumber::get(lnum == rnum, 1);
 				case ICmpPredicate::NEQ: return ConstantNumber::get(lnum != rnum, 1);
@@ -290,7 +290,7 @@ namespace tea::mir {
 			case ICmpPredicate::UGE: return ConstantNumber::get(lnum >= rnum, 1);
 			case ICmpPredicate::ULT: return ConstantNumber::get(lnum < rnum, 1);
 			case ICmpPredicate::ULE: return ConstantNumber::get(lnum <= rnum, 1);
-			default: return nullptr;
+			default: break;
 			}
 		} else {
 			Instruction* insn = block->body.emplace();

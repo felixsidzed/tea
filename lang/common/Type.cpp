@@ -21,6 +21,14 @@ namespace tea {
 		{"string", TypeKind::String},
 	};
 
+	static int fpRank(TypeKind k) {
+		switch (k) {
+		case TypeKind::Float:return 1;
+		case TypeKind::Double: return 2;
+		default: return 0;
+		}
+	}
+
 	Type* Type::get(const tea::string& name) {
 		std::string s = { name.data(), name.length() };
 		s.erase(std::remove_if(s.begin(), s.end(), isspace), s.end());
@@ -298,6 +306,47 @@ namespace tea {
 		default:
 			return nullptr;
 		}
+	}
+
+	bool Type::equals(const Type* other) const {
+		if (this == other)
+			return true;
+
+		if (isNumeric() && other->isNumeric())
+			return true;
+
+		if (isFloat() && other->isFloat())
+			return fpRank(kind) <= fpRank(other->kind);
+
+		if (kind == TypeKind::Pointer && other->kind == TypeKind::Pointer) {
+			if (!constant)
+				return getElementType()->equals(other->getElementType());
+			return false;
+		}
+
+		if (kind == TypeKind::Array && other->kind == TypeKind::Array) {
+			ArrayType* b = (ArrayType*)other;
+			return extra == b->extra && getElementType()->equals(b->getElementType());
+		}
+
+		if (kind == TypeKind::Function && other->kind == TypeKind::Function) {
+			FunctionType* a = (FunctionType*)this;
+			FunctionType* b = (FunctionType*)other;
+			if (!a->returnType->equals(b))
+				return false;
+
+			if (a->params.size != b->params.size)
+				return false;
+
+			for (uint32_t i = 0; i < a->params.size; i++)
+				if (!a->params[i]->equals(b->params[i]))
+					return false;
+			return a->extra == b->extra;
+		}
+
+		if (kind == TypeKind::Struct && other->kind == TypeKind::Struct)
+			return false;
+		return kind == other->kind;
 	}
 
 } // namespace tea

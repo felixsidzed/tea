@@ -2,6 +2,7 @@
 
 #include <fstream>
 
+#include "mir/dump/dump.h"
 #include "codegen/codegen.h"
 #include "frontend/lexer/Lexer.h"
 #include "frontend/parser/Parser.h"
@@ -74,7 +75,14 @@
 #endif
 
 namespace tea {
-	void compile(const tea::string& source, const tea::vector<const char*>& importLookup, const char* outFile, const char* triple, bool verbose, uint8_t optLevel) {
+	void compile(
+		const tea::string& source,
+		const tea::vector<const char*>& importLookup,
+		const char* outFile,
+		const char* triple,
+		const CompilerFlags& flags,
+		uint8_t optLevel
+	) {
 		clock_t start = clock();
 
 		const tea::vector<tea::frontend::Token>& tokens = tea::frontend::lex(source);
@@ -101,19 +109,24 @@ namespace tea {
 			coptions.triple = triple;
 		auto module = codegen.emit(ast, coptions);
 
+		if (flags.has(CompilerFlags::DumpMIR)) {
+			tea::mir::dump(module.get());
+			putchar('\n');
+		}
+
 		if (module->triple == "experimental-luau-0.702") {
 			puts("WARNING: The target 'experimental-luau-0.702' is in-dev and is not recommended for general use.");
 
 			tea::backend::LuauLowering lowering;
 			lowering.lower(module.get(), {
 				.OutputFile = outFile,
-				.DumpBytecode = verbose
+				.DumpBytecode = flags.has(CompilerFlags::DumpFinalIR)
 			});
 		} else {
 			tea::backend::LLVMLowering lowering;
 			lowering.lower(module.get(), {
 				.OutputFile = outFile,
-				.DumpLLVMModule = verbose,
+				.DumpLLVMModule = flags.has(CompilerFlags::DumpFinalIR),
 				.OptimizationLevel = optLevel,
 			});
 		}

@@ -1,0 +1,23 @@
+// 11. Pointers
+
+// Import the 'io' module
+using "io";
+
+// Define our entry point
+public func main() -> int
+	// Declare variables
+	var a: int = 42;
+
+	// Store a pointer to variable `a` in `ptr` using the reference operator
+	var ptr = &a;
+
+	io::printf("a = %d\n", a);
+	// Dereference the pointer
+	io::printf("*ptr\n", *ptr = a);
+
+	// Modify `a' through the pointer
+	*ptr = 100;
+	io::printf("a = %d\n", a);
+
+	return 0;
+end

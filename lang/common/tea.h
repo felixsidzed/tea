@@ -52,11 +52,54 @@
 #define TEA_PANIC tea::configuration.panic
 
 namespace tea {
+	struct CompilerFlags {
+	public:
+		enum Flag : uint8_t {
+			None = 0,
+			DumpMIR = 1,
+			DumpFinalIR = 2
+		};
+
+		uint8_t value;
+
+		constexpr CompilerFlags() : value(0) {}
+		constexpr CompilerFlags(Flag f) : value((uint8_t)f) {}
+
+		void set(Flag f) { value |= (uint8_t)f; }
+		void clear(Flag f) { value &= ~(uint8_t)f; }
+		bool has(Flag f) const { return (value & (uint8_t)f) != 0; }
+		void toggle(Flag f) { value ^= (uint8_t)f; }
+
+		CompilerFlags operator|(CompilerFlags other) const {
+			CompilerFlags result;
+			result.value = value | other.value;
+			return result;
+		}
+
+		CompilerFlags& operator|=(CompilerFlags other) {
+			value |= other.value;
+			return *this;
+		}
+	};
+
+	constexpr CompilerFlags operator|(CompilerFlags::Flag a, CompilerFlags::Flag b) {
+		return CompilerFlags((CompilerFlags::Flag)(
+			(uint8_t)a | (uint8_t)b
+		));
+	}
+
 	struct Configuration {
 		void(*panic)(const char* message, ...);
 	};
 
 	extern Configuration configuration;
 
-	void compile(const tea::string& source, const tea::vector<const char*>& importLookup, const char* outFile, const char* triple = nullptr, bool verbose = false, uint8_t optLevel = 2);
+	void compile(
+		const tea::string& source,
+		const tea::vector<const char*>& importLookup,
+		const char* outFile,
+		const char* triple = nullptr,
+		const CompilerFlags& flags = CompilerFlags::None,
+		uint8_t optLevel = 2
+	);
 }

@@ -7,7 +7,6 @@ extern "C" {
 #ifdef _WIN32
 	#define WIN32_LEAN_AND_MEAN
 	#include <Windows.h>
-	#include <winternl.h>
 
 	void* _thread__spawn(void* f) {
 		DWORD tid;
@@ -41,9 +40,9 @@ extern "C" {
 	}
 
 	extern "C" {
-#pragma section(".tls$AAA", read, write)
-		__declspec(allocate(".tls$AAA")) char _tls_start;
-#pragma section(".tls$ZZZ", read, write)
+		#pragma section(".tls$0", read, write)
+		__declspec(allocate(".tls$0")) char _tls_start;
+		#pragma section(".tls$ZZZ", read, write)
 		__declspec(allocate(".tls$ZZZ")) char _tls_end;
 	}
 

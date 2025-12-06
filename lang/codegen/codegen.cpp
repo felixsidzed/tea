@@ -38,6 +38,17 @@ namespace tea {
 
 				emitBlock(&func->body);
 
+				if (!builder.getInsertBlock()->getTerminator()) {
+					if (func->returnType->kind != TypeKind::Void)
+						TEA_PANIC("control reaches end of non-void function");
+					else {
+						if (func->hasAttribute(AST::FunctionAttribute::NoReturn))
+							builder.unreachable();
+						else
+							builder.ret(nullptr);
+					}
+				}
+
 				curParams = nullptr;
 				builder.insertInto(nullptr);
 			} break;

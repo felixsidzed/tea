@@ -1,0 +1,29 @@
+// 08. Function Calls
+
+// Import the 'io' and 'sys' modules
+using "io";
+using "sys";
+
+// Inlined function
+@inline
+public func add(int x, int y) -> int
+	return x + y;
+end
+
+// A no-return function (program execution ends here)
+@noreturn
+public func ExitProcess() -> void
+	sys::exit(41);
+end
+
+// Define our entry point
+public func main() -> int
+	// Scoped function call (from a module)
+	io::printf("Hello, World!\n");
+
+	// Standard function call
+	io::printf("add(10, 20) = %d\n", add(10, 20);
+
+	ExitProcess();
+	// Any code below is unreachable
+end
