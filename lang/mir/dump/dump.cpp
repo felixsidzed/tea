@@ -48,17 +48,7 @@ namespace tea::mir {
 				break;
 
 			case ValueKind::Global: {
-				Global* global = (Global*)g.get();
-				printf("%s var @\"%s\": %s",
-					(StorageClass)global->storage == StorageClass::Public ? "public" : "private",
-					global->name,
-					global->type->getElementType()->str().data()
-				);
-				if (global->initializer) {
-					putchar(' '); putchar('='); putchar(' ');
-					dump(global->initializer);
-				}
-				putchar('\n');
+				dump(g.get());
 				break;
 			}
 
@@ -247,7 +237,6 @@ namespace tea::mir {
 		} break;
 
 		case ValueKind::Function:
-		case ValueKind::Global:
 			printf("%s @\"%s\"", value->type->str().data(), value->name);
 			break;
 		
@@ -255,6 +244,20 @@ namespace tea::mir {
 		case ValueKind::Instruction:
 			printf("%s %%\"%s\"", value->type->str().data(), value->name);
 			break;
+
+		case ValueKind::Global: {
+			Global* global = (Global*)value;
+			printf("%s var @\"%s\": %s",
+				(StorageClass)global->storage == StorageClass::Public ? "public" : "private",
+				global->name,
+				global->type->getElementType()->str().data()
+			);
+			if (global->initializer) {
+				putchar(' '); putchar('='); putchar(' ');
+				dump(global->initializer);
+			}
+			putchar('\n');
+		} break;
 
 		default:
 			printf("%s %s", value->type->str().data(), value->name);

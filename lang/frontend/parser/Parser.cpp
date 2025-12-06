@@ -593,7 +593,7 @@ namespace tea::frontend {
 				allowAssignments &&
 				(cur->kind == TokenKind::Assign || (cur->kind >= TokenKind::Star && cur->kind <= TokenKind::Div && (cur + 1)->kind == TokenKind::Assign))
 			) {
-				if (node->getEKind() != AST::ExprKind::Identf && node->getEKind() != AST::ExprKind::Deref)
+				if (node->getEKind() != AST::ExprKind::Identf && node->getEKind() != AST::ExprKind::Deref && node->getEKind() != AST::ExprKind::Index)
 					break;
 
 				uint32_t extra = 0;

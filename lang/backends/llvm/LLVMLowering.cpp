@@ -1,4 +1,4 @@
-#include "lowering.h"
+#include "LLVMLowering.h"
 
 #include "common/tea.h"
 
@@ -57,7 +57,7 @@ namespace tea::backend {
 		}
 	}
 
-	void MIRLowering::lower(const mir::Module* module, Options options) {
+	void LLVMLowering::lower(const mir::Module* module, Options options) {
 		LLVMInitializeAllTargets();
 		LLVMInitializeAllTargetMCs();
 		LLVMInitializeAllTargetInfos();
@@ -100,14 +100,14 @@ namespace tea::backend {
 		if (!TM)
 			TEA_PANIC("Lowering to machine code failed: failed to create target machine");
 
-		for (const auto& node : module->body) {
-			switch (node->kind) {
+		for (const auto& g : module->body) {
+			switch (g->kind) {
 			case mir::ValueKind::Global:
-				lowerGlobal((const mir::Global*)node.get());
+				lowerGlobal((const mir::Global*)g.get());
 				break;
 
 			case mir::ValueKind::Function: {
-				const mir::Function* f = (const mir::Function*)node.get();
+				const mir::Function* f = (const mir::Function*)g.get();
 				if (!f->hasAttribute(mir::FunctionAttribute::Inline))
 					removeDeadBlocks(lowerFunction(f));
 			} break;
@@ -139,7 +139,7 @@ namespace tea::backend {
 		LLVMDisposeTargetMachine(TM);
 	}
 
-	LLVMTypeRef MIRLowering::lowerType(const Type* ty) {
+	LLVMTypeRef LLVMLowering::lowerType(const Type* ty) {
 		switch (ty->kind) {
 		case TypeKind::Void:
 			return LLVMVoidType();
@@ -179,7 +179,7 @@ namespace tea::backend {
 		}
 	}
 
-	void MIRLowering::lowerGlobal(const mir::Global* g) {
+	void LLVMLowering::lowerGlobal(const mir::Global* g) {
 		LLVMValueRef global = LLVMAddGlobal(M, lowerType(((const PointerType*)g->type)->pointee), g->name);
 		if (g->storage == mir::StorageClass::Private)
 			LLVMSetLinkage(global, LLVMPrivateLinkage);
@@ -190,7 +190,7 @@ namespace tea::backend {
 		globalMap[std::hash<tea::string>()(g->name)] = global;
 	}
 
-	LLVMValueRef MIRLowering::lowerFunction(const mir::Function* f) {
+	LLVMValueRef LLVMLowering::lowerFunction(const mir::Function* f) {
 		LLVMValueRef func = LLVMAddFunction(M, f->name, lowerType(f->type));
 		if (f->storage == mir::StorageClass::Private)
 			LLVMSetLinkage(func, LLVMPrivateLinkage);
@@ -234,7 +234,7 @@ namespace tea::backend {
 		return func;
 	}
 
-	void MIRLowering::lowerBlock(const mir::BasicBlock* block, LLVMBuilderRef builder) {
+	void LLVMLowering::lowerBlock(const mir::BasicBlock* block, LLVMBuilderRef builder) {
 		for (const auto& insn : block->body) {
 			LLVMValueRef result = nullptr;
 
@@ -453,7 +453,7 @@ namespace tea::backend {
 		}
 	}
 
-	LLVMValueRef MIRLowering::lowerValue(const mir::Value* val) {
+	LLVMValueRef LLVMLowering::lowerValue(const mir::Value* val) {
 		switch (val->kind) {
 		case mir::ValueKind::Global: {
 			const mir::Global* g = (const mir::Global*)val;

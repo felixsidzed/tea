@@ -14,7 +14,8 @@
 namespace tea {
 	class CodeGen;
 	namespace backend {
-		class MIRLowering;
+		class LLVMLowering;
+		class LuauLowering;
 	}
 }
 
@@ -72,7 +73,8 @@ namespace tea::mir {
 	protected:
 		friend class Builder;
 		friend class CodeGen;
-		friend class backend::MIRLowering;
+		friend class backend::LLVMLowering;
+		friend class backend::LuauLowering;
 		friend void dump(const tea::mir::Value* value);
 
 		uint32_t subclassData = 0;
@@ -105,7 +107,8 @@ namespace tea::mir {
 	class BasicBlock {
 		friend class CodeGen;
 		friend class Builder;
-		friend class backend::MIRLowering;
+		friend class backend::LLVMLowering;
+		friend class backend::LuauLowering;
 		friend void dump(const Function* func);
 
 		Scope scope;
@@ -171,32 +174,14 @@ namespace tea::mir {
 		}
 
 		double getDouble() const {
-			switch (type->kind) {
-			case TypeKind::Float:
-			case TypeKind::Double:
-				return value.f;
-			default:
-				return 0.0;
-			}
+			return value.f;
 		}
 
 		uint64_t getInteger() const {
-			switch (type->kind) {
-			case TypeKind::Bool:
-			case TypeKind::Char:
-			case TypeKind::Short:
-			case TypeKind::Int:
-			case TypeKind::Long:
-				return value.i;
-			default:
-				return 0;
-			}
+			return value.i;
 		}
 
 		int64_t getSInteger() const {
-			if (type->isFloat())
-				return 0;
-
 			uint8_t bits = getBitwidth();
 			uint64_t val = value.i;
 			if (bits < 64) {
@@ -252,7 +237,8 @@ namespace tea::mir {
 		friend class Module;
 		friend class Builder;
 		friend class tea::CodeGen;
-		friend class backend::MIRLowering;
+		friend class backend::LLVMLowering;
+		friend class backend::LuauLowering;
 		friend void dump(const Function* func);
 
 		Scope scope;
@@ -301,7 +287,8 @@ namespace tea::mir {
 	};
 
 	class Module {
-		friend class backend::MIRLowering;
+		friend class backend::LLVMLowering;
+		friend class backend::LuauLowering;
 		friend void dump(const Module* module);
 
 		Scope scope;

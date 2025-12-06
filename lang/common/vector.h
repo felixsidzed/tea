@@ -155,8 +155,8 @@ namespace tea {
 		}
 
 		void reserve(uint32_t ns) {
-			if (ns <= capacity)
-				return;
+			if (!ns) return;
+			ns = ((capacity + ns) + TEA_VECTOR_CHUNK_SIZE) & ~(TEA_VECTOR_CHUNK_SIZE - 1);
 
 			T* newData = (T*)::operator new(ns * sizeof(T));
 			for (uint32_t i = 0; i < size; ++i) {

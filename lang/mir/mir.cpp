@@ -13,7 +13,7 @@ namespace tea::mir {
 		uint32_t i = 1;
 		for (tea::Type* paramType : ftype->params) {
 			auto param = std::make_unique<Value>(ValueKind::Parameter, paramType);
-			param->name = scope.add(std::format("arg{}", i).c_str());
+			param->name = f->scope.add("");
 			f->params.emplace(std::move(param));
 
 			i++;

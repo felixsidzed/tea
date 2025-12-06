@@ -3,9 +3,10 @@
 #include <fstream>
 
 #include "codegen/codegen.h"
-#include "backend/lowering.h"
 #include "frontend/lexer/Lexer.h"
 #include "frontend/parser/Parser.h"
+#include "backends/llvm/LLVMLowering.h"
+#include "backends/luau/LuauLowering.h"
 #include "frontend/semantics/SemanticAnalyzer.h"
 
 #ifndef TEA_NODEFAULTCONFIG
@@ -100,12 +101,22 @@ namespace tea {
 			coptions.triple = triple;
 		auto module = codegen.emit(ast, coptions);
 
-		tea::backend::MIRLowering lowering;
-		lowering.lower(module.get(), {
-			.OutputFile = outFile,
-			.DumpLLVMModule = verbose,
-			.OptimizationLevel = optLevel,
-		});
+		if (module->triple == "experimental-luau-0.702") {
+			puts("WARNING: The target 'experimental-luau-0.702' is in-dev and is not recommended for general use.");
+
+			tea::backend::LuauLowering lowering;
+			lowering.lower(module.get(), {
+				.OutputFile = outFile,
+				.DumpBytecode = verbose
+			});
+		} else {
+			tea::backend::LLVMLowering lowering;
+			lowering.lower(module.get(), {
+				.OutputFile = outFile,
+				.DumpLLVMModule = verbose,
+				.OptimizationLevel = optLevel,
+			});
+		}
 
 		double diff = (clock() - start) / (double)CLOCKS_PER_SEC;
 		printf("Compilation took %ldm %lds %ldms\n",
