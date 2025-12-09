@@ -21,6 +21,8 @@ namespace tea {
 		{"string", TypeKind::String},
 	};
 
+	static std::unordered_map<tea::string, Type*> usertypes;
+
 	static int fpRank(TypeKind k) {
 		switch (k) {
 		case TypeKind::Float:return 1;
@@ -30,6 +32,8 @@ namespace tea {
 	}
 
 	Type* Type::get(const tea::string& name) {
+		mir::Context* ctx = mir::getGlobalContext();
+
 		std::string s = { name.data(), name.length() };
 		s.erase(std::remove_if(s.begin(), s.end(), isspace), s.end());
 
@@ -96,6 +100,7 @@ namespace tea {
 
 		bool sign = true;
 		bool constant = false;
+		Type* userBaseType = nullptr;
 		TypeKind kind = TypeKind::Void;
 
 		for (const auto& tok : tokens) {
@@ -108,26 +113,44 @@ namespace tea {
 			else if (tok == "*")
 				continue;
 			else {
-				auto it = name2kind.find(tok);
-				if (it != name2kind.end())
+				if (auto it = name2kind.find(tok); it != name2kind.end()) {
 					kind = it->second;
-				else
+				} else if (auto it = usertypes.find(tok); it != usertypes.end()) {
+					userBaseType = it->second;
+				} else
 					return nullptr;
 			}
 		}
 
-		Type* current = mir::getGlobalContext()->getType(kind, constant, sign);
+		Type* current = nullptr;
+		if (userBaseType) {
+			StructType* st = (StructType*)userBaseType;
+
+			const char* c = st->name;
+			size_t h = 1469598103934665603ull;
+			while (*c)
+				h = (h ^ (uint8_t)*c++) * 1099511628211ull;
+			for (const auto& el : st->body)
+				h = (h ^ (uintptr_t)el) * 1099511628211ull;
+			h = (h ^ (uint8_t)st->extra) * 1099511628211ull;
+
+			auto& entry = ctx->structTypes[h];
+			if (!entry)
+				entry.reset(new StructType(st->body.data, st->body.size, st->name, st->extra, constant));
+			current = entry.get();
+		} else
+			current = ctx->getType(kind, constant, sign);
 
 		for (size_t i = 0; i < nptr; i++) {
 			bool constp = false;
 			if (s.find("* const") != std::string::npos && i == nptr - 1)
 				constp = true;
 			
-			current = mir::getGlobalContext()->getType<PointerType>(current, constp);
+			current = ctx->getType<PointerType>(current, constp);
 		}
 
 		for (const auto& dim : dims)
-			current = mir::getGlobalContext()->getType<ArrayType>(current, (uint32_t)dim);
+			current = ctx->getType<ArrayType>(current, (uint32_t)dim);
 
 		return current;
 	}
@@ -199,7 +222,7 @@ namespace tea {
 		for (size_t i = 0; i < strlen(name); i++)
 			h = (h ^ (uint8_t)name[i]) * 1099511628211ull;
 		for (size_t i = 0; i < n; i++)
-			h = (h ^ (uintptr_t)body[n]) * 1099511628211ull;
+			h = (h ^ (uintptr_t)body[i]) * 1099511628211ull;
 		h = (h ^ (uint8_t)packed) * 1099511628211ull;
 
 		auto& entry = ctx->structTypes[h];
@@ -309,6 +332,9 @@ namespace tea {
 	}
 
 	bool Type::equals(const Type* other) const {
+		if (!other)
+			return false;
+
 		if (this == other)
 			return true;
 
@@ -347,6 +373,15 @@ namespace tea {
 		if (kind == TypeKind::Struct && other->kind == TypeKind::Struct)
 			return false;
 		return kind == other->kind;
+	}
+
+	void Type::create(const tea::string& name, Type* baseType) {
+		if (name.empty() || !baseType)
+			return;
+
+		auto it = usertypes.find(name);
+		if (it == usertypes.end())
+			usertypes[name] = baseType;
 	}
 
 } // namespace tea

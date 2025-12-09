@@ -13,7 +13,8 @@ namespace tea::frontend::AST {
 		FunctionImport, ModuleImport,
 		Variable, GlobalVariable,
 		If, Else, ElseIf,
-		WhileLoop, ForLoop, LoopInterrupt
+		WhileLoop, ForLoop, LoopInterrupt,
+		Class
 	};
 
 	enum class ExprKind : uint32_t {
@@ -23,7 +24,7 @@ namespace tea::frontend::AST {
 		Eq, Neq, Lt, Gt, Le, Ge,
 		Not, And, Or,
 		Ref, Deref, Cast,
-		Array, Index,
+		Array, Index, FieldIndex,
 		Band, Bor, Bxor, Shr, Shl,
 		Assignment
 	};
@@ -309,6 +310,20 @@ namespace tea::frontend::AST {
 			std::unique_ptr<ExpressionNode> step,
 			uint32_t line, uint32_t column
 		) : Node(NodeKind::ForLoop, line, column), var(std::move(var)), pred(std::move(pred)), step(std::move(step)) {
+		}
+	};
+
+	struct ObjectNode : Node {
+		tea::vector<std::unique_ptr<FunctionNode>> methods;
+		tea::vector<std::unique_ptr<GlobalVariableNode>> fields;
+		StructType* type;
+
+		ObjectNode(
+			StructType* type,
+			tea::vector<std::unique_ptr<FunctionNode>>&& methods,
+			tea::vector<std::unique_ptr<GlobalVariableNode>>&& fields,
+			uint32_t line, uint32_t column
+		) : Node(NodeKind::Class, line, column), type(type), methods(std::move(methods)), fields(std::move(fields)) {
 		}
 	};
 }

@@ -11,7 +11,7 @@ namespace tea {
 	class CodeGen {
 		struct Local {
 			mir::Value* allocated;
-			mir::Value* load;
+			mir::Value* loaded;
 		};
 		typedef tea::map<tea::string, mir::Function*> ImportedModule;
 
@@ -21,7 +21,9 @@ namespace tea {
 
 		tea::map<size_t, Local> locals;
 		tea::map<size_t, ImportedModule> importedModules;
+		tea::map<const StructType*, const AST::ObjectNode*> structMap;
 
+		mir::Value* self = nullptr;
 		mir::BasicBlock* contTarget = nullptr;
 		mir::BasicBlock* breakTarget = nullptr;
 
@@ -37,6 +39,7 @@ namespace tea {
 
 	private:
 		void emitBlock(const AST::Tree* tree);
+		void emitObject(const AST::ObjectNode* node);
 		void emitVariable(const AST::VariableNode* node);
 		void emitModuleImport(const AST::ModuleImportNode* node);
 		mir::Function* emitFunctionImport(const AST::FunctionImportNode* node);

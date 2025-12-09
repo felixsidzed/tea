@@ -8,7 +8,7 @@ namespace tea {
 
 	std::unique_ptr<mir::Module> CodeGen::emit(const AST::Tree& tree, const Options& options) {
 		if (module || builder.getInsertBlock())
-			TEA_PANIC("cannot generate MIR while active");
+			TEA_PANIC("cannot generate MIR in this state");
 
 		module = std::make_unique<mir::Module>("[module]");
 		module->triple = options.triple;
@@ -40,12 +40,10 @@ namespace tea {
 
 				if (!builder.getInsertBlock()->getTerminator()) {
 					if (func->returnType->kind != TypeKind::Void)
-						TEA_PANIC("control reaches end of non-void function");
+						TEA_PANIC("control reaches end of non-void function '%s'. line %d, column %d", func->name.data(), func->line, func->column);
 					else {
-						if (func->hasAttribute(AST::FunctionAttribute::NoReturn))
-							builder.unreachable();
-						else
-							builder.ret(nullptr);
+						if (func->hasAttribute(AST::FunctionAttribute::NoReturn)) builder.unreachable();
+						else builder.ret(nullptr);
 					}
 				}
 
@@ -69,13 +67,16 @@ namespace tea {
 					init->name = gv->name;
 					((mir::Global*)init)->storage = gv->vis;
 					((mir::Global*)init)->subclassData = gv->extra;
-				}
-				else {
+				} else {
 					mir::Global* global = module->addGlobal(gv->name, gv->type, init);
 					global->storage = gv->vis;
 					((mir::Value*)global)->subclassData = gv->extra;
 				}
 			} break;
+
+			case AST::NodeKind::Class:
+				emitObject((const AST::ObjectNode*)node.get());
+				break;
 
 			default:
 				TEA_PANIC("unknown root statement %d", node->kind);

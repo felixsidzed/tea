@@ -11,7 +11,7 @@ namespace tea {
 
 		locals[std::hash<tea::string>()(node->name)] = {
 			.allocated = allocated,
-			.load = nullptr
+			.loaded = nullptr
 		};
 	}
 

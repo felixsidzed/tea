@@ -7,10 +7,11 @@ extern "C" {
 #ifdef _WIN32
 	#define WIN32_LEAN_AND_MEAN
 	#include <Windows.h>
+	#include <intrin.h>
 
 	typedef struct {
-		bool thrown;
 		const char* message;
+		// maybe NOT use such a massive struct
 		CONTEXT ctx;
 	} exception_t;
 
@@ -18,14 +19,15 @@ extern "C" {
 
 	extern void _io__printf(const char* fmt, ...);
 
+	#pragma comment(linker, "/export:throw=_except__throw")
+
 	[[noreturn]] void _except__throw(const char* message) {
-		if (!message) message = "[exception]";
+		if (!message) message = "??";
 		if (!curExc) {
-			_io__printf("thread %d -> unhandled exception: %s\n", GetCurrentThreadId(), message);
+			_io__printf("0x%llx -> unhandled exception: %s\n", _ReturnAddress(), message);
 			ExitThread(1);
 		}
 
-		curExc->thrown = true;
 		curExc->message = message;
 		RtlRestoreContext(&curExc->ctx, nullptr);
 	}
@@ -38,12 +40,11 @@ extern "C" {
 		if (!exc)
 			return 0;
 
-		exc->thrown = false;
 		exc->message = nullptr;
 		curExc = exc;
 
 		RtlCaptureContext(&exc->ctx);
-		if (exc->thrown) {
+		if (exc->message) {
 			const char* message = exc->message;
 			curExc = nullptr;
 			HeapFree(GetProcessHeap(), 0, exc);

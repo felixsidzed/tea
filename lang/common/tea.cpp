@@ -91,7 +91,7 @@ namespace tea {
 		const tea::frontend::AST::Tree& ast = parser.parse();
 
 		tea::frontend::analysis::SemanticAnalyzer analyzer;
-		analyzer.importLookup = importLookup;
+		analyzer.importLookup = &importLookup;
 
 		const auto& errors = analyzer.visit(ast);
 		if (!errors.empty()) {

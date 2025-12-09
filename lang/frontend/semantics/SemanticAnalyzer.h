@@ -36,10 +36,12 @@ namespace tea::frontend::analysis {
 
 		tea::vector<tea::string> errors;
 
+		bool isMethodCall = false;
 		AST::FunctionNode* func = nullptr;
+		tea::map<StructType*, AST::ObjectNode*> structMap;
 
 	public:
-		tea::vector<const char*> importLookup;
+		const tea::vector<const char*>* importLookup;
 
 		tea::vector<tea::string> visit(const frontend::AST::Tree& root);
 

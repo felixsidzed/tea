@@ -8,7 +8,7 @@ namespace tea {
 		enum Flag : uint8_t {
 			None = 0,
 			Constant = 1,
-			AllowInlinedFunctions = 2
+			Callee = 2,
 		};
 
 		uint8_t value;

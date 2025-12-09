@@ -175,10 +175,17 @@ namespace tea::backend {
 		}
 		case TypeKind::Struct: {
 			StructType* st = (StructType*)ty;
-			tea::vector<LLVMTypeRef> body;
-			for (const auto& el : st->body)
-				body.emplace(lowerType(el));
-			return LLVMStructType(body.data, body.size, st->extra);
+
+			LLVMTypeRef ty = LLVMGetTypeByName2(LLVMGetGlobalContext(), st->name);
+			if (!ty) {
+				tea::vector<LLVMTypeRef> body;
+				for (const auto& el : st->body)
+					body.emplace(lowerType(el));
+
+				ty = LLVMStructCreateNamed(LLVMGetGlobalContext(), st->name);
+				LLVMStructSetBody(ty, body.data, body.size, st->extra);
+			}
+			return ty;
 		}
 		default:
 			return nullptr;
@@ -190,8 +197,11 @@ namespace tea::backend {
 		if (g->storage == mir::StorageClass::Private)
 			LLVMSetLinkage(global, LLVMPrivateLinkage);
 
-		if (g->initializer)
+		if (g->initializer) {
 			LLVMSetInitializer(global, lowerValue(g->initializer));
+			if (g->initializer->kind == mir::ValueKind::Constant && g->initializer->subclassData == (uint32_t)mir::ConstantKind::String)
+				LLVMSetGlobalConstant(global, true);
+		}
 
 		if (g->hasAttribute(mir::GlobalAttribute::ThreadLocal)) {
 			LLVMSetThreadLocal(global, true);

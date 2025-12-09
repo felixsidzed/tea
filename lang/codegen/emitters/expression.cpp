@@ -109,7 +109,7 @@ namespace tea {
 				{
 					mir::Function* f = module->getNamedFunction(literal->value);
 					if (f) {
-						if (!flags.has(EmissionFlags::AllowInlinedFunctions) && f->hasAttribute(mir::FunctionAttribute::Inline))
+						if (!flags.has(EmissionFlags::Callee) && f->hasAttribute(mir::FunctionAttribute::Inline))
 							TEA_PANIC("ur function grew legs and escaped. line %d, column %d", literal->line, literal->column);
 						return f;
 					}
@@ -139,8 +139,16 @@ namespace tea {
 				} if (curParams) {
 					uint32_t i = 0;
 					for (const auto& [_, name] : *curParams) {
-						if (literal->value == name)
-							return builder.getInsertBlock()->parent->getParam(i);
+						if (literal->value == name) {
+							mir::Value* val = builder.getInsertBlock()->parent->getParam(i);
+							if (asRef) {
+								*asRef = true;
+								mir::Value* ref = builder.alloca_(val->type, "");
+								builder.store(ref, val);
+								return ref;
+							}
+							return val;
+						}
 						i++;
 					}
 				} {
@@ -149,16 +157,16 @@ namespace tea {
 							*asRef = true;
 							return it->allocated;
 						} else {
-							if (!it->load) {
+							if (!it->loaded) {
 								if (it->allocated->type->getElementType()->kind == TypeKind::Array) {
 									mir::ConstantNumber* zero = mir::ConstantNumber::get(0, 32);
 									mir::Value* idx[] = { zero, zero };
-									it->load = builder.gep(it->allocated, idx, 2, "");
+									it->loaded = builder.gep(it->allocated, idx, 2, "");
 								} else
-									it->load = builder.load(it->allocated, literal->value.data());
+									it->loaded = builder.load(it->allocated, literal->value.data());
 
 							}
-							return it->load;
+							return it->loaded;
 						}
 					}
 				}
@@ -172,13 +180,19 @@ namespace tea {
 				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
 
 			const AST::CallNode* call = (const AST::CallNode*)node;
-			mir::Value* callee = emitExpression(call->callee.get(), EmissionFlags::AllowInlinedFunctions);
+			mir::Value* callee = emitExpression(call->callee.get(), EmissionFlags::Callee);
 
 			tea::vector<mir::Value*> args;
+
+			if (self) {
+				args.emplace(self);
+				self = nullptr;
+			}
+
 			for (const auto& arg : call->args)
 				args.emplace(emitExpression(arg.get()));
 
-			// TODO: improve // <---- maybe not
+			// TODO: improve
 			if (callee->kind == mir::ValueKind::Function && ((mir::Function*)callee)->hasAttribute(mir::FunctionAttribute::Inline)) {
 				mir::Function* func = (mir::Function*)callee;
 				mir::Function* curFunc = builder.getInsertBlock()->parent;
@@ -456,6 +470,48 @@ namespace tea {
 				return builder.binop(mir::OpCode::Shr, lhs, rhs, "");
 			default:
 				break;
+			}
+		} break;
+
+		case AST::ExprKind::FieldIndex: {
+			if (flags.has(EmissionFlags::Constant))
+				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
+
+			const AST::BinaryExprNode* be = (const AST::BinaryExprNode*)node;
+
+			bool isRef = false;
+			mir::Value* lhs = emitExpression(be->lhs.get(), EmissionFlags::None, &isRef);
+			if (!isRef)
+				TEA_PANIC("cannot index a value of type '%s'. line %d, column %d", lhs->type->str(), be->line, be->column);
+
+			const tea::string& name = ((const AST::LiteralNode*)be->rhs.get())->value;
+
+			uint32_t i = 0;
+
+			const StructType* st = (const StructType*)lhs->type->getElementType();
+			const AST::ObjectNode* obj = *structMap.find(st);
+			for (const auto& field : obj->fields) {
+				if (field->name == name) {
+					mir::Value* val = builder.gep(lhs, mir::ConstantNumber::get(i, 32), "");
+					if (asRef) {
+						*asRef = true;
+						return val;
+					} else
+						return builder.load(val, "");
+				}
+				i++;
+			}
+
+			i = 0;
+			for (const auto& method : obj->methods) {
+				if (method->name == name) {
+					if (flags.has(EmissionFlags::Callee))
+						self = lhs;
+					if (asRef)
+						*asRef = true;
+					return module->getNamedFunction(std::format("_{}__{}", st->name, method->name).c_str());
+				}
+				i++;
 			}
 		} break;
 

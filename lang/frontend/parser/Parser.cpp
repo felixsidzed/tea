@@ -97,6 +97,59 @@ namespace tea::frontend {
 					tree->emplace(mknode(AST::ModuleImportNode, path));
 				} break;
 
+				case KeywordKind::Class: {
+					next();
+
+					const tea::string& name = consume(TokenKind::Identf).text;
+
+					tea::vector<std::unique_ptr<AST::FunctionNode>> methods;
+					tea::vector<std::unique_ptr<AST::GlobalVariableNode>> fields;
+
+					while (true) {
+						if (cur->kind == TokenKind::EndOfFile)
+							unexpected();
+
+						if (cur->extra == (uint32_t)KeywordKind::End)
+							break;
+
+						if (cur->kind != TokenKind::Keyword && cur->extra != (uint32_t)KeywordKind::Public && cur->extra != (uint32_t)KeywordKind::Private)
+							unexpected();
+
+						AST::StorageClass vis = (AST::StorageClass)cur->extra;
+						next();
+
+						if (cur->extra == (uint32_t)KeywordKind::Func || isCC((KeywordKind)cur->extra)) {
+							uint32_t _line2 = cur->line, _column2 = cur->column;
+							parseFunc(vis, _line2, _column2);
+							AST::FunctionNode* method = (AST::FunctionNode*)tree->data[tree->size - 1].get();
+							auto actualMethod = methods.emplace(mknodei(AST::FunctionNode, 2, vis, method->cc, method->name, method->params, method->returnType, method->vararg))->get();
+							actualMethod->body = std::move(method->body);
+							tree->pop();
+						} else if (cur->extra == (uint32_t)KeywordKind::Var) {
+							uint32_t _line2 = cur->line, _column2 = cur->column;
+							auto var = parseVariable(_line2, _column2);
+
+							fields.emplace(mknodei(AST::GlobalVariableNode, 2, var->name, var->type, std::move(var->initializer), vis));
+							consume(TokenKind::Semicolon);
+						} else
+							unexpected();
+					}
+
+					StructType* objType; {
+						tea::vector<Type*> body;
+						for (const auto& field : fields)
+							body.emplace(field->type);
+						objType = Type::Struct(body.data, body.size, name.data());
+						Type::create(name, objType);
+					}
+
+					for (const auto& method : methods)
+						method->params.emplace_front(std::pair<Type*, tea::string>{ Type::Pointer(objType), "this" });
+
+					consume(KeywordKind::End);
+					tree->emplace(mknode(AST::ObjectNode, objType, std::move(methods), std::move(fields)));
+				} break;
+
 				default:
 					unexpected();
 					break;
@@ -354,8 +407,7 @@ namespace tea::frontend {
 			cc = (AST::CallingConvention)(cur->extra - (uint32_t)KeywordKind::StdCC);
 			next();
 			consume(KeywordKind::Func);
-		}
-		else
+		} else
 			next();
 
 		const tea::string& name = consume(TokenKind::Identf).text;
@@ -631,7 +683,12 @@ namespace tea::frontend {
 				allowAssignments &&
 				(cur->kind == TokenKind::Assign || (cur->kind >= TokenKind::Star && cur->kind <= TokenKind::Div && (cur + 1)->kind == TokenKind::Assign))
 			) {
-				if (node->getEKind() != AST::ExprKind::Identf && node->getEKind() != AST::ExprKind::Deref && node->getEKind() != AST::ExprKind::Index)
+				if (
+					node->extra != (uint32_t)AST::ExprKind::Identf &&
+					node->extra != (uint32_t)AST::ExprKind::Deref &&
+					node->extra != (uint32_t)AST::ExprKind::Index &&
+					node->extra != (uint32_t)AST::ExprKind::FieldIndex
+				)
 					break;
 
 				uint32_t extra = 0;
@@ -642,6 +699,14 @@ namespace tea::frontend {
 				next();
 
 				node = mknode(AST::AssignmentNode, std::move(node), parseExpression(), extra);
+				continue;
+			} else if (cur->kind == TokenKind::Dot || cur->kind == TokenKind::Arrow) {
+				if (cur->kind == TokenKind::Arrow)
+					node = mknodei(AST::UnaryExprNode, 2, AST::ExprKind::Deref, std::move(node));
+				next();
+
+				auto key = mknodei(AST::LiteralNode, 2, AST::ExprKind::Identf, consume(TokenKind::Identf).text);
+				node = mknodei(AST::BinaryExprNode, 2, AST::ExprKind::FieldIndex, std::move(node), std::move(key));
 				continue;
 			}
 			

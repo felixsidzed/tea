@@ -42,6 +42,7 @@ namespace tea {
 		tea::string str();
 
 		static Type* get(const tea::string& name);
+		static void create(const tea::string& name, Type* baseType);
 
 		static Type* Void(bool constant = false, mir::Context* ctx = nullptr);
 		static Type* Bool(bool constant = false, mir::Context* ctx = nullptr);
@@ -100,8 +101,8 @@ namespace tea {
 		const char* name;
 		tea::vector<Type*> body;
 
-		StructType(Type** body, uint32_t n, const char* name, bool packed)
-			: Type(TypeKind::Struct), body(body, n), name(name) {
+		StructType(Type** body, uint32_t n, const char* name, bool packed, bool constant = false)
+			: Type(TypeKind::Struct, constant), body(body, n), name(name) {
 			extra = packed;
 		}
 	};

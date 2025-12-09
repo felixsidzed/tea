@@ -44,16 +44,25 @@ namespace tea::mir {
 			switch (g->kind) {
 			case ValueKind::Function:
 				dump((Function*)g.get());
-				putchar('\n');
 				break;
 
 			case ValueKind::Global: {
-				dump(g.get());
+				Global* global = (Global*)g.get();
+				printf("%s var @%s: %s",
+					(StorageClass)global->storage == StorageClass::Public ? "public" : "private",
+					global->name,
+					global->type->getElementType()->str().data()
+				);
+				if (global->initializer) {
+					putchar(' '); putchar('='); putchar(' ');
+					dump(global->initializer);
+				}
+				putchar('\n');
 				break;
 			}
 
 			default:
-				printf("unk\n");
+				fputs("unk", stdout);
 				break;
 			}
 
@@ -66,8 +75,14 @@ namespace tea::mir {
 			func->blocks.empty() ? "import" : ((StorageClass)func->subclassData == StorageClass::Public ? "public" : "private"),
 			func->name
 		);
-		for (const auto& param : func->params)
-			dump(param.get());
+		if (!func->params.empty()) {
+			dump(func->params[0].get());
+
+			for (uint32_t i = 1; i < func->params.size; i++) {
+				putchar(','); putchar(' ');
+				dump(func->params[i].get());
+			}
+		}
 		printf(") -> %s\n", ((FunctionType*)func->type)->returnType->str().data());
 
 		if (!func->blocks.empty()) {
@@ -80,18 +95,18 @@ namespace tea::mir {
 				};
 			}
 
-			fputs("end", stdout);
+			puts("end");
 		}
 	}
 
 	void dump(const tea::mir::Instruction* insn) {
 		switch (insn->op) {
 		case OpCode::Alloca:
-			printf("%%\"%s\" = alloca %s", insn->result->name, ((PointerType*)insn->result->type)->pointee->str().data());
+			printf("%%%s = alloca %s", insn->result->name, ((PointerType*)insn->result->type)->pointee->str().data());
 			break;
 
 		case OpCode::Cast:
-			printf("%%\"%s\" = cast %s, ", insn->result->name, insn->result->type->str().data());
+			printf("%%%s = cast %s, ", insn->result->name, insn->result->type->str().data());
 			dump(insn->operands[0]);
 			break;
 
@@ -103,7 +118,7 @@ namespace tea::mir {
 			break;
 
 		case OpCode::GetElementPtr:
-			printf("%%\"%s\" = gep %s ", insn->result->name, insn->result->type->str().data());
+			printf("%%%s = gep %s ", insn->result->name, insn->result->type->str().data());
 
 			dump(insn->operands[0]);
 			for (uint32_t i = 1; i < insn->operands.size; i++) {
@@ -113,12 +128,12 @@ namespace tea::mir {
 			break;
 
 		case OpCode::Br:
-			printf("br %%\"%s\"", ((BasicBlock*)insn->operands[0])->name);
+			printf("br %%%s", ((BasicBlock*)insn->operands[0])->name);
 			break;
 
 		case OpCode::Call: {
 			if (insn->result)
-				printf("%%\"%s\" = ", insn->result->name);
+				printf("%%%s = ", insn->result->name);
 
 			fputs("call ", stdout);
 			dump(insn->operands[0]);
@@ -136,14 +151,14 @@ namespace tea::mir {
 		} break;
 
 		case OpCode::ICmp:
-			printf("%%\"%s\" = icmp %s ", insn->result->name, icmpPredName[insn->extra]);
+			printf("%%%s = icmp %s ", insn->result->name, icmpPredName[insn->extra]);
 			dump(insn->operands[0]);
 			putchar(','); putchar(' ');
 			dump(insn->operands[1]);
 			break;
 
 		case OpCode::FCmp:
-			printf("%%\"%s\" = fcmp %s ", insn->result->name, fcmpPredName[insn->extra]);
+			printf("%%%s = fcmp %s ", insn->result->name, fcmpPredName[insn->extra]);
 			dump(insn->operands[0]);
 			putchar(','); putchar(' ');
 			dump(insn->operands[1]);
@@ -152,13 +167,13 @@ namespace tea::mir {
 		case OpCode::CondBr:
 			fputs("cbr ", stdout);
 			dump(insn->operands[0]);
-			printf(", %%\"%s\", %%\"%s\"", ((BasicBlock*)insn->operands[1])->name, ((BasicBlock*)insn->operands[2])->name);
+			printf(", %%%s, %%%s", ((BasicBlock*)insn->operands[1])->name, ((BasicBlock*)insn->operands[2])->name);
 			break;
 
 		default:
 		_default:
 			if (insn->result)
-				printf("%%\"%s\" = ", insn->result->name);
+				printf("%%%s = ", insn->result->name);
 			if ((insn->op == OpCode::Store || insn->op == OpCode::Load) && insn->extra & 1)
 				fputs("volatile ", stdout);
 			printf("%s ", opcodeName[(uint32_t)insn->op]);
@@ -238,12 +253,12 @@ namespace tea::mir {
 
 		case ValueKind::Global:
 		case ValueKind::Function:
-			printf("%s @\"%s\"", value->type->str().data(), value->name);
+			printf("%s @%s", value->type->str().data(), value->name);
 			break;
 		
 		case ValueKind::Parameter:
 		case ValueKind::Instruction:
-			printf("%s %%\"%s\"", value->type->str().data(), value->name);
+			printf("%s %%%s", value->type->str().data(), value->name);
 			break;
 
 		default:
@@ -263,19 +278,6 @@ namespace tea::mir {
 			}
 		}
 		printf(" } %s", ty->name);
-	}
-
-	void dump(const Global* global) {
-		printf("%s var @\"%s\": %s",
-			(StorageClass)global->storage == StorageClass::Public ? "public" : "private",
-			global->name,
-			global->type->getElementType()->str().data()
-		);
-		if (global->initializer) {
-			putchar(' '); putchar('='); putchar(' ');
-			dump(global->initializer);
-		}
-		putchar('\n');
 	}
 
 } // namespace tea::mir

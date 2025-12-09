@@ -44,7 +44,7 @@ namespace tea::frontend {
 		Func, Return, End,
 		Var,
 		StdCC, FastCC, CCC, AutoCC,
-		//Class, New
+		Class//, New
 	};
 	
 	struct Token {

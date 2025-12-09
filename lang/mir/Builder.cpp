@@ -114,9 +114,12 @@ namespace tea::mir {
 	Value* Builder::globalString(const tea::string& val) {
 		ConstantString* str = ConstantString::get(val);
 
+		Global* g = block->parent->parent->addGlobal("", str->type, str);
+		g->storage = StorageClass::Private;
+
 		ConstantNumber* zero = ConstantNumber::get(0, 32);
 		Value* indicies[] = { zero, zero };
-		return gep(block->parent->parent->addGlobal("", str->type, str), indicies, 2, "");
+		return gep(g, indicies, 2, "");
 	}
 
 	Value* Builder::binop(OpCode op, Value* lhs, Value* rhs, const char* name) {

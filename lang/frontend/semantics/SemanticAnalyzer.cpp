@@ -71,7 +71,7 @@ namespace tea::frontend::analysis {
 
 				fs::path path;
 				std::ifstream file;
-				for (const auto& lookup : importLookup) {
+				for (const auto& lookup : *importLookup) {
 					path = fs::path(lookup) / fullModuleName;
 					file.open(path);
 					if (file.is_open())
@@ -130,6 +130,12 @@ namespace tea::frontend::analysis {
 					gv->type = initType;
 
 				pushsym(gv->name, gv->type, (bool)gv->type->constant, false, false, gv->vis == AST::StorageClass::Public, gv->initializer != nullptr);
+			} break;
+
+			case AST::NodeKind::Class: {
+				AST::ObjectNode* obj = (AST::ObjectNode*)node.get();
+
+				structMap[obj->type] = obj;
 			} break;
 
 			default:
@@ -288,24 +294,37 @@ namespace tea::frontend::analysis {
 				FunctionType* ftype = (FunctionType*)type;
 				type = ftype->returnType;
 
-				if ((ftype->extra && ftype->params.size > call->args.size) || (!ftype->extra && ftype->params.size != call->args.size))
+				uint32_t nargs = call->args.size;
+				if (isMethodCall)
+					nargs++;
+
+				if ((ftype->extra && ftype->params.size > nargs) || (!ftype->extra && ftype->params.size != nargs))
 					errors.emplace(std::format("Function '{}': argument count mismatch. expected{} {}, got {}. line {}, column {}",
 						func->name,
 						ftype->extra ? " atleast" : "",
-						ftype->params.size, call->args.size,
+						ftype->params.size, nargs,
 						node->line, node->column
 					).c_str());
-				else
-					for (uint32_t i = 0; i < ftype->params.size; i++) {
+				else {
+					Type** pparams = ftype->params.data;
+					uint32_t nargs = ftype->params.size;
+					if (isMethodCall) {
+						nargs--;
+						pparams++;
+					}
+					for (uint32_t i = 0; i < nargs; i++) {
 						Type* argType = visitExpression(call->args[i].get());
-						Type* paramType = ftype->params[i];
+						Type* paramType = pparams[i];
 
 						if (!argType->equals(paramType))
 							errors.emplace(std::format("Function '{}': argument {}: expected type {}, got {}. line {}, column {}",
 								func->name, i, paramType->str(), argType->str(), node->line, node->column
 							).c_str());
 					}
+				}
 			}
+
+			isMethodCall = false;
 		} break;
 
 		case AST::ExprKind::Add:
@@ -391,11 +410,17 @@ namespace tea::frontend::analysis {
 			type = Type::Bool();
 		} break;
 
-		// TODO: check for illegal casts
-		case AST::ExprKind::Cast:
-			type = node->type;
-			visitExpression(((AST::UnaryExprNode*)node)->value.get());
-			break;
+		case AST::ExprKind::Cast: {
+			Type* rtype = visitExpression(((AST::UnaryExprNode*)node)->value.get());
+			if (node->type->kind == TypeKind::Struct)
+				errors.emplace(std::format("Function '{}': cannot cast '{}' to '{}'. line {}, column {}",
+					func->name,
+					rtype->str(), node->type->str(),
+					node->line, node->column
+				).c_str());
+			else
+				type = node->type;
+		} break;
 
 		case AST::ExprKind::Index: {
 			AST::BinaryExprNode* be = (AST::BinaryExprNode*)node;
@@ -479,6 +504,51 @@ namespace tea::frontend::analysis {
 				).c_str());
 			else
 				type = lhsType;
+		} break;
+
+		case AST::ExprKind::FieldIndex: {
+			AST::BinaryExprNode* be = (AST::BinaryExprNode*)node;
+
+			StructType* ltype = (StructType*)visitExpression(be->lhs.get());
+			const tea::string& name = ((AST::LiteralNode*)be->rhs.get())->value;
+
+			if (ltype->kind != TypeKind::Struct)
+				errors.emplace(std::format("Function '{}': cannot index a value of type '{}'. line {}, column {}",
+					func->name, ltype->str(),
+					node->line, node->column
+				).c_str());
+
+			uint32_t i = 0;
+
+			AST::ObjectNode* obj = *structMap.find(ltype);
+			for (const auto& field : obj->fields) {
+				if (field->name == name) {
+					type = ltype->body[i];
+					node->type = type;
+					return type;
+				}
+				i++;
+			}
+			
+			i = 0;
+			for (const auto& method : obj->methods) {
+				if (method->name == name) {
+					tea::vector<Type*> params;
+					for (const auto& [ty, _] : method->params)
+						params.emplace(ty);
+
+					type = Type::Function(method->returnType, params, method->vararg);
+					isMethodCall = true;
+					node->type = type;
+					return type;
+				}
+				i++;
+			}
+
+			errors.emplace(std::format("Function '{}': '{}' is not a valid member of '{}'. line {}, column {}",
+				func->name, name, ltype->str(),
+				node->line, node->column
+			).c_str());
 		} break;
 
 		default:
