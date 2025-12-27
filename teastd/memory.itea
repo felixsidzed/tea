@@ -1,4 +1,4 @@
 import func free(void* buf) -> void;
 import func alloc(long size) -> void*;
 
-import func _memory__copy(void* dest, const void* src, unsigned int n) -> void*;
+import func copy(void* dest, const void* src, unsigned int n) -> void*;
