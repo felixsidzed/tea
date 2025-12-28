@@ -1,4 +1,7 @@
 import func free(void* buf) -> void;
 import func alloc(long size) -> void*;
+import func realloc(void* ptr, long nsize) -> void*;
 
 import func copy(void* dest, const void* src, unsigned int n) -> void*;
+import func set(void* dest, unsigned char src, unsigned int n) -> void*;
+import func cmp(const void* p1, const void* p2, unsigned int n) -> void*;

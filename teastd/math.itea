@@ -2,3 +2,17 @@ import func abs(int num) -> int;
 import func sqrt(int num) -> int;
 
 import func sum(int nargs, ...) -> int;
+
+import func max(int a, int b) -> int;
+import func min(int a, int b) -> int;
+import func clamp(int value, int min, int max) -> int;
+
+import func pow(int base, int exp) -> int;
+
+import func srand(unsigned int seed) -> void;
+import func random(int min, int max) -> int;
+
+import func ceil(double x) -> double;
+import func ceilf(float x) -> float;
+import func floor(double x) -> double;
+import func floorf(float x) -> float;

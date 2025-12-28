@@ -1,14 +1,4 @@
-using "io";
-
-class Greeter
-	private var name: string;
-
-	public func greet() -> void
-		io::printf("Hello, %s!\n", this->name);
-	end
-end
-
-public func main() -> int
+public func kmain() -> void
 	var g: Greeter;
 	g.name = "World";
 	g.greet();

@@ -1,0 +1,8 @@
+import func new() -> void*;
+import func lock(void*) -> void;
+import func unlock(void*) -> void;
+
+import func cvnew() -> void*;
+import func wait(void* cv, void* mtx) -> void;
+import func signal(void* cv) -> void;
+import func broadcast(void* cv) -> void;

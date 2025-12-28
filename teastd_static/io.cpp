@@ -22,7 +22,7 @@ extern "C" {
 			GENERIC_WRITE,
 			0,
 			NULL,
-			CREATE_ALWAYS,
+			OPEN_ALWAYS,
 			FILE_ATTRIBUTE_NORMAL,
 			NULL
 		);
@@ -142,7 +142,7 @@ extern "C" {
 		char buffer[32];
 
 		do {
-			unsigned long long rem = number % radix;
+			uintptr_t rem = number % radix;
 			number /= radix;
 			buffer[pos++] = hexChars[rem];
 		} while (number > 0);
@@ -315,6 +315,81 @@ extern "C" {
 		}
 
 		va_end(va);
+	}
+
+	bool _io__existsf(const char* path) {
+		DWORD dwAttrib = GetFileAttributesA(path);
+		return (dwAttrib != INVALID_FILE_ATTRIBUTES && !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
+	}
+
+	bool _io__delf(const char* path) {
+		return DeleteFileA(path);
+	}
+
+	bool _io__mkdir(const char* path) {
+		return CreateDirectoryA(path, nullptr);
+	}
+
+	bool _io__rmdir(const char* path) {
+		return RemoveDirectoryA(path);
+	}
+
+	bool _io__appendf(const char* path, const char* data, int size) {
+		HANDLE file = CreateFileA(
+			path,
+			FILE_APPEND_DATA,
+			FILE_SHARE_READ,
+			NULL,
+			OPEN_ALWAYS,
+			FILE_ATTRIBUTE_NORMAL,
+			NULL
+		);
+
+		if (file != INVALID_HANDLE_VALUE) {
+			DWORD written;
+			WriteFile(
+				file,
+				data, size,
+				&written, NULL
+			);
+
+			CloseHandle(file);
+			return true;
+		}
+		return false;
+	}
+
+	extern void* _memory__alloc(size_t size);
+
+	const char* _io__tempdir() {
+		char tempPath[MAX_PATH];
+
+		if (!GetTempPathA(MAX_PATH, tempPath))
+			return nullptr;
+
+		char* result = (char*)_memory__alloc(MAX_PATH);
+		if (!GetTempFileNameA(tempPath, "", 0, result))
+			return nullptr;
+
+		DeleteFileA(result);
+
+		if (!CreateDirectoryA(result, nullptr))
+			return nullptr;
+
+		return result;
+	}
+
+	const char* _io__tempfile() {
+		char tempPath[MAX_PATH];
+
+		if (!GetTempPathA(MAX_PATH, tempPath))
+			return nullptr;
+
+		char* result = (char*)_memory__alloc(MAX_PATH);
+		if (!GetTempFileNameA(tempPath, "", 0, result))
+			return nullptr;
+
+		return result;
 	}
 
 #else

@@ -26,14 +26,16 @@ namespace tea::frontend {
 		return kind == KeywordKind::StdCC || kind == KeywordKind::FastCC || kind == KeywordKind::CCC || kind == KeywordKind::AutoCC;
 	}
 
-	static const tea::map<tea::string, AST::FunctionAttribute> name2fnAttr = {
-		{"inline", AST::FunctionAttribute::Inline},
-		{"noreturn", AST::FunctionAttribute::NoReturn},
-		{"nonamespace", AST::FunctionAttribute::NoNamespace},
+	// hashes should be evaluated at compile time, not folded for clarity
+
+	static const tea::map<size_t, AST::FunctionAttribute> name2fnAttr = {
+		{std::hash<tea::string>()("inline"), AST::FunctionAttribute::Inline},
+		{std::hash<tea::string>()("noreturn"), AST::FunctionAttribute::NoReturn},
+		{std::hash<tea::string>()("nonamespace"), AST::FunctionAttribute::NoNamespace}
 	};
 
-	static const tea::map<tea::string, AST::GlobalAttribute> name2globalAttr = {
-		{"threadlocal", AST::GlobalAttribute::ThreadLocal}
+	static const tea::map<size_t, AST::GlobalAttribute> name2globalAttr = {
+		{std::hash<tea::string>()("threadlocal"), AST::GlobalAttribute::ThreadLocal}
 	};
 
 	AST::Tree Parser::parse() {
@@ -161,10 +163,11 @@ namespace tea::frontend {
 				uint32_t fnAttr = 0, globalAttr = 0;
 				while (true) {
 					const tea::string& attrName = consume(TokenKind::Identf).text;
+					size_t h = std::hash<tea::string>()(attrName);
 
-					if (auto it = name2fnAttr.find(attrName))
+					if (auto it = name2fnAttr.find(h))
 						fnAttr |= (uint32_t)*it;
-					else if (auto it2 = name2globalAttr.find(attrName))
+					else if (auto it2 = name2globalAttr.find(h))
 						globalAttr |= (uint32_t)*it2;
 					else
 						TEA_PANIC("'%s' is not a valid attribute. line %d, column %d", attrName.data(), cur->line, cur->column);
@@ -202,7 +205,7 @@ namespace tea::frontend {
 							TEA_PANIC("can't deduce a type without an initializer");
 
 						auto node = mknode(AST::GlobalVariableNode, name, type,
-										   std::move(initializer), vis);
+											std::move(initializer), vis);
 						node->extra = globalAttr;
 						tree->emplace(std::move(node));
 

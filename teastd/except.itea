@@ -1,6 +1,8 @@
 @noreturn, @nonamespace
 import func throw(string message) -> void;
 
-// TODO: maybe add @nonamespace to these aswell
 import func pcall(void* f) -> string;
 import func xpcall(void* f, void* handler) -> bool;
+
+@nonamespace
+import func assert(bool pred, string msg) -> void;

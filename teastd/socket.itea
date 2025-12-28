@@ -1,0 +1,9 @@
+import func connect(const char* host, unsigned short port) -> void*;
+
+import func accept(void* sock) -> void*;
+import func listen(unsigned short port) -> void*;
+
+import func recv(void* sock, string buf, int size) -> int;
+import func send(void* sock, string data, int size) -> int;
+
+import func close(void* sock) -> void;
