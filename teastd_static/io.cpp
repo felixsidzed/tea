@@ -22,7 +22,7 @@ extern "C" {
 			GENERIC_WRITE,
 			0,
 			NULL,
-			OPEN_ALWAYS,
+			CREATE_ALWAYS,
 			FILE_ATTRIBUTE_NORMAL,
 			NULL
 		);
