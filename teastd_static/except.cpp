@@ -5,6 +5,8 @@ extern "C" {
 #endif
 
 #ifdef _WIN32
+	#define WIN32_LEAN_AND_MEAN
+	#include <Windows.h>
 	#include <intrin.h>
 
 	typedef struct eframe {
@@ -18,23 +20,22 @@ extern "C" {
 
 	static thread_local eframe* eframeTop = 0;
 
-	extern void _io__printf(const char* fmt, ...);
+	extern void io_printf(const char* fmt, ...);
 
-	[[noreturn]] void _except__throw(const char* msg) {
+	[[noreturn]] void except_throw(const char* msg) {
 		if (!msg) msg = "??";
 
 		eframe* ef = eframeTop;
 		if (!ef) {
-			_io__printf("unhandled exception at %p: %s", _ReturnAddress(), msg);
-			__debugbreak();
-			__fastfail(1);
+			io_printf("unhandled exception at 0x%p: %s", _ReturnAddress(), msg);
+			ExitThread(1); // TODO: debugbreak instead
 		}
 
 		ef->message = msg;
 		__longjmp(&ef->jb, 1);
 	}
 
-	const char* _except__pcall(void(*func)()) {
+	const char* except_pcall(void(*func)()) {
 		eframe ef;
 		ef.message = nullptr;
 		ef.prev = eframeTop;
@@ -52,8 +53,8 @@ extern "C" {
 		return 0;
 	}
 
-	bool _except__xpcall(void(*func)(), bool(*handler)(const char*)) {
-		const char* err = _except__pcall(func);
+	bool except_xpcall(void(*func)(), bool(*handler)(const char*)) {
+		const char* err = except_pcall(func);
 		if (err && handler)
 			return handler(err);
 		return !err;
@@ -61,7 +62,7 @@ extern "C" {
 
 	void assert(bool pred, const char* msg) {
 		if (!pred) [[unlikely]]
-			_except__throw(msg);
+			except_throw(msg);
 	}
 
 #else

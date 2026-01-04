@@ -18,7 +18,7 @@ namespace tea::frontend {
 		Semicolon, Comma, Colon, Dot,
 
 		// Symbols
-		Scope, At, Assign, Arrow, Tilde, Amp,
+		Scope, At, Assign, Arrow, Tilde, Amp, Hashtag,
 
 		// Arithmetical Operators
 		Star, Sub, Add, Div,

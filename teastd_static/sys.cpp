@@ -8,12 +8,12 @@ extern "C" {
 	#define WIN32_LEAN_AND_MEAN
 	#include <Windows.h>
 
-	[[noreturn]] void _sys__exit(int exitCode) {
+	[[noreturn]] void sys_exit(int exitCode) {
 		ExitProcess(exitCode);
 	}
 
 	// TODO: ??????
-	long long _sys__time(int num) {
+	long long sys_time(int num) {
 		FILETIME ft;
 		GetSystemTimeAsFileTime(&ft);
 
@@ -21,7 +21,7 @@ extern "C" {
 		return (time - 116444736000000000ull) / 10000ull;
 	}
 
-	void _sys__sleep(int milliseconds) {
+	void sys_sleep(int milliseconds) {
 		Sleep(milliseconds);
 	}
 

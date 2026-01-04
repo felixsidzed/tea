@@ -31,13 +31,35 @@ namespace tea {
 		}
 	}
 
+	static inline bool notSpace(int ch) {
+		return !isspace(ch);
+	}
+
 	Type* Type::get(const tea::string& name) {
 		mir::Context* ctx = mir::getGlobalContext();
 
-		std::string s = { name.data(), name.length() };
-		s.erase(std::remove_if(s.begin(), s.end(), isspace), s.end());
+		std::string s(name.data(), name.length());
 
-		if (s.rfind("func(", 0) == 0) {
+		s.erase(s.begin(), std::find_if(s.begin(), s.end(), notSpace));
+		s.erase(std::find_if(s.rbegin(), s.rend(), notSpace).base(), s.end());
+
+		{
+			std::string out;
+			bool prevSpace = false;
+			for (char c : s) {
+				if (std::isspace((unsigned char)c)) {
+					if (!prevSpace) out.push_back(' ');
+					prevSpace = true;
+				}
+				else {
+					out.push_back(c);
+					prevSpace = false;
+				}
+			}
+			s.swap(out);
+		}
+
+		if (!s.rfind("func(", 0)) {
 			size_t firstClose = s.find(')');
 			if (firstClose == std::string::npos || firstClose + 1 >= s.size() || s[firstClose + 1] != '(')
 				return nullptr;
@@ -45,30 +67,30 @@ namespace tea {
 			size_t secondClose = s.find(')', firstClose + 2);
 			if (secondClose == std::string::npos)
 				return nullptr;
-			
-			std::string params = s.substr(firstClose + 2, secondClose - (firstClose + 2));
 
 			std::string retTypeName = s.substr(5, firstClose - 5);
+			std::string params = s.substr(firstClose + 2, secondClose - (firstClose + 2));
+
 			Type* retType = Type::get({ retTypeName.data(), (uint32_t)retTypeName.size() });
 			if (!retType)
 				return nullptr;
 
 			bool vararg = false;
-			tea::vector<Type*> argTypes; {
+			tea::vector<Type*> argTypes;
+
+			{
 				std::stringstream ss(params);
 				std::string tok;
 				while (std::getline(ss, tok, ',')) {
-					size_t a = tok.find_first_not_of(" \t\n\r");
-					if (a == std::string::npos)
-						continue;
-					tok = tok.substr(a, tok.find_last_not_of(" \t\n\r") - a + 1);
+					s.erase(s.begin(), std::find_if(s.begin(), s.end(), notSpace));
+					s.erase(std::find_if(s.rbegin(), s.rend(), notSpace).base(), s.end());
+
 					if (tok.empty())
 						continue;
 
 					Type* arg = Type::get({ tok.data(), (uint32_t)tok.size() });
 					if (!arg)
 						return nullptr;
-
 					argTypes.push(arg);
 				}
 			}
@@ -76,26 +98,33 @@ namespace tea {
 			return Type::Pointer(Type::Function(retType, argTypes, vararg));
 		}
 
-		size_t nptr = std::count(s.begin(), s.end(), '*');
-		s.erase(std::remove(s.begin(), s.end(), '*'), s.end());
-
-		tea::vector<size_t> dims; {
-			size_t pos = 0;
-			while ((pos = s.find('[', pos)) != std::string::npos) {
-				size_t end = s.find(']', pos);
-				if (end == std::string::npos)
-					return nullptr;
-
-				dims.emplace(std::stoull(s.substr(pos + 1, end - pos - 1)));
-				s.erase(pos, end - pos + 1);
+		for (char sym : {'*', '[', ']', '(', ')', ','}) {
+			std::string r;
+			for (char c : s) {
+				if (c == sym) {
+					r.push_back(' ');
+					r.push_back(c);
+					r.push_back(' ');
+				} else
+					r.push_back(c);
 			}
+			s.swap(r);
 		}
 
-		tea::vector<tea::string> tokens; {
+		std::vector<std::string> tokens; {
 			std::stringstream ss(s);
 			std::string tok;
 			while (ss >> tok)
-				tokens.push({ tok.data(), tok.size() });
+				tokens.push_back(tok);
+		}
+
+		tea::vector<size_t> dims;
+		for (size_t i = 0; i + 2 < tokens.size();) {
+			if (tokens[i] == "[" && tokens[i + 2] == "]") {
+				dims.push(std::stoull(tokens[i + 1]));
+				tokens.erase(tokens.begin() + i, tokens.begin() + i + 3);
+			} else
+				i++;
 		}
 
 		bool sign = true;
@@ -103,21 +132,23 @@ namespace tea {
 		Type* userBaseType = nullptr;
 		TypeKind kind = TypeKind::Void;
 
-		for (const auto& tok : tokens) {
+		for (size_t i = 0; i < tokens.size(); i++) {
+			const auto& tok = tokens[i];
+
 			if (tok == "const")
 				constant = true;
 			else if (tok == "unsigned")
 				sign = false;
 			else if (tok == "signed")
 				sign = true;
-			else if (tok == "*")
-				continue;
-			else {
-				if (auto it = name2kind.find(tok); it != name2kind.end()) {
+			else if (tok != "*") {
+				tea::string t{ tok.data(), tok.size() };
+
+				if (auto it = name2kind.find(t); it != name2kind.end())
 					kind = it->second;
-				} else if (auto it = usertypes.find(tok); it != usertypes.end()) {
+				else if (auto it = usertypes.find(t); it != usertypes.end())
 					userBaseType = it->second;
-				} else
+				else
 					return nullptr;
 			}
 		}
@@ -141,12 +172,14 @@ namespace tea {
 		} else
 			current = ctx->getType(kind, constant, sign);
 
-		for (size_t i = 0; i < nptr; i++) {
-			bool constp = false;
-			if (s.find("* const") != std::string::npos && i == nptr - 1)
-				constp = true;
-			
-			current = ctx->getType<PointerType>(current, constp);
+		for (size_t i = 0; i < tokens.size(); ++i) {
+			if (tokens[i] == "*") {
+				bool constp = false;
+				if (i + 1 < tokens.size() && tokens[i + 1] == "const")
+					constp = true;
+
+				current = ctx->getType<PointerType>(current, constp);
+			}
 		}
 
 		for (const auto& dim : dims)

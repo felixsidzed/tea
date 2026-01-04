@@ -14,7 +14,7 @@ namespace tea::frontend::AST {
 		Variable, GlobalVariable,
 		If, Else, ElseIf,
 		WhileLoop, ForLoop, LoopInterrupt,
-		Class
+		Class, RootAttribute
 	};
 
 	enum class ExprKind : uint32_t {
@@ -40,11 +40,16 @@ namespace tea::frontend::AST {
 	enum class FunctionAttribute {
 		Inline = 1 << 0,
 		NoReturn = 1 << 1,
-		NoNamespace = 1 << 2
+		NoNamespace = 1 << 2,
+		NoMangle = 1 << 3
 	};
 
 	enum class GlobalAttribute {
 		ThreadLocal = 1 << 0
+	};
+
+	enum class RootAttribute {
+		Module = 1 << 0
 	};
 
 	struct Node {
@@ -324,6 +329,18 @@ namespace tea::frontend::AST {
 			tea::vector<std::unique_ptr<GlobalVariableNode>>&& fields,
 			uint32_t line, uint32_t column
 		) : Node(NodeKind::Class, line, column), type(type), methods(std::move(methods)), fields(std::move(fields)) {
+		}
+	};
+
+	struct RootAttributeNode : Node {
+		RootAttribute attr;
+		tea::string val;
+
+		RootAttributeNode(
+			RootAttribute attr,
+			const tea::string& val,
+			uint32_t line, uint32_t column
+		) : Node(NodeKind::RootAttribute, line, column), attr(attr), val(val) {
 		}
 	};
 }

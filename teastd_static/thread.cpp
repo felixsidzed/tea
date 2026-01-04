@@ -8,7 +8,7 @@ extern "C" {
 	#define WIN32_LEAN_AND_MEAN
 	#include <Windows.h>
 
-	void* _thread__spawn(void* f) {
+	void* thread_spawn(void* f) {
 		DWORD tid;
 		HANDLE handle;
 
@@ -27,15 +27,15 @@ extern "C" {
 		return handle;
 	}
 
-	void _thread__join(void* thread) {
+	void thread_join(void* thread) {
 		WaitForSingleObject(thread, INFINITE);
 	}
 
-	void _thread__close(void* thread) {
+	void thread_close(void* thread) {
 		CloseHandle(thread);
 	}
 
-	[[noreturn]] void _thread__exit(int exitCode) {
+	[[noreturn]] void thread_exit(int exitCode) {
 		ExitThread(exitCode);
 	}
 

@@ -8,7 +8,7 @@ extern "C" {
 #define WIN32_LEAN_AND_MEAN
 	#include <Windows.h>
 
-	void _io__print(const char* message) {
+	void io_print(const char* message) {
 		if (!message)
 			return;
 		DWORD written;
@@ -16,7 +16,7 @@ extern "C" {
 		WriteConsoleA(stdout, message, lstrlenA(message), &written, nullptr);
 	}
 
-	bool _io__writef(const char* path, const char* data, int size) {
+	bool io_writef(const char* path, const char* data, int size) {
 		HANDLE file = CreateFileA(
 			path,
 			GENERIC_WRITE,
@@ -41,7 +41,7 @@ extern "C" {
 		return false;
 	}
 
-	char* _io__readf(const char* path) {
+	char* io_readf(const char* path) {
 		HANDLE file = CreateFileA(
 			path,
 			GENERIC_READ,
@@ -79,7 +79,7 @@ extern "C" {
 		return buffer;
 	}
 
-	char* _io__readline() {
+	char* io_readline() {
 		HANDLE stdin = GetStdHandle(STD_INPUT_HANDLE);
 
 		const DWORD CHUNK_SIZE = 128;
@@ -162,7 +162,7 @@ extern "C" {
 			printunsigned(number, radix);
 	}
 
-	void _io__printf(const char* fmt, ...) {
+	void io_printf(const char* fmt, ...) {
 		va_list va;
 		va_start(va, fmt);
 
@@ -317,24 +317,24 @@ extern "C" {
 		va_end(va);
 	}
 
-	bool _io__existsf(const char* path) {
+	bool io_existsf(const char* path) {
 		DWORD dwAttrib = GetFileAttributesA(path);
 		return (dwAttrib != INVALID_FILE_ATTRIBUTES && !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
 	}
 
-	bool _io__delf(const char* path) {
+	bool io_delf(const char* path) {
 		return DeleteFileA(path);
 	}
 
-	bool _io__mkdir(const char* path) {
+	bool io_mkdir(const char* path) {
 		return CreateDirectoryA(path, nullptr);
 	}
 
-	bool _io__rmdir(const char* path) {
+	bool io_rmdir(const char* path) {
 		return RemoveDirectoryA(path);
 	}
 
-	bool _io__appendf(const char* path, const char* data, int size) {
+	bool io_appendf(const char* path, const char* data, int size) {
 		HANDLE file = CreateFileA(
 			path,
 			FILE_APPEND_DATA,
@@ -359,15 +359,15 @@ extern "C" {
 		return false;
 	}
 
-	extern void* _memory__alloc(size_t size);
+	extern void* memory_alloc(size_t size);
 
-	const char* _io__tempdir() {
+	const char* io_tempdir() {
 		char tempPath[MAX_PATH];
 
 		if (!GetTempPathA(MAX_PATH, tempPath))
 			return nullptr;
 
-		char* result = (char*)_memory__alloc(MAX_PATH);
+		char* result = (char*)memory_alloc(MAX_PATH);
 		if (!GetTempFileNameA(tempPath, "", 0, result))
 			return nullptr;
 
@@ -379,13 +379,13 @@ extern "C" {
 		return result;
 	}
 
-	const char* _io__tempfile() {
+	const char* io_tempfile() {
 		char tempPath[MAX_PATH];
 
 		if (!GetTempPathA(MAX_PATH, tempPath))
 			return nullptr;
 
-		char* result = (char*)_memory__alloc(MAX_PATH);
+		char* result = (char*)memory_alloc(MAX_PATH);
 		if (!GetTempFileNameA(tempPath, "", 0, result))
 			return nullptr;
 

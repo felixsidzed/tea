@@ -22,6 +22,7 @@ namespace tea {
 namespace tea::mir {
 
 	using StorageClass = frontend::AST::StorageClass;
+	using RootAttribute = frontend::AST::RootAttribute;
 	using GlobalAttribute = frontend::AST::GlobalAttribute;
 	using CallingConvention = frontend::AST::CallingConvention;
 	using FunctionAttribute = frontend::AST::FunctionAttribute;
@@ -287,6 +288,7 @@ namespace tea::mir {
 	};
 
 	class Module {
+		friend class tea::CodeGen;
 		friend class backend::LLVMLowering;
 		friend class backend::LuauLowering;
 		friend void dump(const Module* module);
@@ -297,7 +299,6 @@ namespace tea::mir {
 	public:
 		tea::string source;
 		DataLayout dl;
-		// TODO: maybe make this a struct of enums ykwim
 		tea::string triple;
 
 		Module(const tea::string& source) : source(source) {
@@ -309,7 +310,7 @@ namespace tea::mir {
 		Global* getNamedGlobal(const tea::string& name) const;
 		Function* getNamedFunction(const tea::string& name) const;
 
-		uint32_t getSize(const tea::Type* type) const;;
+		uint32_t getSize(const tea::Type* type) const;
 	};
 
 	class Builder {

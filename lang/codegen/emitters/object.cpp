@@ -14,7 +14,7 @@ namespace tea {
 			for (const auto& arg : method->params)
 				argTypes.emplace(arg.first);
 
-			mir::Function* f = module->addFunction(std::format("_{}__{}", node->type->name, method->name).c_str(), Type::Function(method->returnType, argTypes, method->vararg));
+			mir::Function* f = module->addFunction(std::format("{}_{}", node->type->name, method->name).c_str(), Type::Function(method->returnType, argTypes, method->vararg));
 			f->cc = method->cc;
 			f->storage = method->vis;
 				

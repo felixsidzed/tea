@@ -10,12 +10,14 @@ extern "C" {
 	#include <winsock2.h>
 	#include <ws2tcpip.h>
 
-	SOCKET _socket__connect(const char* host, unsigned short port) {
+	SOCKET socket_connect(const char* host, unsigned short port) {
 		WSADATA wsa;
-		if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) return NULL;
+		if (WSAStartup(MAKEWORD(2, 2), &wsa))
+			return NULL;
 
 		SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-		if (s == INVALID_SOCKET) return NULL;
+		if (s == INVALID_SOCKET)
+			return NULL;
 
 		struct sockaddr_in addr = {0};
 		addr.sin_family = AF_INET;
@@ -25,7 +27,7 @@ extern "C" {
 			return NULL;
 		}
 
-		if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
+		if (connect(s, (struct sockaddr*)&addr, sizeof(addr))) {
 			closesocket(s);
 			return NULL;
 		}
@@ -33,24 +35,26 @@ extern "C" {
 		return s;
 	}
 
-	SOCKET _socket__listen(unsigned short port) {
+	SOCKET socket_listen(unsigned short port) {
 		WSADATA wsa;
-		if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) return NULL;
+		if (WSAStartup(MAKEWORD(2, 2), &wsa))
+			return NULL;
 
 		SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-		if (s == INVALID_SOCKET) return NULL;
+		if (s == INVALID_SOCKET)
+			return NULL;
 
 		struct sockaddr_in addr = {0};
 		addr.sin_family = AF_INET;
 		addr.sin_port = htons(port);
 		addr.sin_addr.s_addr = INADDR_ANY;
 
-		if (bind(s, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
+		if (bind(s, (struct sockaddr*)&addr, sizeof(addr))) {
 			closesocket(s);
 			return NULL;
 		}
 
-		if (listen(s, SOMAXCONN) != 0) {
+		if (listen(s, SOMAXCONN)) {
 			closesocket(s);
 			return NULL;
 		}
@@ -58,7 +62,7 @@ extern "C" {
 		return s;
 	}
 
-	SOCKET _socket__accept(SOCKET sock) {
+	SOCKET socket_accept(SOCKET sock) {
 		SOCKET client = accept(sock, NULL, NULL);
 		if (client == INVALID_SOCKET)
 			return 0;
@@ -66,15 +70,15 @@ extern "C" {
 		return client;
 	}
 
-	int _socket__send(SOCKET sock, const char* data, int size) {
+	int socket_send(SOCKET sock, const char* data, int size) {
 		return send(sock, data, size, 0);
 	}
 
-	int _socket__recv(SOCKET sock, char* buf, int size) {
+	int socket_recv(SOCKET sock, char* buf, int size) {
 		return recv(sock, buf, size, 0);
 	}
 
-	void _socket__close(SOCKET sock) {
+	void socket_close(SOCKET sock) {
 		if (!sock)
 			return;
 

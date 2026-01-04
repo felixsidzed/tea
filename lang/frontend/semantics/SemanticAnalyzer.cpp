@@ -138,6 +138,9 @@ namespace tea::frontend::analysis {
 				structMap[obj->type] = obj;
 			} break;
 
+			case AST::NodeKind::RootAttribute:
+				break;
+
 			default:
 				#ifdef _DEBUG
 				fprintf(stderr, "SemanticAnalyzer: unhandled root statement kind %d\n", node->kind);
@@ -336,7 +339,7 @@ namespace tea::frontend::analysis {
 			Type* lhsType = visitExpression(be->lhs.get());
 			Type* rhsType = visitExpression(be->rhs.get());
 
-			if (lhsType->equals(rhsType))
+			if (!lhsType->equals(rhsType))
 				errors.emplace(std::format("Function '{}': operator '{}': type mismatch: '{}' vs '{}'. line {}, column {}",
 					func->name,
 					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
@@ -367,7 +370,7 @@ namespace tea::frontend::analysis {
 			Type* lhsType = visitExpression(be->lhs.get());
 			Type* rhsType = visitExpression(be->rhs.get());
 
-			if (lhsType->equals(rhsType))
+			if (!lhsType->equals(rhsType))
 				errors.emplace(std::format("Function '{}': operator '{}': type mismatch: '{}' vs '{}'. line {}, column {}",
 					func->name,
 					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
@@ -567,7 +570,7 @@ namespace tea::frontend::analysis {
 			initType = visitExpression(node->initializer.get());
 
 		if (node->type) {
-			if (node->type->equals(initType)) {
+			if (!node->type->equals(initType)) {
 				errors.emplace(std::format(
 					"Function '{}': variable initializer type ({}) doesn't match variable type ({}). line {}, column {}",
 					func->name,

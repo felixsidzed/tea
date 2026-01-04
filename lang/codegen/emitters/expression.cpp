@@ -83,14 +83,15 @@ namespace tea {
 					const tea::string& part = parts[i];
 
 					if (!first)
-						TEA_PANIC("deep scopes are not yet implemented. line %d, column %d", node->line, node->column);
+						TEA_PANIC("deep scopes are not yet available. line %d, column %d", node->line, node->column);
 					else {
 						if (auto* modIt = importedModules.find(std::hash<tea::string>()(part))) {
 							if (i + 1 < parts.size) {
 								const tea::string& next = parts[i + 1];
-								if (auto* it = modIt->find(next))
-									return *it;
-								else
+								if (auto* it = modIt->find(next)) {
+									if (!(*it)->hasAttribute(mir::FunctionAttribute::NoNamespace))
+										return *it;
+								} else
 									TEA_PANIC("'%s' is not a valid member of module '%s'. line %d, column %d", next.data(), part.data(), node->line, node->column);
 							}
 						} else
@@ -110,8 +111,18 @@ namespace tea {
 					mir::Function* f = module->getNamedFunction(literal->value);
 					if (f) {
 						if (!flags.has(EmissionFlags::Callee) && f->hasAttribute(mir::FunctionAttribute::Inline))
-							TEA_PANIC("ur function grew legs and escaped. line %d, column %d", literal->line, literal->column);
+							TEA_PANIC("ur function grew legs and ran away. line %d, column %d", literal->line, literal->column);
 						return f;
+					}
+				}
+
+				// TODO: improve
+				if (hasNoNamespaceFunctions) {
+					for (const auto& [_, module] : importedModules) {
+						for (const auto& [name, func] : module) {
+							if (func->hasAttribute(mir::FunctionAttribute::NoNamespace) && name == literal->value)
+								return func;
+						}
 					}
 				}
 
@@ -509,7 +520,7 @@ namespace tea {
 						self = lhs;
 					if (asRef)
 						*asRef = true;
-					return module->getNamedFunction(std::format("_{}__{}", st->name, method->name).c_str());
+					return module->getNamedFunction(std::format("{}_{}", st->name, method->name).c_str());
 				}
 				i++;
 			}

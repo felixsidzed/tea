@@ -8,13 +8,13 @@ extern "C" {
 #define WIN32_LEAN_AND_MEAN
 	#include <Windows.h>
 
-	int _string__len(const char* str) {
+	int string_len(const char* str) {
 		if (!str)
 			return 0;
 		return lstrlenA(str);
 	}
 
-	char* _string__itoa(int num, char* buffer) {
+	char* string_itoa(int num, char* buffer) {
 		int i = 0;
 		int isNegative = 0;
 
@@ -53,7 +53,7 @@ extern "C" {
 		return buffer;
 	}
 
-	char* _string__sub(char* str, int i, int j) {
+	char* string_sub(char* str, int i, int j) {
 		if (i < 0 || j < 0 || i >= j)
 			return nullptr;
 
@@ -76,7 +76,7 @@ extern "C" {
 		return buffer;
 	}
 
-	bool _string__eq(const char* s1, const char* s2) {
+	bool string_eq(const char* s1, const char* s2) {
 		while (*s1 && *s2) {
 			if (*s1 != *s2)
 				return false;
@@ -85,7 +85,7 @@ extern "C" {
 		return *s1 == *s2;
 	}
 
-	char* _string__cat(int nargs, ...) {
+	char* string_cat(int nargs, ...) {
 		va_list va;
 		int total = 0;
 

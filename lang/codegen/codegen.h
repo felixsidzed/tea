@@ -27,6 +27,10 @@ namespace tea {
 		mir::BasicBlock* contTarget = nullptr;
 		mir::BasicBlock* breakTarget = nullptr;
 
+		bool hasNoNamespaceFunctions : 1;
+
+		const char* curModuleName = nullptr;
+
 	public:
 		struct Options {
 			tea::string triple;

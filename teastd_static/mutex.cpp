@@ -20,32 +20,32 @@ extern "C" {
 		condvar_waiter* waiters;
 	} condvar;
 
-	extern void* _memory__alloc(size_t size);
+	extern void* memory_alloc(size_t size);
 
-	mutex* _mutex__new() {
-		mutex* mtx = (mutex*)_memory__alloc(sizeof(mutex));
+	mutex* mutex_new() {
+		mutex* mtx = (mutex*)memory_alloc(sizeof(mutex));
 		_InterlockedExchange(mtx, 0);
 		return mtx;
 	}
 
-	void _mutex__lock(mutex* mtx) {
+	void mutex_lock(mutex* mtx) {
 		while (_InterlockedCompareExchange(mtx, 1, 0))
 			SwitchToThread();
 	}
 
-	void _mutex__unlock(mutex* mtx) {
+	void mutex_unlock(mutex* mtx) {
 		_InterlockedExchange(mtx, 0);
 	}
 
-	condvar* _mutex__cvnew() {
-		condvar* cv = (condvar*)_memory__alloc(sizeof(condvar));
+	condvar* mutex_cvnew() {
+		condvar* cv = (condvar*)memory_alloc(sizeof(condvar));
 		_InterlockedExchange(&cv->lock, 0);
 		cv->waiters = nullptr;
 		return cv;
 	}
 
-	void _mutex__wait(condvar* cv, mutex* mtx) {
-		condvar_waiter* waiter = (condvar_waiter*)_memory__alloc(sizeof(condvar_waiter));
+	void mutex_wait(condvar* cv, mutex* mtx) {
+		condvar_waiter* waiter = (condvar_waiter*)memory_alloc(sizeof(condvar_waiter));
 		waiter->next = nullptr;
 		waiter->notified = false;
 
@@ -56,15 +56,15 @@ extern "C" {
 		cv->waiters = waiter;
 
 		_InterlockedExchange(&cv->lock, 0);
-		_mutex__unlock(mtx);
+		mutex_unlock(mtx);
 
 		while (!_InterlockedCompareExchange(&waiter->notified, 0, 0))
 			SwitchToThread();
 
-		_mutex__lock(mtx);
+		mutex_lock(mtx);
 	}
 
-	void _mutex__signal(condvar* cv) {
+	void mutex_signal(condvar* cv) {
 		while (_InterlockedCompareExchange(&cv->lock, 1, 0))
 			SwitchToThread();
 
@@ -77,7 +77,7 @@ extern "C" {
 		_InterlockedExchange(&cv->lock, 0);
 	}
 
-	void _mutex__broadcast(condvar* cv) {
+	void mutex_broadcast(condvar* cv) {
 		while (_InterlockedCompareExchange(&cv->lock, 1, 0))
 			SwitchToThread();
 

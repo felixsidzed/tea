@@ -78,8 +78,35 @@ namespace tea {
 				emitObject((const AST::ObjectNode*)node.get());
 				break;
 
+			case AST::NodeKind::RootAttribute: {
+				const AST::RootAttributeNode* ra = (const AST::RootAttributeNode*)node.get();
+				switch (ra->attr) {
+				case AST::RootAttribute::Module:
+					curModuleName = ra->val;
+					break;
+
+				default:
+					TEA_PANIC("unknown root statement %d", node->kind);
+				}
+			} break;
+
 			default:
 				TEA_PANIC("unknown root statement %d", node->kind);
+			}
+		}
+
+		if (curModuleName) {
+			for (const auto& g : module->body) {
+				if (g->kind == mir::ValueKind::Function) {
+					mir::Function* f = (mir::Function*)g.get();
+					if (f->storage != mir::StorageClass::Public)
+						continue;
+
+					if (!f->hasAttribute(mir::FunctionAttribute::NoMangle)) {
+						const char* old = g->name;
+						g->name = module->scope.add(std::format("{}_{}", curModuleName, g->name).c_str());
+					}
+				}
 			}
 		}
 

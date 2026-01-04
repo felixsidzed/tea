@@ -9,20 +9,20 @@ extern "C" {
 	#include <Windows.h>
 	#include <intrin.h>
 
-	void _memory__free(void* buf) {
+	void memory_free(void* buf) {
 		HeapFree(GetProcessHeap(), 0, buf);
 	}
 
-	void* _memory__alloc(size_t size) {
+	void* memory_alloc(size_t size) {
 		return HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, size);
 	}
 
-	void* _memory__realloc(void* ptr, size_t nsize) {
+	void* memory_realloc(void* ptr, size_t nsize) {
 		return HeapReAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, ptr, nsize);
 	}
 
 	// TODO: Not sure how much faster this is
-	void* _memory__copy(char* dest, const char* src, unsigned n) {
+	void* memory_copy(char* dest, const char* src, unsigned n) {
 		char* d = dest;
 
 		while (n && ((uintptr_t)d & 15)) {
@@ -45,7 +45,7 @@ extern "C" {
 		return dest;
 	}
 
-	void* _memory__set(unsigned char* dest, unsigned char src, size_t size) {
+	void* memory_set(unsigned char* dest, unsigned char src, size_t size) {
 		__m128i v16 = _mm_set1_epi8(src);
 
 		while (size && ((uintptr_t)dest & 15)) {
@@ -66,7 +66,7 @@ extern "C" {
 		return dest;
 	}
 
-	int _memory__cmp(const unsigned char* p1, const unsigned char* p2, size_t size) {
+	int memory_cmp(const unsigned char* p1, const unsigned char* p2, size_t size) {
 		while (size && ((uintptr_t)p1 & 15)) {
 			if (*p1 != *p2) return *p1 - *p2;
 			p1++;

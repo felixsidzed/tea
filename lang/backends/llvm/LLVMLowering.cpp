@@ -119,7 +119,7 @@ namespace tea::backend {
 		
 		if (LLVMVerifyModule(M, LLVMReturnStatusAction, &err)) {
 			if (options.DumpLLVMModule) LLVMDumpModule(M);
-			TEA_PANIC("%s", err);
+			TEA_PANIC("Lowering to machine code failed: %s", err);
 		}
 
 		if (options.OptimizationLevel > 0) {
@@ -133,7 +133,7 @@ namespace tea::backend {
 		if (options.DumpLLVMModule) LLVMDumpModule(M);
 
 		if (LLVMTargetMachineEmitToFile(TM, M, options.OutputFile, LLVMObjectFile, &err))
-			TEA_PANIC("%s", err);
+			TEA_PANIC("Lowering to machine code failed: %s", err);
 
 		LLVMDisposeModule(M);
 		LLVMDisposeTargetMachine(TM);

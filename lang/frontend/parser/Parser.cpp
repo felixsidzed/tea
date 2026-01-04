@@ -26,16 +26,21 @@ namespace tea::frontend {
 		return kind == KeywordKind::StdCC || kind == KeywordKind::FastCC || kind == KeywordKind::CCC || kind == KeywordKind::AutoCC;
 	}
 
-	// hashes should be evaluated at compile time, not folded for clarity
+	// hashes should be evaluated at compile time
 
 	static const tea::map<size_t, AST::FunctionAttribute> name2fnAttr = {
 		{std::hash<tea::string>()("inline"), AST::FunctionAttribute::Inline},
+		{std::hash<tea::string>()("nomangle"), AST::FunctionAttribute::NoMangle},
 		{std::hash<tea::string>()("noreturn"), AST::FunctionAttribute::NoReturn},
 		{std::hash<tea::string>()("nonamespace"), AST::FunctionAttribute::NoNamespace}
 	};
 
 	static const tea::map<size_t, AST::GlobalAttribute> name2globalAttr = {
 		{std::hash<tea::string>()("threadlocal"), AST::GlobalAttribute::ThreadLocal}
+	};
+
+	static const tea::map<size_t, AST::RootAttribute> name2rootAttr = {
+		{std::hash<tea::string>()("module"), AST::RootAttribute::Module}
 	};
 
 	AST::Tree Parser::parse() {
@@ -172,7 +177,8 @@ namespace tea::frontend {
 					else
 						TEA_PANIC("'%s' is not a valid attribute. line %d, column %d", attrName.data(), cur->line, cur->column);
 
-					if ((cur + 1)->kind == TokenKind::Comma) {
+					if (cur->kind == TokenKind::Comma) {
+						next();
 						consume(TokenKind::At);
 						continue;
 					}
@@ -209,18 +215,54 @@ namespace tea::frontend {
 						node->extra = globalAttr;
 						tree->emplace(std::move(node));
 
-					} else if (isCC((KeywordKind)cur->extra) || (KeywordKind)cur->extra == KeywordKind::Func) {
+					}
+					else if (isCC((KeywordKind)cur->extra) || (KeywordKind)cur->extra == KeywordKind::Func) {
 						parseFunc(vis, _line, _column);
 						tree->data[tree->size - 1]->extra = fnAttr;
 
-					} else
+					}
+					else
 						unexpected();
 
-				} else if (match(KeywordKind::Import)) {
+				}
+				else if (match(KeywordKind::Import)) {
 					parseFuncImport(_line, _column);
 					tree->data[tree->size - 1]->extra = fnAttr;
 
-				} else unexpected();
+				}
+				else unexpected();
+
+			} else if (cur->kind == TokenKind::Hashtag) {
+				uint32_t _line = cur->line, _column = cur->column;
+				next();
+
+				while (true) {
+					const tea::string& attrName = consume(TokenKind::Identf).text;
+					size_t h = std::hash<tea::string>()(attrName);
+
+					tea::string val;
+					AST::RootAttribute attr;
+
+					if (auto it = name2rootAttr.find(h))
+						attr = *it;
+					else
+						TEA_PANIC("'%s' is not a valid attribute. line %d, column %d", attrName.data(), cur->line, cur->column);
+
+					if (match(TokenKind::Lpar)) {
+						val = consume(TokenKind::String).text;
+						consume(TokenKind::Rpar);
+					}
+
+					tree->emplace(mknode(AST::RootAttributeNode, attr, val));
+
+					if (cur->kind == TokenKind::Comma) {
+						next();
+						consume(TokenKind::Hashtag);
+						continue;
+					}
+					break;
+				}
+
 			} else
 				unexpected();
 		}

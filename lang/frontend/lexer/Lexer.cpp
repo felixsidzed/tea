@@ -153,6 +153,7 @@ namespace tea::frontend {
 				case '~': pushtok(TokenKind::Tilde); break;
 				case '^': pushtok(TokenKind::Bxor); break;
 				case '@': pushtok(TokenKind::At); break;
+				case '#': pushtok(TokenKind::Hashtag); break;
 
 				case '-':
 					if (*(pos + 1) == '>') {
