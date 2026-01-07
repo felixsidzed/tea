@@ -1,12 +1,13 @@
 import func print(string message) -> void;
 import func printf(string fmt, ...) -> void;
 
+import func sizef(string path) -> long;
 import func existsf(string path) -> bool;
-import func readf(string path) -> string; // result is on heap
+import func readf(string path, char* buf, long size) -> bool;
 import func writef(string path, string data, int size) -> bool;
 import func appendf(string path, string data, int size) -> bool;
 
-import func readline() -> string; // result is on heap
+import func readline(char* buf, unsigned int size) -> string; // if buf is nullptr, result is on heap
 
 import func tempdir() -> string; // result is on heap
 import func tempfile() -> string; // result is on heap

@@ -41,7 +41,7 @@ extern "C" {
 		return false;
 	}
 
-	char* io_readf(const char* path) {
+	bool io_readf(const char* path, char* buf, size_t size) {
 		HANDLE file = CreateFileA(
 			path,
 			GENERIC_READ,
@@ -53,60 +53,55 @@ extern "C" {
 		);
 
 		if (file == INVALID_HANDLE_VALUE)
-			return NULL;
-
-		DWORD dwFileSize = GetFileSize(file, NULL);
-		if (dwFileSize == INVALID_FILE_SIZE && GetLastError() != NO_ERROR) {
-			CloseHandle(file);
-			return nullptr; // TODO: throw an exception
-		}
-
-		char* buffer = (char*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, dwFileSize + 1);
-		if (buffer == NULL) {
-			CloseHandle(file);
-			return nullptr; // TODO: throw an exception
-		}
+			return false;
 
 		DWORD read;
-		if (ReadFile(file, buffer, dwFileSize, &read, NULL))
-			buffer[read] = '\0';
-		else {
-			HeapFree(GetProcessHeap(), 0, buffer);
-			buffer = NULL;
+		if (!ReadFile(file, buf, size, &read, NULL)) {
+			CloseHandle(file);
+			return false;
 		}
-
-		CloseHandle(file);
-		return buffer;
+		return true;
 	}
 
-	char* io_readline() {
+	char* io_readline(char* buf, unsigned int size) {
 		HANDLE stdin = GetStdHandle(STD_INPUT_HANDLE);
+		if (stdin == INVALID_HANDLE_VALUE)
+			return nullptr;
 
-		const DWORD CHUNK_SIZE = 128;
-		char* buffer = (char*)HeapAlloc(GetProcessHeap(), 0, CHUNK_SIZE);
-		if (!buffer)
-			return nullptr; // TODO: throw an exception
+		bool heap = false;
+		char* buffer = buf;
+		DWORD capacity = size;
+
+		if (!buffer) {
+			capacity = 32;
+			buffer = (char*)HeapAlloc(GetProcessHeap(), 0, capacity);
+			if (!buffer)
+				return nullptr;
+			heap = true;
+		}
 
 		DWORD len = 0;
-		DWORD capacity = CHUNK_SIZE;
-
 		while (true) {
 			char ch;
 			DWORD read;
-			if (!ReadConsoleA(stdin, &ch, 1, &read, NULL) || read == 0)
+
+			if (!ReadConsoleA(stdin, &ch, 1, &read, nullptr) || !read)
 				break;
 
 			if (ch == '\r') {
-				ReadConsoleA(stdin, &ch, 1, &read, NULL);
+				ReadConsoleA(stdin, &ch, 1, &read, nullptr);
 				break;
 			}
 
 			if (len + 1 >= capacity) {
-				capacity += CHUNK_SIZE;
+				if (!heap)
+					break;
+
+				capacity += 32;
 				char* newBuffer = (char*)HeapReAlloc(GetProcessHeap(), 0, buffer, capacity);
 				if (!newBuffer) {
 					HeapFree(GetProcessHeap(), 0, buffer);
-					return nullptr; // TODO: throw an exception
+					return nullptr;
 				}
 				buffer = newBuffer;
 			}
@@ -390,6 +385,31 @@ extern "C" {
 			return nullptr;
 
 		return result;
+	}
+
+	size_t io_sizef(const char* path) {
+		HANDLE file = CreateFileA(
+			path,
+			GENERIC_READ,
+			0,
+			NULL,
+			OPEN_EXISTING,
+			FILE_ATTRIBUTE_NORMAL,
+			NULL
+		);
+
+		if (file == INVALID_HANDLE_VALUE)
+			return 0;
+
+		DWORD dwFileSizeHigh;
+		DWORD dwFileSize = GetFileSize(file, &dwFileSizeHigh);
+		if (dwFileSize == INVALID_FILE_SIZE && GetLastError() != NO_ERROR) {
+			CloseHandle(file);
+			return 0; // TODO: throw an exception
+		}
+
+		CloseHandle(file);
+		return dwFileSize | ((unsigned long long)dwFileSizeHigh << 32);
 	}
 
 #else

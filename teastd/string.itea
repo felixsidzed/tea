@@ -1,7 +1,7 @@
 import func len(string str) -> int;
 import func eq(string s1, string s2) -> bool;
 
-import func itoa(int num, string buffer) -> string;
+import func itoa(int num, char* buf, long size) -> bool;
 import func cat(int nargs, ...) -> string; // result is on heap
 
 import func sub(string str, int i, int j) -> string; // result is on heap

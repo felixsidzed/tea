@@ -21,7 +21,7 @@ extern "C" {
 		return HeapReAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, ptr, nsize);
 	}
 
-	// TODO: Not sure how much faster this is
+	// TODO: not sure how much faster this is
 	void* memory_copy(char* dest, const char* src, unsigned n) {
 		char* d = dest;
 

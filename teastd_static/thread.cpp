@@ -39,6 +39,10 @@ extern "C" {
 		ExitThread(exitCode);
 	}
 
+	void* thread_self() {
+		return GetCurrentThread();
+	}
+
 	extern "C" {
 		#pragma section(".tls$0", read, write)
 		__declspec(allocate(".tls$0")) char _tls_start;

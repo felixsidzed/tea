@@ -14,43 +14,50 @@ extern "C" {
 		return lstrlenA(str);
 	}
 
-	char* string_itoa(int num, char* buffer) {
+	bool string_itoa(int num, char* buf, size_t size) {
+		if (!buf || !size)
+			return false;
+
 		int i = 0;
-		int isNegative = 0;
+		bool isNegative = 0;
 
 		if (num == 0) {
-			buffer[i++] = '0';
-			buffer[i] = '\0';
-			return buffer;
+			if (size < 2)
+				return false;
+			buf[i++] = '0';
+			buf[i] = '\0';
+			return true;
 		}
 
 		if (num < 0) {
-			isNegative = 1;
+			isNegative = true;
+			if (num == -2147483648)
+				return false;
 			num = -num;
 		}
 
-		while (num != 0) {
-			buffer[i++] = (num % 10) + '0';
+		while (num) {
+			if (i + 1 >= size)
+				return false;
+			buf[i++] = (num % 10) + '0';
 			num /= 10;
 		}
 
 		if (isNegative) {
-			buffer[i++] = '-';
+			if (i + 1 >= size)
+				return false;
+			buf[i++] = '-';
 		}
 
-		buffer[i] = '\0';
+		buf[i] = '\0';
 
-		int start = 0;
-		int end = i - 1;
-		while (start < end) {
-			char temp = buffer[start];
-			buffer[start] = buffer[end];
-			buffer[end] = temp;
-			start++;
-			end--;
+		for (size_t start = 0, end = i - 1; start < end; start++, end--) {
+			char tmp = buf[start];
+			buf[start] = buf[end];
+			buf[end] = tmp;
 		}
 
-		return buffer;
+		return true;
 	}
 
 	char* string_sub(char* str, int i, int j) {
