@@ -1,30 +1,31 @@
 #pragma once
 
+#include "AST.h"
+#include "core/tea.h"
+#include "core/Type.h"
+#include "core/context.h"
 #include "frontend/lexer/Lexer.h"
 
-#include "AST.h"
-#include "common/tea.h"
-#include "common/Type.h"
-
 namespace tea::frontend {
-	
 	class Parser {
-		const Token* cur;
-		const Token* end;
+		tea::Context& ctx;
+
+		uint32_t fsrc = 0;
+		const Token* cur = nullptr;
+		const Token* end = nullptr;
 
 		AST::Tree* tree = nullptr;
 		AST::FunctionNode* func = nullptr;
 		tea::vector<AST::Tree*> treeHistory;
+		tea::vector<std::unique_ptr<AST::AttributeNode>> attrStack;
 
 	public:
-		Parser(const tea::vector<Token>& tokens)
-			: cur(tokens.begin()), end(tokens.end()) {
-		}
+		Parser(tea::Context& ctx) : ctx(ctx) {}
 
-		AST::Tree parse();
+		AST::Tree parse(const tea::vector<Token>& tokens, uint32_t fsrc);
 
 	private:
-		TEA_NORETURN unexpected();
+		void unexpected();
 
 		bool match(TokenKind kind);
 		bool match(KeywordKind kind);
@@ -38,6 +39,7 @@ namespace tea::frontend {
 
 		void parseFuncImport(uint32_t _line, uint32_t _column);
 		void parseFunc(AST::StorageClass vis, uint32_t _line, uint32_t _column);
+		std::unique_ptr<AST::GlobalVariableNode> parseGlobalVariable(AST::StorageClass vis, uint32_t _line, uint32_t _column);
 
 		std::pair<bool, tea::vector<std::pair<Type*, tea::string>>> parseParams();
 

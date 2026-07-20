@@ -3,7 +3,6 @@
 #include <fstream>
 #include <filesystem>
 
-#include "mir/Context.h"
 #include "frontend/parser/Parser.h"
 
 namespace fs = std::filesystem;
@@ -13,7 +12,7 @@ namespace fs = std::filesystem;
 
 #define pushsym(name, type, ...) scope->emplace(name, type, __VA_ARGS__)
 
-namespace tea::frontend::analysis {
+namespace tea::frontend {
 
 	static const char* binExprName[] = {
 		"+", "-", "*", "/",
@@ -25,7 +24,8 @@ namespace tea::frontend::analysis {
 		"&", "|", "^", ">>", "<<"
 	};
 
-	tea::vector<tea::string> SemanticAnalyzer::visit(const AST::Tree& root) {
+	void SemanticAnalyzer::visit(const AST::Tree& root, uint32_t fsrc_) {
+		fsrc = fsrc_;
 		pushscope();
 
 		for (const auto& node : root) {
@@ -37,7 +37,7 @@ namespace tea::frontend::analysis {
 				for (const auto& [ty, _] : func->params)
 					params.emplace(ty);
 
-				Type* ftype = Type::Function(func->returnType, params, func->vararg);
+				Type* ftype = ctx.types.Function(func->returnType, params, func->vararg);
 				pushsym(func->name, ftype, false, true, false, func->vis == AST::StorageClass::Public, true);
 				
 				pushscope();
@@ -60,60 +60,8 @@ namespace tea::frontend::analysis {
 				for (const auto& [ty, _] : fi->params)
 					params.emplace(ty);
 
-				Type* ftype = Type::Function(fi->returnType, params, fi->vararg);
+				Type* ftype = ctx.types.Function(fi->returnType, params, fi->vararg);
 				pushsym(fi->name, ftype, false, true, false, false, true);
-			} break;
-
-			case AST::NodeKind::ModuleImport: {
-				AST::ModuleImportNode* mi = (AST::ModuleImportNode*)node.get();
-				
-				std::string fullModuleName(mi->path + ".itea");
-
-				fs::path path;
-				std::ifstream file;
-				for (const auto& lookup : *importLookup) {
-					path = fs::path(lookup) / fullModuleName;
-					file.open(path);
-					if (file.is_open())
-						goto cont;
-				}
-
-				if (!file.is_open()) {
-					errors.emplace(std::format("Failed to import module '{}': failed to open file", mi->path).c_str());
-					break;
-				}
-
-			cont:
-				const tea::string& moduleName = path.stem().string().c_str();
-
-				try {
-					std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-
-					const auto& tokens = tea::frontend::lex({ content.data(), content.size() });
-					tea::frontend::Parser parser(tokens);
-					tea::frontend::AST::Tree tree = parser.parse();
-
-					for (const auto& node_ : tree) {
-						if (node_->kind == AST::NodeKind::FunctionImport) {
-							AST::FunctionImportNode* fi = (AST::FunctionImportNode*)node_.get();
-
-							tea::vector<Type*> params;
-							for (const auto& [ty, _] : fi->params)
-								params.emplace(ty);
-
-							Type* ftype = Type::Function(fi->returnType, params, fi->vararg);
-							pushsym(fi->hasAttribute(AST::FunctionAttribute::NoNamespace) ? fi->name : moduleName + "::" + fi->name, ftype, false, true, false, true, true);
-						} else
-							errors.emplace(std::format("Module '{}': invalid root statement. line {}, column {}",
-								moduleName,
-								node_->line, node_->column
-							).c_str());
-					}
-
-					file.close();
-				} catch (const std::exception& e) {
-					errors.emplace(std::format("Failed to import module '{}': {}", moduleName, e.what()).c_str());
-				}
 			} break;
 
 			case AST::NodeKind::GlobalVariable: {
@@ -122,10 +70,10 @@ namespace tea::frontend::analysis {
 				Type* initType = visitExpression(gv->initializer.get());
 				if (gv->type) {
 					if (!gv->type->equals(initType))
-						errors.emplace(std::format("Global variable initializer type ({}) doesn't match variable type ({}). line {}, column {}",
-							initType->str(), gv->type->str(),
-							gv->line, gv->column
-						).c_str());
+						ctx.diag.error({ fsrc, gv->line, gv->column }, 3003,
+							"global variable initializer type (%s) doesn't match variable type (%s)",
+							initType->str().data(), gv->type->str().data()
+						);
 				} else
 					gv->type = initType;
 
@@ -138,24 +86,17 @@ namespace tea::frontend::analysis {
 				structMap[obj->type] = obj;
 			} break;
 
-			case AST::NodeKind::RootAttribute:
+			// TODO: actually check this
+			case AST::NodeKind::Attribute:
 				break;
 
 			default:
-				#ifdef _DEBUG
-				fprintf(stderr, "SemanticAnalyzer: unhandled root statement kind %d\n", node->kind);
-				#endif
+				ctx.diag.warn({ fsrc, node->line, node->column }, "unhandled root statement kind %d in SemanticAnalyzer\n", node->kind);
 				break;
 			}
 		}
 
 		popscope();
-
-		{
-			auto copy = errors;
-			errors.clear();
-			return copy;
-		}
 	}
 
 	SemanticAnalyzer::Symbol* SemanticAnalyzer::lookup(const tea::string& name) {
@@ -182,8 +123,10 @@ namespace tea::frontend::analysis {
 		case AST::NodeKind::Return: {
 			Type* returnedType = visitExpression(((AST::ReturnNode*)node)->value.get());
 			if (!func->returnType->equals(returnedType))
-				errors.emplace(std::format("Function '{}': return type mismatch, expected '{}', got '{}'. line {}, column {}",
-					func->name, func->returnType->str(), returnedType->str(), node->line, node->column).c_str());
+				ctx.diag.error({ fsrc, node->line, node->column }, 3003,
+					"return type mismatch, expected '%s', got '%s'",
+					func->returnType->str().data(), returnedType->str().data()
+				);
 		} break;
 
 		case AST::NodeKind::Expression:
@@ -215,21 +158,17 @@ namespace tea::frontend::analysis {
 
 		case AST::NodeKind::LoopInterrupt:
 			if (!inLoop)
-				errors.emplace(std::format("Function '{}': cannot '{}' outside of a loop. line {}, column {}",
-					func->name,
-					node->extra ? "continue" : "break",
-					node->line, node->column
-				).c_str());
+				ctx.diag.error({ fsrc, node->line, node->column }, 3005,
+					"cannot '%s' outside of a loop",
+					node->extra ? "continue" : "break"
+				);
 			break;
 
 		case AST::NodeKind::ForLoop: {
 			AST::ForLoopNode* loop = (AST::ForLoopNode*)node;
-			if (loop->var)
-				visitVariable(loop->var.get());
-			if (loop->pred)
-				visitExpression(loop->pred.get());
-			if (loop->step)
-				visitExpression(loop->step.get());
+			if (loop->var) visitVariable(loop->var.get());
+			if (loop->pred) visitExpression(loop->pred.get());
+			if (loop->step) visitExpression(loop->step.get());
 			visitBlock(loop->body, true);
 		} break;
 
@@ -242,46 +181,30 @@ namespace tea::frontend::analysis {
 	}
 
 	Type* SemanticAnalyzer::visitExpression(AST::ExpressionNode* node, bool isCallee) {
-		Type* type = Type::Void();
+		Type* type = ctx.types.Void();
 		switch (node->getEKind()) {
-		case AST::ExprKind::String:
-			type = Type::String();
-			break;
-
-		case AST::ExprKind::Char:
-			type = Type::Char();
-			break;
-
-		case AST::ExprKind::Int:
-			type = Type::Int();
-			break;
-
-		case AST::ExprKind::Float:
-			type = Type::Float();
-			break;
-
-		case AST::ExprKind::Double:
-			type = Type::Double();
-			break;
+		case AST::ExprKind::Int: type = ctx.types.Int(); break;
+		case AST::ExprKind::Char: type = ctx.types.Char(); break;
+		case AST::ExprKind::Float: type = ctx.types.Float(); break;
+		case AST::ExprKind::String: type = ctx.types.String(); break;
+		case AST::ExprKind::Double: type = ctx.types.Double(); break;
 
 		case AST::ExprKind::Identf: {
 			const tea::string& name = ((AST::LiteralNode*)node)->value;
 			if (name == "true")
-				type = Type::Bool();
+				type = ctx.types.Bool();
 			else if (name == "false")
-				type = Type::Bool();
+				type = ctx.types.Bool();
 			else if (name == "null")
-				type = Type::Pointer(Type::Void());
+				type = ctx.types.Pointer(ctx.types.Void());
 			else {
 				const Symbol* sym = lookup(name);
 				if (sym) {
 					type = sym->type;
 					if (!isCallee && type->kind == TypeKind::Function)
-						type = Type::Pointer(type);
+						type = ctx.types.Pointer(type);
 				} else
-					errors.emplace(std::format("Function '{}': use of undefined symbol '{}'. line {}, column {}",
-						func->name, name, node->line, node->column
-					).c_str());
+					ctx.diag.error({ fsrc, node->line, node->column }, 3005, "use of undefined symbol '%s'", name);
 			}
 		} break;
 
@@ -290,9 +213,10 @@ namespace tea::frontend::analysis {
 			type = visitExpression(call->callee.get(), true);
 
 			if (type->kind != TypeKind::Function)
-				errors.emplace(std::format("Function '{}': cannot call a value of type '{}'. line {}, column {}",
-					func->name, type->str().data(), node->line, node->column
-				).c_str());
+				ctx.diag.error({ fsrc, call->line, call->column }, 3003,
+					"cannot call a value of non-function type '%s'",
+					type->str().data()
+				);
 			else {
 				FunctionType* ftype = (FunctionType*)type;
 				type = ftype->returnType;
@@ -302,12 +226,11 @@ namespace tea::frontend::analysis {
 					nargs++;
 
 				if ((ftype->extra && ftype->params.size > nargs) || (!ftype->extra && ftype->params.size != nargs))
-					errors.emplace(std::format("Function '{}': argument count mismatch. expected{} {}, got {}. line {}, column {}",
-						func->name,
+					ctx.diag.error({ fsrc, node->line, node->column }, 3005,
+						"argument count mismatch, expected%s %u, got %u",
 						ftype->extra ? " atleast" : "",
-						ftype->params.size, nargs,
-						node->line, node->column
-					).c_str());
+						ftype->params.size, nargs
+					);
 				else {
 					Type** pparams = ftype->params.data;
 					uint32_t nargs = ftype->params.size;
@@ -320,9 +243,10 @@ namespace tea::frontend::analysis {
 						Type* paramType = pparams[i];
 
 						if (!argType->equals(paramType))
-							errors.emplace(std::format("Function '{}': argument {}: expected type {}, got {}. line {}, column {}",
-								func->name, i, paramType->str(), argType->str(), node->line, node->column
-							).c_str());
+							ctx.diag.error({ fsrc, node->line, node->column }, 3003,
+								"(argument #%u) expected type %s, got %s",
+								i, paramType->str().data(), argType->str().data()
+							);
 					}
 				}
 			}
@@ -340,19 +264,17 @@ namespace tea::frontend::analysis {
 			Type* rhsType = visitExpression(be->rhs.get());
 
 			if (!lhsType->equals(rhsType))
-				errors.emplace(std::format("Function '{}': operator '{}': type mismatch: '{}' vs '{}'. line {}, column {}",
-					func->name,
-					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
-					lhsType->str(), rhsType->str(),
-					node->line, node->column
-				).c_str());
+				ctx.diag.error({ fsrc, node->line, node->column }, 3003,
+					"type mismatch ('%s' vs '%s') in operator '%s'",
+					lhsType->str().data(), rhsType->str().data(),
+					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add]
+				);
 			else if (!lhsType->isNumeric() && !lhsType->isFloat())
-				errors.emplace(std::format("Function '{}': operator '{}' cannot be applied to non-numeric type '{}'. line {}, column {}",
-					func->name,
+				ctx.diag.error({ fsrc, node->line, node->column }, 3003,
+					"operator '%s' cannot be used with non-numeric type '%s'",
 					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
-					lhsType->str(),
-					node->line, node->column
-				).c_str());
+					lhsType->str().data()
+				);
 			else
 				type = lhsType;
 		} break;
@@ -371,34 +293,32 @@ namespace tea::frontend::analysis {
 			Type* rhsType = visitExpression(be->rhs.get());
 
 			if (!lhsType->equals(rhsType))
-				errors.emplace(std::format("Function '{}': operator '{}': type mismatch: '{}' vs '{}'. line {}, column {}",
-					func->name,
-					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
-					lhsType->str(), rhsType->str(),
-					node->line, node->column
-				).c_str());
+				ctx.diag.error({ fsrc, node->line, node->column }, 3003,
+					"type mismatch ('%s' vs '%s') in operator '%s'",
+					lhsType->str().data(), rhsType->str().data(),
+					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add]
+				);
 			else if (!lhsType->isNumeric())
-				errors.emplace(std::format("Function '{}': operator '{}' cannot be applied to type '{}'. line {}, column {}",
-					func->name,
+				ctx.diag.error({ fsrc, node->line, node->column }, 3003,
+					"operator '%s' cannot be used with non-numeric type '%s'",
 					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
-					lhsType->str(),
-					node->line, node->column
-				).c_str());
+					lhsType->str().data()
+				);
 			else
-				type = Type::Bool();
+				type = ctx.types.Bool();
 		} break;
 
 		case AST::ExprKind::Ref:
-			type = Type::Pointer(visitExpression(((AST::UnaryExprNode*)node)->value.get()));
+			type = ctx.types.Pointer(visitExpression(((AST::UnaryExprNode*)node)->value.get()));
 			break;
 
 		case AST::ExprKind::Deref: {
 			Type* valueType = visitExpression(((AST::UnaryExprNode*)node)->value.get());
 			if (valueType->kind != TypeKind::Pointer)
-				errors.emplace(std::format("Function '{}': cannot dereference non-pointer type '{}'. line {}, column {}",
-					func->name, valueType->str(),
-					node->line, node->column
-				).c_str());
+				ctx.diag.error({ fsrc, node->line, node->column }, 3003,
+					"cannot dereference non-pointer type '%s'",
+					valueType->str().data()
+				);
 			else
 				type = ((PointerType*)valueType)->pointee;
 		} break;
@@ -406,21 +326,20 @@ namespace tea::frontend::analysis {
 		case AST::ExprKind::Not: {
 			Type* valueType = visitExpression(((AST::UnaryExprNode*)node)->value.get());
 			if (!valueType->isNumeric() && !valueType->isFloat() && valueType->kind != TypeKind::Pointer)
-				errors.emplace(std::format("Function '{}': operator '!' cannot be applied to type '{}'. line {}, column {}",
-					func->name, valueType->str(),
-					node->line, node->column
-				).c_str());
-			type = Type::Bool();
+				ctx.diag.error({ fsrc, node->line, node->column }, 3003,
+					"operator '!' cannot be applied to type '%s'",
+					valueType->str().data()
+				);
+			type = ctx.types.Bool();
 		} break;
 
 		case AST::ExprKind::Cast: {
 			Type* rtype = visitExpression(((AST::UnaryExprNode*)node)->value.get());
 			if (node->type->kind == TypeKind::Struct)
-				errors.emplace(std::format("Function '{}': cannot cast '{}' to '{}'. line {}, column {}",
-					func->name,
-					rtype->str(), node->type->str(),
-					node->line, node->column
-				).c_str());
+				ctx.diag.error({ fsrc, node->line, node->column }, 3005,
+					"cannot cast '%s' to '%s'",
+					rtype->str(), node->type->str()
+				);
 			else
 				type = node->type;
 		} break;
@@ -432,16 +351,16 @@ namespace tea::frontend::analysis {
 			Type* rtype = visitExpression(be->rhs.get());
 
 			if (!ltype->isIndexable())
-				errors.emplace(std::format("Function '{}': cannot index a value of type '{}'. line {}, column {}",
-					func->name, ltype->str(),
-					node->line, node->column
-				).c_str());
+				ctx.diag.error({ fsrc, node->line, node->column }, 3003,
+					"cannot index a value of type '%s'",
+					ltype->str().data()
+				);
 
 			if (!rtype->isNumeric())
-				errors.emplace(std::format("Function '{}': array subscript is not an integer. line {}, column {}",
-					func->name, rtype->str(),
-					node->line, node->column
-				).c_str());
+				ctx.diag.error({ fsrc, node->line, node->column }, 3003,
+					"array indicies must be integers",
+					rtype->str().data()
+				);
 
 			type = ltype->getElementType();
 		} break;
@@ -450,7 +369,7 @@ namespace tea::frontend::analysis {
 			AST::ArrayNode* arr = (AST::ArrayNode*)node;
 
 			if (arr->values.empty())
-				errors.emplace(std::format("Function '{}': cannot create an empty array. line {}, column {}", func->name, node->line, node->column).c_str());
+				ctx.diag.error({ fsrc, node->line, node->column }, 3005, "cannot create an empty array");
 			else {
 				Type* elementType = nullptr;
 				for (const auto& val : arr->values) {
@@ -458,13 +377,10 @@ namespace tea::frontend::analysis {
 					if (!elementType)
 						elementType = valType;
 
-					#pragma warning(push)
-					#pragma warning(disable : 28182)
-					if (!valType->equals(elementType))
-						errors.emplace(std::format("Function '{}': array element types do not match. line {}, column {}", func->name, node->line, node->column).c_str());
-					#pragma warning(pop)
+					if (valType && !valType->equals(elementType))
+						ctx.diag.error({ fsrc, node->line, node->column }, 3003, "array element types don't match");
 				}
-				type = Type::Array(elementType, arr->values.size);
+				type = ctx.types.Array(elementType, arr->values.size);
 			}
 		} break;
 
@@ -474,11 +390,10 @@ namespace tea::frontend::analysis {
 			type = visitExpression(assign->lhs.get());
 			Type* rhsType = visitExpression(assign->rhs.get());
 			if (!rhsType->equals(type))
-				errors.emplace(std::format("Function: '{}': assignment type mismatch: '{}' vs '{}'. line {}, column {}",
-					func->name,
-					type->str(), rhsType->str(),
-					node->line, node->column
-				).c_str());
+				ctx.diag.error({ fsrc, node->line, node->column }, 3003,
+					"can't assign a value of type '%s' to '%s'",
+					type->str(), rhsType->str()
+				);
 		} break;
 
 		case AST::ExprKind::Band:
@@ -492,19 +407,17 @@ namespace tea::frontend::analysis {
 			Type* rhsType = visitExpression(be->rhs.get());
 
 			if (!lhsType->equals(rhsType))
-				errors.emplace(std::format("Function '{}': operator '{}': type mismatch: '{}' vs '{}'. line {}, column {}",
-					func->name,
-					bitwiseExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Band],
-					lhsType->str(), rhsType->str(),
-					node->line, node->column
-				).c_str());
+				ctx.diag.error({ fsrc, node->line, node->column }, 3003,
+					"type mismatch ('%s' vs '%s') in operator '%s'",
+					lhsType->str().data(), rhsType->str().data(),
+					bitwiseExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Band]
+				);
 			else if (!lhsType->isNumeric() && !lhsType->isFloat())
-				errors.emplace(std::format("Function '{}': operator '{}' cannot be applied to non-numeric type '{}'. line {}, column {}",
-					func->name,
-					bitwiseExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Band],
-					lhsType->str(),
-					node->line, node->column
-				).c_str());
+				ctx.diag.error({ fsrc, node->line, node->column }, 3003,
+					"operator '%s' cannot be used with non-numeric type '%s'",
+					binExprName[(uint32_t)node->getEKind() - (uint32_t)AST::ExprKind::Add],
+					lhsType->str().data()
+				);
 			else
 				type = lhsType;
 		} break;
@@ -516,10 +429,10 @@ namespace tea::frontend::analysis {
 			const tea::string& name = ((AST::LiteralNode*)be->rhs.get())->value;
 
 			if (ltype->kind != TypeKind::Struct)
-				errors.emplace(std::format("Function '{}': cannot index a value of type '{}'. line {}, column {}",
-					func->name, ltype->str(),
-					node->line, node->column
-				).c_str());
+				ctx.diag.error({ fsrc, node->line, node->column }, 3003,
+					"cannot index a value of type '%s'",
+					ltype->str().data()
+				);
 
 			uint32_t i = 0;
 
@@ -540,7 +453,7 @@ namespace tea::frontend::analysis {
 					for (const auto& [ty, _] : method->params)
 						params.emplace(ty);
 
-					type = Type::Function(method->returnType, params, method->vararg);
+					type = ctx.types.Function(method->returnType, params, method->vararg);
 					isMethodCall = true;
 					node->type = type;
 					return type;
@@ -548,10 +461,10 @@ namespace tea::frontend::analysis {
 				i++;
 			}
 
-			errors.emplace(std::format("Function '{}': '{}' is not a valid member of '{}'. line {}, column {}",
-				func->name, name, ltype->str(),
-				node->line, node->column
-			).c_str());
+			ctx.diag.error({ fsrc, node->line, node->column }, 3006,
+				"'%s' is not a valid member of '%s'",
+				name.data(), ltype->str().data()
+			);
 		} break;
 
 		default:
@@ -571,29 +484,24 @@ namespace tea::frontend::analysis {
 
 		if (node->type) {
 			if (!node->type->equals(initType)) {
-				errors.emplace(std::format(
-					"Function '{}': variable initializer type ({}) doesn't match variable type ({}). line {}, column {}",
-					func->name,
-					initType->str(), node->type->str(),
-					node->line, node->column
-				).c_str());
+				ctx.diag.error({ fsrc, node->line, node->column }, 3003,
+					"variable initializer type (%s) doesn't match variable type (%s)",
+					initType->str().data(), node->type->str().data()
+				);
 			}
 		} else {
 			if (initType)
 				node->type = initType;
 			else {
-				errors.emplace(std::format(
-					"Function '{}': variable '{}' declared without a type or initializer. line {}, column {}",
-					func->name, node->name, node->line, node->column
-				).c_str());
+				ctx.diag.error({ fsrc, node->line, node->column }, 3004,
+					"variable '%s' declared without a type or initializer",
+					node->name.data()
+				);
 				return;
 			}
 		}
 
-		#pragma warning(push)
-		#pragma warning(disable : 6011)
 		pushsym(node->name, node->type, (bool)node->type->constant, false, false, false, node->type != nullptr);
-		#pragma warning(pop)
 	}
 
-} // namespace tea::analysis
+}

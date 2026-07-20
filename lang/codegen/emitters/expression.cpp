@@ -1,7 +1,7 @@
 #include "codegen/codegen.h"
 
-#include "common/map.h"
-#include "common/tea.h"
+#include "core/map.h"
+#include "core/tea.h"
 
 #include "frontend/lexer/Lexer.h"
 
@@ -13,7 +13,7 @@ namespace tea {
 			case TypeKind::Int:
 				pred = builder.icmp(
 					mir::ICmpPredicate::NEQ, pred,
-					mir::ConstantNumber::get(0, module->getSize(pred->type) * 8, pred->type->sign), ""
+					mir::ConstantNumber::get(module.get(), 0, module->getSize(pred->type) * 8, pred->type->sign), ""
 				);
 				break;
 
@@ -21,7 +21,7 @@ namespace tea {
 			case TypeKind::Double:
 				pred = builder.fcmp(
 					mir::FCmpPredicate::ONEQ, pred,
-					mir::ConstantNumber::get<double>(0.0, module->getSize(pred->type) * 8, pred->type->sign), ""
+					mir::ConstantNumber::get<double>(module.get(), 0.0, module->getSize(pred->type) * 8, pred->type->sign), ""
 				);
 				break;
 
@@ -37,7 +37,7 @@ namespace tea {
 		case AST::ExprKind::String: {
 			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
 			if (flags.has(EmissionFlags::Constant)) {
-				mir::ConstantString* str = mir::ConstantString::get(literal->value);
+				mir::ConstantString* str = mir::ConstantString::get(module.get(), literal->value);
 				return module->addGlobal("", str->type, str);
 			} else
 				return builder.globalString(literal->value);
@@ -45,19 +45,19 @@ namespace tea {
 
 		case AST::ExprKind::Char: {
 			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
-			return mir::ConstantNumber::get(literal->value[0], 8);
+			return mir::ConstantNumber::get(module.get(), literal->value[0], 8);
 		}
 
 		case AST::ExprKind::Int: {
 			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
 			uint64_t val = std::stoull(std::string(literal->value.data(), literal->value.length()), nullptr, 0);
-			return mir::ConstantNumber::get(val, 32, node->type->sign);
+			return mir::ConstantNumber::get(module.get(), val, 32, node->type->sign);
 		}
 
 		case AST::ExprKind::Double:
 		case AST::ExprKind::Float: {
 			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
-			return mir::ConstantNumber::get<double>(
+			return mir::ConstantNumber::get<double>(module.get(),
 				std::stod(std::string(literal->value.data(), literal->value.length()), nullptr),
 				node->getEKind() == AST::ExprKind::Float ? 32 : 64,
 				node->type->sign
@@ -67,128 +67,84 @@ namespace tea {
 		case AST::ExprKind::Identf: {
 			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
 
-			if (strchr(literal->value, ':')) {
-				bool first = true;
-				std::string str(literal->value.data(), literal->value.length());
-				tea::vector<tea::string> parts;
+			if (literal->value == "true")
+				return mir::ConstantNumber::get(module.get(), 1, 1);
+			else if (literal->value == "false")
+				return mir::ConstantNumber::get(module.get(), 0, 1);
+			else if (literal->value == "null")
+				return mir::ConstantPointer::get(module.get(), ctx.types.Void(), 0);
 
-				size_t start = 0, pos = 0;
-				while ((pos = str.find("::", start)) != std::string::npos) {
-					parts.emplace(str.data() + start, pos - start);
-					start = pos + 2;
+			{
+				mir::Function* f = module->getNamedFunction(literal->value);
+				if (f) {
+					if (!flags.has(EmissionFlags::Callee) && f->hasAttribute(mir::FunctionAttribute::Inline))
+						ctx.diag.fatal({ fsrc, literal->line, literal->column }, 4002, "inlined functions may only be called");
+					return f;
 				}
-				parts.emplace(str.data() + start, str.length() - start);
+			}
 
-				for (uint32_t i = 0; i < parts.size; i++) {
-					const tea::string& part = parts[i];
+			if (flags.has(EmissionFlags::Constant))
+				ctx.diag.fatal({ fsrc, literal->line, literal->column }, 4003, "value is not a constant expression");
 
-					if (!first)
-						TEA_PANIC("deep scopes are not yet available. line %d, column %d", node->line, node->column);
-					else {
-						if (auto* modIt = importedModules.find(std::hash<tea::string>()(part))) {
-							if (i + 1 < parts.size) {
-								const tea::string& next = parts[i + 1];
-								if (auto* it = modIt->find(next)) {
-									if (!(*it)->hasAttribute(mir::FunctionAttribute::NoNamespace))
-										return *it;
-								} else
-									TEA_PANIC("'%s' is not a valid member of module '%s'. line %d, column %d", next.data(), part.data(), node->line, node->column);
-							}
+			{
+				mir::Global* g = module->getNamedGlobal(literal->value);
+				if (g) {
+					if (asRef) {
+						*asRef = true;
+						return g;
+					} else {
+						mir::Value* value = nullptr;
+						if (g->type->kind == TypeKind::Array) {
+							mir::ConstantNumber* zero = mir::ConstantNumber::get(module.get(), 0, 32);
+							mir::Value* idx[] = { zero, zero };
+							value = builder.gep(g, idx, 2, "");
 						} else
-							TEA_PANIC("'%s' does not reference a valid scope. line %d, column %d", part.data(), node->line, node->column);
-						first = false;
+							value = builder.load(g, "");
+
+						return value;
 					}
 				}
-			} else {
-				if (literal->value == "true")
-					return mir::ConstantNumber::get(1, 1);
-				else if (literal->value == "false")
-					return mir::ConstantNumber::get(0, 1);
-				else if (literal->value == "null")
-					return mir::ConstantPointer::get(Type::Void(), 0);
-
-				{
-					mir::Function* f = module->getNamedFunction(literal->value);
-					if (f) {
-						if (!flags.has(EmissionFlags::Callee) && f->hasAttribute(mir::FunctionAttribute::Inline))
-							TEA_PANIC("ur function grew legs and ran away. line %d, column %d", literal->line, literal->column);
-						return f;
-					}
-				}
-
-				// TODO: improve
-				if (hasNoNamespaceFunctions) {
-					for (const auto& [_, module] : importedModules) {
-						for (const auto& [name, func] : module) {
-							if (func->hasAttribute(mir::FunctionAttribute::NoNamespace) && name == literal->value)
-								return func;
-						}
-					}
-				}
-
-				if (flags.has(EmissionFlags::Constant))
-					TEA_PANIC("value is not a constant expression. line %d, column %d", literal->line, literal->column);
-
-				{
-					mir::Global* g = module->getNamedGlobal(literal->value);
-					if (g) {
+			} if (curParams) {
+				uint32_t i = 0;
+				for (const auto& [_, name] : *curParams) {
+					if (literal->value == name) {
+						mir::Value* val = builder.block->parent->getParam(i);
 						if (asRef) {
 							*asRef = true;
-							return g;
-						} else {
-							mir::Value* value = nullptr;
-							if (g->type->kind == TypeKind::Array) {
-								mir::ConstantNumber* zero = mir::ConstantNumber::get(0, 32);
+							mir::Value* ref = builder.alloca_(val->type, "");
+							builder.store(ref, val);
+							return ref;
+						}
+						return val;
+					}
+					i++;
+				}
+			} {
+				if (auto* it = locals.find(literal->value)) {
+					if (asRef) {
+						*asRef = true;
+						return it->allocated;
+					} else {
+						if (!it->loaded) {
+							if (it->allocated->type->getElementType()->kind == TypeKind::Array) {
+								mir::ConstantNumber* zero = mir::ConstantNumber::get(module.get(), 0, 32);
 								mir::Value* idx[] = { zero, zero };
-								value = builder.gep(g, idx, 2, "");
+								it->loaded = builder.gep(it->allocated, idx, 2, "");
 							} else
-								value = builder.load(g, "");
+								it->loaded = builder.load(it->allocated, literal->value.data());
 
-							return value;
 						}
-					}
-				} if (curParams) {
-					uint32_t i = 0;
-					for (const auto& [_, name] : *curParams) {
-						if (literal->value == name) {
-							mir::Value* val = builder.getInsertBlock()->parent->getParam(i);
-							if (asRef) {
-								*asRef = true;
-								mir::Value* ref = builder.alloca_(val->type, "");
-								builder.store(ref, val);
-								return ref;
-							}
-							return val;
-						}
-						i++;
-					}
-				} {
-					if (auto* it = locals.find(std::hash<tea::string>()(literal->value))) {
-						if (asRef) {
-							*asRef = true;
-							return it->allocated;
-						} else {
-							if (!it->loaded) {
-								if (it->allocated->type->getElementType()->kind == TypeKind::Array) {
-									mir::ConstantNumber* zero = mir::ConstantNumber::get(0, 32);
-									mir::Value* idx[] = { zero, zero };
-									it->loaded = builder.gep(it->allocated, idx, 2, "");
-								} else
-									it->loaded = builder.load(it->allocated, literal->value.data());
-
-							}
-							return it->loaded;
-						}
+						return it->loaded;
 					}
 				}
 			}
 
-			TEA_PANIC("use of undefined symbol '%s'. line %d, column %d", literal->value.data(), literal->line, literal->column);
+			ctx.diag.fatal({ fsrc, literal->line, literal->column }, 4004, "use of undefined symbol '%s'", literal->value.data());
 		} break;
 
 		case AST::ExprKind::Call: {
 			if (flags.has(EmissionFlags::Constant))
-				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
+				ctx.diag.fatal({ fsrc, node->line, node->column }, 4003, "value is not a constant expression");
 
 			const AST::CallNode* call = (const AST::CallNode*)node;
 			mir::Value* callee = emitExpression(call->callee.get(), EmissionFlags::Callee);
@@ -206,7 +162,7 @@ namespace tea {
 			// TODO: improve
 			if (callee->kind == mir::ValueKind::Function && ((mir::Function*)callee)->hasAttribute(mir::FunctionAttribute::Inline)) {
 				mir::Function* func = (mir::Function*)callee;
-				mir::Function* curFunc = builder.getInsertBlock()->parent;
+				mir::Function* curFunc = builder.block->parent;
 
 				mir::Value* retVal = nullptr;
 				tea::map<const mir::Value*, mir::Value*> valueMap;
@@ -264,7 +220,8 @@ namespace tea {
 					case mir::OpCode::Ret: {
 						if (!term->operands.empty()) {
 							// the hope is that if the return value isnt mapped then its a global/constant
-							if (auto* it = valueMap.find(term->operands[0])) retVal = *it;
+							if (auto* it = valueMap.find(term->operands[0]))
+								retVal = *it;
 							else retVal = term->operands[0];
 						}
 
@@ -297,7 +254,7 @@ namespace tea {
 			mir::Value* rhs = emitExpression(be->rhs.get());
 
 			if (flags.has(EmissionFlags::Constant) && (lhs->kind != mir::ValueKind::Constant || rhs->kind != mir::ValueKind::Constant))
-				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
+				ctx.diag.fatal({ fsrc, node->line, node->column }, 4003, "value is not a constant expression");
 
 			switch (node->getEKind()) {
 			case AST::ExprKind::Add:
@@ -325,7 +282,7 @@ namespace tea {
 			mir::Value* rhs = emitExpression(be->rhs.get());
 
 			if (flags.has(EmissionFlags::Constant) && (lhs->kind != mir::ValueKind::Constant || rhs->kind != mir::ValueKind::Constant))
-				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
+				ctx.diag.fatal({ fsrc, node->line, node->column }, 4003, "value is not a constant expression");
 
 			if (lhs->type->isFloat() || rhs->type->isFloat()) {
 				mir::FCmpPredicate pred;
@@ -358,7 +315,7 @@ namespace tea {
 			bool isRef = false;
 			mir::Value* ref = emitExpression(((AST::UnaryExprNode*)node)->value.get(), EmissionFlags::None, &isRef);
 			if (!isRef)
-				TEA_PANIC("cannot reference value. line %d, column %d", node->line, node->column);
+				ctx.diag.fatal({ fsrc, node->line, node->column }, 4002, "cannot reference value");
 
 			return ref;
 		} break;
@@ -389,7 +346,7 @@ namespace tea {
 		case AST::ExprKind::Cast: {
 			mir::Value* val = emitExpression(((AST::UnaryExprNode*)node)->value.get());
 			if (flags.has(EmissionFlags::Constant) && val->kind != mir::ValueKind::Constant)
-				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
+				ctx.diag.fatal({ fsrc, node->line, node->column }, 4003, "value is not a constant expression");
 			return builder.cast(val, node->type, "");
 		} break;
 
@@ -425,7 +382,7 @@ namespace tea {
 			for (const auto& val : arr->values)
 				values.emplace(emitExpression(val.get()));
 
-			return mir::ConstantArray::get(arr->type->getElementType(), values.data, values.size);
+			return mir::ConstantArray::get(module.get(), arr->type->getElementType(), values.data, values.size);
 		} break;
 
 		case AST::ExprKind::Assignment: {
@@ -436,8 +393,7 @@ namespace tea {
 			mir::Value* rhs = emitExpression(assign->rhs.get());
 
 			if (!isRef || lhs->type->constant)
-				TEA_PANIC("cannot assign to a value of type '%s'. line %d, column %d",
-					lhs->type->str().data(), node->line, node->column);
+				ctx.diag.fatal({ fsrc, node->line, node->column }, 4005, "cannot assign to a value of type '%s'", lhs->type->str().data());
 
 			if (assign->extraOp != 0) {
 				mir::Value* cur = builder.load(lhs, "");
@@ -447,7 +403,7 @@ namespace tea {
 				case TokenKind::Div: rhs = builder.arithm(mir::OpCode::Div, cur, rhs, ""); break;
 				case TokenKind::Star: rhs = builder.arithm(mir::OpCode::Mul, cur, rhs, ""); break;
 				default:
-					TEA_PANIC("invalid extra operator in assignment. line %d, column %d", node->line, node->column);
+					ctx.diag.fatal({ fsrc, node->line, node->column }, 4005, "invalid compound operator in assigment");
 				}
 			}
 
@@ -466,34 +422,28 @@ namespace tea {
 			mir::Value* rhs = emitExpression(be->rhs.get());
 
 			if (flags.has(EmissionFlags::Constant) && (lhs->kind != mir::ValueKind::Constant || rhs->kind != mir::ValueKind::Constant))
-				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
+				ctx.diag.fatal({ fsrc, node->line, node->column }, 4003, "value is not a constant expression");
 
 			switch (node->getEKind()) {
-			case AST::ExprKind::Band:
-				return builder.binop(mir::OpCode::And, lhs, rhs, "");
-			case AST::ExprKind::Bor:
-				return builder.binop(mir::OpCode::Or, lhs, rhs, "");
-			case AST::ExprKind::Bxor:
-				return builder.binop(mir::OpCode::Xor, lhs, rhs, "");
-			case AST::ExprKind::Shl:
-				return builder.binop(mir::OpCode::Shl, lhs, rhs, "");
-			case AST::ExprKind::Shr:
-				return builder.binop(mir::OpCode::Shr, lhs, rhs, "");
-			default:
-				break;
+			case AST::ExprKind::Band: return builder.binop(mir::OpCode::And, lhs, rhs, "");
+			case AST::ExprKind::Bor: return builder.binop(mir::OpCode::Or, lhs, rhs, "");
+			case AST::ExprKind::Bxor: return builder.binop(mir::OpCode::Xor, lhs, rhs, "");
+			case AST::ExprKind::Shl: return builder.binop(mir::OpCode::Shl, lhs, rhs, "");
+			case AST::ExprKind::Shr: return builder.binop(mir::OpCode::Shr, lhs, rhs, "");
+			default: break;
 			}
 		} break;
 
 		case AST::ExprKind::FieldIndex: {
 			if (flags.has(EmissionFlags::Constant))
-				TEA_PANIC("value is not a constant expression. line %d, column %d", node->line, node->column);
+				ctx.diag.fatal({ fsrc, node->line, node->column }, 4003, "value is not a constant expression");
 
 			const AST::BinaryExprNode* be = (const AST::BinaryExprNode*)node;
 
 			bool isRef = false;
 			mir::Value* lhs = emitExpression(be->lhs.get(), EmissionFlags::None, &isRef);
 			if (!isRef)
-				TEA_PANIC("cannot index a value of type '%s'. line %d, column %d", lhs->type->str(), be->line, be->column);
+				ctx.diag.fatal({ fsrc, be->line, be->column }, 2002, "cannot index a value of type '%s'", lhs->type->str());
 
 			const tea::string& name = ((const AST::LiteralNode*)be->rhs.get())->value;
 
@@ -503,7 +453,7 @@ namespace tea {
 			const AST::ObjectNode* obj = *structMap.find(st);
 			for (const auto& field : obj->fields) {
 				if (field->name == name) {
-					mir::Value* val = builder.gep(lhs, mir::ConstantNumber::get(i, 32), "");
+					mir::Value* val = builder.gep(lhs, mir::ConstantNumber::get(module.get(), i, 32), "");
 					if (asRef) {
 						*asRef = true;
 						return val;
@@ -527,7 +477,7 @@ namespace tea {
 		} break;
 
 		default:
-			TEA_PANIC("unknown expression kind %d", node->getEKind());
+			ctx.diag.fatal({ fsrc, node->line, node->column }, 4002, "unknown expression %d", node->extra);
 			TEA_UNREACHABLE();
 		}
 

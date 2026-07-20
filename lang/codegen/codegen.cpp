@@ -1,16 +1,17 @@
 #include "codegen.h"
 
-#include "common/tea.h"
+#include "core/tea.h"
 
 namespace tea {
 
 	using namespace frontend;
 
-	std::unique_ptr<mir::Module> CodeGen::emit(const AST::Tree& tree, const Options& options) {
-		if (module || builder.getInsertBlock())
-			TEA_PANIC("cannot generate MIR in this state");
+	std::unique_ptr<mir::Module> CodeGen::emit(uint32_t fsrc_, const AST::Tree& tree, const Options& options) {
+		if (module || builder.block)
+			ctx.diag.fatal(TEA_NO_SOURCELOC, 4000, "code generation attempted to invoke itself recursively");
+		fsrc = fsrc_;
 
-		module = std::make_unique<mir::Module>("[module]");
+		module = std::make_unique<mir::Module>(ctx, "[module]");
 		module->triple = options.triple;
 		module->dl = options.dl;
 
@@ -23,14 +24,14 @@ namespace tea {
 				for (const auto& [ty, _] : func->params)
 					params.emplace(ty);
 
-				FunctionType* ftype = Type::Function(func->returnType, params, func->vararg);
+				FunctionType* ftype = ctx.types.Function(func->returnType, params, func->vararg);
 
 				mir::Function* f = module->addFunction(func->name, ftype);
 				f->subclassData = func->extra;
 				f->storage = func->vis;
 				f->cc = func->cc;
 
-				builder.insertInto(f->appendBlock("entry"));
+				builder.block = f->appendBlock("entry");
 				curParams = &func->params;
 
 				for (const auto& var : func->variables)
@@ -38,9 +39,9 @@ namespace tea {
 
 				emitBlock(&func->body);
 
-				if (!builder.getInsertBlock()->getTerminator()) {
+				if (!builder.block->getTerminator()) {
 					if (func->returnType->kind != TypeKind::Void)
-						TEA_PANIC("control reaches end of non-void function '%s'. line %d, column %d", func->name.data(), func->line, func->column);
+						ctx.diag.fatal({ fsrc, func->line, func->column }, 4001, "control reaches end of non-void function '%s'", func->name.data());
 					else {
 						if (func->hasAttribute(AST::FunctionAttribute::NoReturn)) builder.unreachable();
 						else builder.ret(nullptr);
@@ -48,15 +49,11 @@ namespace tea {
 				}
 
 				curParams = nullptr;
-				builder.insertInto(nullptr);
+				builder.block = nullptr;
 			} break;
 
 			case AST::NodeKind::FunctionImport:
 				emitFunctionImport((const AST::FunctionImportNode*)node.get());
-				break;
-
-			case AST::NodeKind::ModuleImport:
-				emitModuleImport((const AST::ModuleImportNode*)node.get());
 				break;
 
 			case AST::NodeKind::GlobalVariable: {
@@ -78,20 +75,30 @@ namespace tea {
 				emitObject((const AST::ObjectNode*)node.get());
 				break;
 
-			case AST::NodeKind::RootAttribute: {
-				const AST::RootAttributeNode* ra = (const AST::RootAttributeNode*)node.get();
-				switch (ra->attr) {
-				case AST::RootAttribute::Module:
-					curModuleName = ra->val;
+			case AST::NodeKind::Attribute: {
+				const AST::AttributeNode* attr = (const AST::AttributeNode*)node.get();
+				switch ((AST::GlobalAttribute)attr->extra) {
+				case AST::GlobalAttribute::Module:
+					if (attr->params.size != 1) {
+						ctx.diag.fatal({ fsrc, node->line, node->column }, 2003, "too much or not enough parameters in @!module attribute");
+						break;
+					}
+
+					if (attr->params[0]->getEKind() != AST::ExprKind::String) {
+						ctx.diag.fatal({ fsrc, node->line, node->column }, 2003, "the first parameter must be a constant string");
+						break;
+					}
+
+					curModuleName = ((AST::LiteralNode*)attr->params[0].get())->value.data();
 					break;
 
 				default:
-					TEA_PANIC("unknown root statement %d", node->kind);
+					ctx.diag.fatal({ fsrc, node->line, node->column }, 4002, "unknown root statement %d", node->kind);
 				}
 			} break;
 
 			default:
-				TEA_PANIC("unknown root statement %d", node->kind);
+				ctx.diag.fatal({ fsrc, node->line, node->column }, 4002, "unknown root statement %d", node->kind);
 			}
 		}
 
@@ -99,18 +106,16 @@ namespace tea {
 			for (const auto& g : module->body) {
 				if (g->kind == mir::ValueKind::Function) {
 					mir::Function* f = (mir::Function*)g.get();
-					if (f->storage != mir::StorageClass::Public)
+					if (f->storage != mir::StorageClass::Public || f->linkName)
 						continue;
 
-					if (!f->hasAttribute(mir::FunctionAttribute::NoMangle)) {
-						const char* old = g->name;
-						g->name = module->scope.add(std::format("{}_{}", curModuleName, g->name).c_str());
-					}
+					// pmo
+					f->linkName = module->scope.add(std::format("{}_{}", curModuleName, f->name).c_str());
 				}
 			}
 		}
 
-		builder.insertInto(nullptr);
+		builder.block = nullptr;
 		return std::move(module);
 	}
 

@@ -2,7 +2,7 @@
 
 #include <fstream>
 
-#include "common/tea.h"
+#include "core/tea.h"
 #include "mir/dump/dump.h"
 
 #include "Bytecode.h"
@@ -22,12 +22,37 @@ namespace tea::backend {
 		} while (value);
 	}
 
-	static uint32_t strhash(const char* name) {
-		uint32_t len = (uint32_t)strlen(name);
+	// luaS_hash
+	static uint32_t strhash(const char* str) {
+		uint32_t len = (uint32_t)strlen(str);
+		uint32_t a = 0, b = 0;
 		uint32_t h = len;
 
-		for (size_t i = len; i > 0; i--)
-			h ^= (h << 5) + (h >> 2) + (uint8_t)name[i - 1];
+		// hash prefix in 12b chunks (using aligned reads) with ARX based hash (LuaJIT v2.1, lookup3)
+		// note that we stop at length<32 to maintain compatibility with Lua 5.1
+		while (len >= 32) {
+			#define rol(x, s) ((x >> s) | (x << (32 - s)))
+			#define mix(u, v, w) a ^= h, a -= rol(h, u), b ^= a, b -= rol(a, v), h ^= b, h -= rol(b, w)
+
+			// should compile into fast unaligned reads
+			uint32_t block[3];
+			memcpy(block, str, 12);
+
+			a += block[0];
+			b += block[1];
+			h += block[2];
+			mix(14, 11, 25);
+			str += 12;
+			len -= 12;
+
+			#undef mix
+			#undef rol
+		}
+
+		// original Lua 5.1 hash for compatibility (exact match when len<32)
+		for (size_t i = len; i > 0; --i)
+			h ^= (h << 5) + (h >> 2) + (uint8_t)str[i - 1];
+
 		return h;
 	}
 
@@ -141,10 +166,10 @@ namespace tea::backend {
 			} TEA_FALLTHROUGH;
 
 			default:
-				fputs("unable to lower value:\n  ", stderr);
 				tea::mir::dump(value.get());
 				putchar('\n');
-				TEA_PANIC("");
+				fflush(stdout);
+				ctx.diag.fatal(TEA_NO_SOURCELOC, 5000, "failed to lower value");
 				TEA_UNREACHABLE();
 			}
 		}
@@ -202,11 +227,12 @@ namespace tea::backend {
 
 		writeVarInt(M, 0);
 
-		if (options.DumpBytecode) dump(M.data, M.size);
+		if (options.dumpModule) dump(M.data, M.size);
 
-		std::ofstream stream(options.OutputFile, std::ios::binary);
-		stream.write((char*)M.data, M.size);
-		stream.close();
+		FILE* of;
+		fopen_s(&of, options.outfile, "wb");
+		fwrite(M.data, sizeof(uint8_t), M.size, of);
+		fclose(of);
 		M.clear();
 	}
 
@@ -241,8 +267,8 @@ namespace tea::backend {
 
 		nextReg = 0;
 		jmpReloc.clear();
-		valueMap.data.clear();
-		blockLabels.data.clear();
+		valueMap.clear();
+		blockLabels.clear();
 	}
 
 	void LuauLowering::lowerBlock(const mir::BasicBlock* block) {
@@ -257,13 +283,18 @@ namespace tea::backend {
 			valueMap[insn.result.get()] = dest;
 		}
 
+		uint8_t rscratch = nextReg;
+
 		switch (insn.op) {
 		case mir::OpCode::Add:
 		case mir::OpCode::Sub:
 		case mir::OpCode::Mul:
 		case mir::OpCode::Div:
 		case mir::OpCode::Mod:
-			proto->emitABC((LuauOpcode)((uint32_t)LOP_ADD + (uint32_t)insn.op), dest, lowerValue(insn.operands[0], nextReg++), lowerValue(insn.operands[1], nextReg++));
+			proto->emitABC(
+				(LuauOpcode)((uint32_t)LOP_ADD + (uint32_t)insn.op), dest,
+				lowerValue(insn.operands[0], nextReg++), lowerValue(insn.operands[1], nextReg++)
+			);
 			break;
 
 		case mir::OpCode::And:
@@ -284,7 +315,7 @@ namespace tea::backend {
 			proto->emitAux((proto->addString("bit32")) | (proto->addString("bxor") << 10) | (2 << 30));
 
 			lowerValue(insn.operands[0], funcReg + 1);
-			lowerValue(insn.operands[0], funcReg + 2);
+			lowerValue(insn.operands[1], funcReg + 2);
 
 			proto->emitABC(LOP_CALL, funcReg, 3, 2);
 			proto->emitABC(LOP_MOVE, dest, funcReg, 0);
@@ -300,7 +331,7 @@ namespace tea::backend {
 			proto->emitAux((proto->addString("bit32")) | (proto->addString(name) << 10) | (2 << 30));
 
 			lowerValue(insn.operands[0], funcReg + 1);
-			lowerValue(insn.operands[0], funcReg + 2);
+			lowerValue(insn.operands[1], funcReg + 2);
 
 			proto->emitABC(LOP_CALL, funcReg, 3, 2);
 			proto->emitABC(LOP_MOVE, dest, funcReg, 0);
@@ -468,9 +499,10 @@ namespace tea::backend {
 
 		case mir::OpCode::Call: {
 			uint8_t callee = lowerValue(insn.operands[0], nextReg++);
+			nextReg += (uint8_t)(insn.operands.size - 1);
 
 			for (uint32_t i = 1; i < insn.operands.size; i++)
-				proto->emitABC(LOP_MOVE, callee + i, lowerValue(insn.operands[i], callee + i), 0);
+				lowerValue(insn.operands[i], callee + i);
 
 			proto->emitABC(LOP_CALL, callee, insn.operands.size, insn.result ? 2 : 1);
 			if (insn.result)
@@ -482,12 +514,15 @@ namespace tea::backend {
 			break;
 
 		case mir::OpCode::Unreachable:
-			proto->emitABC(LOP_RETURN, 0, 1, 0);
+			proto->emitABC(LOP_BREAK, 0, 0, 0);
 			break;
 
 		default:
 			break;
 		}
+
+		proto->maxstacksize = max(proto->maxstacksize, nextReg);
+		nextReg = rscratch;
 	}
 
 	uint8_t LuauLowering::lowerValue(const mir::Value* val, uint8_t dest) {
@@ -556,10 +591,10 @@ namespace tea::backend {
 
 		default:
 		unable:
-			fputs("unable to lower value:\n  ", stderr);
 			tea::mir::dump(val);
 			putchar('\n');
-			TEA_PANIC("");
+			fflush(stdout);
+			ctx.diag.fatal(TEA_NO_SOURCELOC, 5000, "failed to lower value");
 			TEA_UNREACHABLE();
 		}
 		TEA_UNREACHABLE();

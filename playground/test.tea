@@ -1,8 +1,6 @@
 using "io";
 
-@noreturn
-import __auto func sys_exit() -> int;
-
-public func main(string argv, unsigned int argc) -> int
+public func main(string argv, int argc) -> int
+	io::print("Hello, World!");
 	return 0;
 end

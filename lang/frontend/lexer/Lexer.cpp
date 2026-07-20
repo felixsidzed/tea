@@ -1,23 +1,25 @@
 #include "Lexer.h"
 
-#include "common/tea.h"
+#include <format>
 
-#define pushtokex(t, v, l, e) tokens.emplace((t), (e), tea::string((v), (l)), line, col )
+#include "core/tea.h"
+#include "core/context.h"
+
+#define pushtokex(t, v, l, e) tokens.emplace((t), (e), tea::string((v), (l)), line, startCol)
 #define pushtokv(t, v) pushtokex(t, v, pos - (v), 0)
 #define pushtok(t) pushtokex(t, pos, 1, 0)
 
 static const char* keywords[] = {
 	"public", "private",
 	"using", "import",
-	//"macro",
 	"if", "else", "elseif", "do", "while", "for", "break", "continue",
 	"func", "return", "end",
 	"var",
 	"__stdcall", "__fastcall", "__cdecl", "__auto",
-	"class"//, "new",
+	"class"
 };
 
-static bool isKeyword(const char* word, unsigned int len, int* idx) {
+static bool isKeyword(const char* word, uint32_t len, int* idx) {
 	for (int i = 0; i < _countof(keywords); i++)
 		if (strlen(keywords[i]) == len && !strncmp(word, keywords[i], len)) {
 			*idx = i;
@@ -72,18 +74,22 @@ static char unescape(const char*& p) {
 
 namespace tea::frontend {
 
-	tea::vector<Token> lex(const tea::string& src) {
+	tea::vector<Token> lex(tea::Context& ctx, uint32_t fsrc) {
+		const tea::string& src = ctx.sources.contentsof(fsrc);
+
 		tea::vector<Token> tokens;
 		if (src.empty()) {
 			tokens.emplace(TokenKind::EndOfFile, 0, "", 0, 0);
 			return tokens;
 		}
 
-		const char* pos = src.data();
-		uint32_t line = 1;
 		uint32_t col = 1;
+		uint32_t startCol;
+		uint32_t line = 1;
+		const char* pos = src.data();
 
 		while (*pos > 0) {
+			startCol = col;
 			char c = *pos;
 			if (isspace(c)) {
 				if (c == '\n')
@@ -153,13 +159,13 @@ namespace tea::frontend {
 				case '~': pushtok(TokenKind::Tilde); break;
 				case '^': pushtok(TokenKind::Bxor); break;
 				case '@': pushtok(TokenKind::At); break;
-				case '#': pushtok(TokenKind::Hashtag); break;
 
 				case '-':
 					if (*(pos + 1) == '>') {
 						pushtokex(TokenKind::Arrow, pos, 2, 0);
 						pos++, col++;
-					} else pushtok(TokenKind::Sub);
+					}
+					else pushtok(TokenKind::Sub);
 					break;
 
 				case '/':
@@ -175,7 +181,8 @@ namespace tea::frontend {
 					if (*(pos + 1) == '=') {
 						pushtokex(TokenKind::Eq, pos, 2, 0);
 						pos++, col++;
-					} else pushtok(TokenKind::Assign);
+					}
+					else pushtok(TokenKind::Assign);
 					break;
 
 				case '!':
@@ -239,7 +246,7 @@ namespace tea::frontend {
 					std::string buffer;
 					while (*pos != '"') {
 						if (!*pos)
-							TEA_PANIC("unterminated string. line %d, column %d", line, col);
+							ctx.diag.error({ fsrc, line, startCol }, 1000, "unterminated string");
 						if (*pos == '\\')
 							buffer += unescape(pos);
 						else
@@ -249,26 +256,26 @@ namespace tea::frontend {
 						else
 							col++;
 					}
-					tokens.push(Token(TokenKind::String, 0, tea::string(buffer.c_str(), buffer.size()), line, col));
+					tokens.emplace(TokenKind::String, 0, tea::string(buffer.c_str(), buffer.size()), line, startCol);
 				} break;
 
 				case '\'': {
 					const char* start = ++pos;
 					char value = 0;
 					if (!*pos)
-						TEA_PANIC("unterminated char. line %d, column %d", line, col);
+						ctx.diag.error({ fsrc, line, startCol }, 1000, "unterminated char");
 					if (*pos == '\\')
 						value = unescape(pos);
 					else
 						value = *pos;
 					pos++; col++;
 					if (*pos != '\'')
-						TEA_PANIC("bad char literal. line %d, column %d", line, col);
-					tokens.push(Token(TokenKind::Char, 0, tea::string(&value, 1), line, col));
+						ctx.diag.error({ fsrc, line, startCol }, 1001, "bad char literal");
+					tokens.emplace(TokenKind::Char, 0, tea::string(&value, 1), line, startCol);
 				} break;
 
 				default:
-					TEA_PANIC("unexpected character '%c'. line %d, column %d", *pos, line, col);
+					ctx.diag.error({ fsrc, startCol, line }, 1001, "unexpected character '%c'", *pos);
 					TEA_UNREACHABLE();
 				}
 			}
@@ -280,4 +287,4 @@ namespace tea::frontend {
 		return tokens;
 	}
 
-} // namespace tea::frontend
+}

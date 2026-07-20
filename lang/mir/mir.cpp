@@ -23,7 +23,7 @@ namespace tea::mir {
 	}
 
 	Global* Module::addGlobal(const tea::string& name, Type* type, Value* initializer) {
-		Global* g = (Global*)body.emplace_front(std::make_unique<Global>(Type::Pointer(type), StorageClass::Public, initializer))->get();
+		Global* g = (Global*)body.emplace_front(std::make_unique<Global>(ctx.types.Pointer(type), StorageClass::Public, initializer))->get();
 		g->name = scope.add(name);
 		return g;
 	}

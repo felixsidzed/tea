@@ -1,6 +1,8 @@
 #include "Parser.h"
 
-#include "common/map.h"
+#include <filesystem>
+
+#include "core/map.h"
 
 #define next() (++cur)
 
@@ -20,30 +22,33 @@
 	treeHistory.pop(); \
 }
 
+namespace fs = std::filesystem;
+
 namespace tea::frontend {
 
 	static inline bool isCC(KeywordKind kind) {
 		return kind == KeywordKind::StdCC || kind == KeywordKind::FastCC || kind == KeywordKind::CCC || kind == KeywordKind::AutoCC;
 	}
 
-	// hashes should be evaluated at compile time
-
-	static const tea::map<size_t, AST::FunctionAttribute> name2fnAttr = {
-		{std::hash<tea::string>()("inline"), AST::FunctionAttribute::Inline},
-		{std::hash<tea::string>()("nomangle"), AST::FunctionAttribute::NoMangle},
-		{std::hash<tea::string>()("noreturn"), AST::FunctionAttribute::NoReturn},
-		{std::hash<tea::string>()("nonamespace"), AST::FunctionAttribute::NoNamespace}
+	static const tea::map<tea::string, AST::FunctionAttribute> name2fnAttr = {
+		{"link", AST::FunctionAttribute::Link},
+		{"inline", AST::FunctionAttribute::Inline},
+		{"noreturn", AST::FunctionAttribute::NoReturn},
 	};
 
-	static const tea::map<size_t, AST::GlobalAttribute> name2globalAttr = {
-		{std::hash<tea::string>()("threadlocal"), AST::GlobalAttribute::ThreadLocal}
+	static const tea::map<tea::string, AST::GVAttribute> name2gvAttr = {
+		{"threadlocal", AST::GVAttribute::ThreadLocal}
 	};
 
-	static const tea::map<size_t, AST::RootAttribute> name2rootAttr = {
-		{std::hash<tea::string>()("module"), AST::RootAttribute::Module}
+	static const tea::map<tea::string, AST::GlobalAttribute> name2globalAttr = {
+		{"module", AST::GlobalAttribute::Module}
 	};
 
-	AST::Tree Parser::parse() {
+	AST::Tree Parser::parse(const tea::vector<Token>& tokens, uint32_t fsrc_) {
+		fsrc = fsrc_;
+		cur = tokens.begin();
+		end = tokens.end();
+
 		treeHistory.clear();
 
 		AST::Tree root;
@@ -64,25 +69,8 @@ namespace tea::frontend {
 					if (cur->kind == TokenKind::Keyword && (isCC((KeywordKind)cur->extra) || (KeywordKind)cur->extra == KeywordKind::Func))
 						parseFunc(vis, _line, _column);
 					else if (match(KeywordKind::Var)) {
-						const tea::string& name = consume(TokenKind::Identf).text;
-
-						Type* type = nullptr;
-						if (match(TokenKind::Colon)) {
-							const tea::string& typeName = parseType();
-							type = Type::get(typeName);
-							if (!type)
-								TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
-						}
-
-						std::unique_ptr<AST::ExpressionNode> initializer = nullptr;
-						if (match(TokenKind::Assign))
-							initializer = parseExpression();
-						consume(TokenKind::Semicolon);
-
-						if (!type && !initializer)
-							TEA_PANIC("can't deduce a type without an initializer");
-
-						tree->emplace(mknode(AST::GlobalVariableNode, name, type, std::move(initializer), vis));
+						if (auto node = parseGlobalVariable(vis, _line, _column))
+							tree->emplace(std::move(node));
 					} else
 						unexpected();
 				} break;
@@ -99,11 +87,67 @@ namespace tea::frontend {
 				case KeywordKind::Using: {
 					next();
 
-					const tea::string& path = consume(TokenKind::String).text;
+					const tea::string& moduleName = consume(TokenKind::String).text;
+					std::string fullModuleName(moduleName + ".itea");
+
+					fs::path path;
+					uint32_t mfsrc = tea::badid;
+					for (const auto& lookup : ctx.importLookup) {
+						path = fs::path(std::string(lookup)) / fullModuleName;
+						mfsrc = ctx.sources.load(path.string().c_str());
+						if (mfsrc != tea::badid)
+							break;
+					}
+
+					if (mfsrc == tea::badid) {
+						ctx.diag.error({ fsrc, _line, _column }, 2003, "failed to import module '%s': failed to open file", moduleName.data());
+						break;
+					}
+
 					consume(TokenKind::Semicolon);
-					tree->emplace(mknode(AST::ModuleImportNode, path));
+
+					const auto& tokens = tea::frontend::lex(ctx, mfsrc);
+					tea::frontend::Parser parser(ctx);
+					tea::frontend::AST::Tree itree = parser.parse(tokens, mfsrc);
+					if (ctx.diag.hasError)
+						return root;
+
+					tea::string* mns = nullptr;
+					for (auto& node : itree) {
+						if (node->kind == AST::NodeKind::Attribute) {
+							AST::AttributeNode* attr = (AST::AttributeNode*)node.get();
+							if (node->extra == (uint32_t)AST::GlobalAttribute::Module) {
+								// TODO: move attribute param checking to parser
+								if (attr->params.size != 1) {
+									ctx.diag.error({ mfsrc, node->line, node->column }, 2003, "too much or not enough parameters in @!module attribute");
+									break;
+								}
+
+								if (attr->params[0]->getEKind() != AST::ExprKind::String) {
+									ctx.diag.error({ mfsrc, node->line, node->column }, 2003, "the first parameter must be a constant string");
+									break;
+								}
+
+								mns = &((AST::LiteralNode*)attr->params[0].get())->value;
+
+								continue;
+							}
+						} else if (node->kind == AST::NodeKind::FunctionImport) {
+							if (!mns) {
+								ctx.diag.error({ mfsrc, node->line, node->column }, 2003, "missing @!module attribute");
+								break;
+							}
+
+							AST::FunctionImportNode* fi = (AST::FunctionImportNode*)node.get();
+							fi->name = *mns + "::" + fi->name;
+							tree->push(std::move(node));
+							continue;
+						}
+						ctx.diag.error({ mfsrc, node->line, node->column }, 2003, "invalid statement in module", moduleName.data());
+					}
 				} break;
 
+				// TODO: revisit this
 				case KeywordKind::Class: {
 					next();
 
@@ -146,12 +190,11 @@ namespace tea::frontend {
 						tea::vector<Type*> body;
 						for (const auto& field : fields)
 							body.emplace(field->type);
-						objType = Type::Struct(body.data, body.size, name.data());
-						Type::create(name, objType);
+						objType = ctx.types.Struct(body.data, body.size, name.data());
 					}
 
 					for (const auto& method : methods)
-						method->params.emplace_front(std::pair<Type*, tea::string>{ Type::Pointer(objType), "this" });
+						method->params.emplace_front(ctx.types.Pointer(objType), "this");
 
 					consume(KeywordKind::End);
 					tree->emplace(mknode(AST::ObjectNode, objType, std::move(methods), std::move(fields)));
@@ -164,104 +207,45 @@ namespace tea::frontend {
 
 			} else if (cur->kind == TokenKind::At) {
 				next();
-
-				uint32_t fnAttr = 0, globalAttr = 0;
-				while (true) {
-					const tea::string& attrName = consume(TokenKind::Identf).text;
-					size_t h = std::hash<tea::string>()(attrName);
-
-					if (auto it = name2fnAttr.find(h))
-						fnAttr |= (uint32_t)*it;
-					else if (auto it2 = name2globalAttr.find(h))
-						globalAttr |= (uint32_t)*it2;
-					else
-						TEA_PANIC("'%s' is not a valid attribute. line %d, column %d", attrName.data(), cur->line, cur->column);
-
-					if (cur->kind == TokenKind::Comma) {
-						next();
-						consume(TokenKind::At);
-						continue;
-					}
-					break;
-				}
-
-				uint32_t _line = cur->line, _column = cur->column;
-
-				if (cur->kind == TokenKind::Keyword && (cur->extra == (uint32_t)KeywordKind::Public || cur->extra == (uint32_t)KeywordKind::Private)) {
-					AST::StorageClass vis = (AST::StorageClass)cur->extra;
+				bool isGlobal = false;
+				if (cur->kind == TokenKind::Not) {
+					isGlobal = true;
 					next();
-
-					if (match(KeywordKind::Var)) {
-						const tea::string& name = consume(TokenKind::Identf).text;
-
-						Type* type = nullptr;
-						if (match(TokenKind::Colon)) {
-							const tea::string& typeName = parseType();
-							type = Type::get(typeName);
-							if (!type)
-								TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
-						}
-
-						std::unique_ptr<AST::ExpressionNode> initializer = nullptr;
-						if (match(TokenKind::Assign))
-							initializer = parseExpression();
-						consume(TokenKind::Semicolon);
-
-						if (!type && !initializer)
-							TEA_PANIC("can't deduce a type without an initializer");
-
-						auto node = mknode(AST::GlobalVariableNode, name, type,
-											std::move(initializer), vis);
-						node->extra = globalAttr;
-						tree->emplace(std::move(node));
-
-					}
-					else if (isCC((KeywordKind)cur->extra) || (KeywordKind)cur->extra == KeywordKind::Func) {
-						parseFunc(vis, _line, _column);
-						tree->data[tree->size - 1]->extra = fnAttr;
-
-					}
-					else
-						unexpected();
-
 				}
-				else if (match(KeywordKind::Import)) {
-					parseFuncImport(_line, _column);
-					tree->data[tree->size - 1]->extra = fnAttr;
 
-				}
-				else unexpected();
-
-			} else if (cur->kind == TokenKind::Hashtag) {
+				uint32_t fnAttr = 0, gvAttr = 0, globalAttr = 0;
 				uint32_t _line = cur->line, _column = cur->column;
-				next();
+				auto attrNode = std::make_unique<AST::AttributeNode>(_line, _column);
+				const tea::string& attrName = consume(TokenKind::Identf).text;
+				
+				if (auto it = name2fnAttr.find(attrName); !isGlobal) {
+					fnAttr |= (uint32_t)*it;
+				} else if (auto it = name2gvAttr.find(attrName); !isGlobal) {
+					gvAttr |= (uint32_t)*it;
+				} else if (auto it = name2globalAttr.find(attrName)) {
+					globalAttr |= (uint32_t)*it;
+				} else
+					ctx.diag.error({ fsrc, cur->line, cur->column }, 2001, "'%s' is not a valid attribute", attrName.data());
 
-				while (true) {
-					const tea::string& attrName = consume(TokenKind::Identf).text;
-					size_t h = std::hash<tea::string>()(attrName);
-
-					tea::string val;
-					AST::RootAttribute attr;
-
-					if (auto it = name2rootAttr.find(h))
-						attr = *it;
-					else
-						TEA_PANIC("'%s' is not a valid attribute. line %d, column %d", attrName.data(), cur->line, cur->column);
-
-					if (match(TokenKind::Lpar)) {
-						val = consume(TokenKind::String).text;
-						consume(TokenKind::Rpar);
+				if (cur->kind == TokenKind::Lpar) {
+					next();
+					while (cur->kind != TokenKind::Rpar) {
+						attrNode->params.emplace(std::move(parsePrimary()));
+						if (cur->kind == TokenKind::Comma) {
+							next();
+							continue;
+						}
+						break;
 					}
-
-					tree->emplace(mknode(AST::RootAttributeNode, attr, val));
-
-					if (cur->kind == TokenKind::Comma) {
-						next();
-						consume(TokenKind::Hashtag);
-						continue;
-					}
-					break;
+					consume(TokenKind::Rpar);
 				}
+
+				// hopes and dreams placed into this
+				attrNode->extra = fnAttr | gvAttr | globalAttr;
+				if (!isGlobal)
+					attrStack.emplace(std::move(attrNode));
+				else
+					tree->emplace(std::move(attrNode));
 
 			} else
 				unexpected();
@@ -271,7 +255,7 @@ namespace tea::frontend {
 	}
 
 	void Parser::unexpected() {
-		TEA_PANIC("unexpected token '%s'. line %d, column %d", cur->text.data(), cur->line, cur->column);
+		ctx.diag.fatal({ fsrc, cur->line, cur->column }, 2000, "unexpected token '%s'", cur->text.data());
 	}
 
 	bool Parser::match(TokenKind kind) {
@@ -312,7 +296,7 @@ namespace tea::frontend {
 				tree->emplace(std::move(node));
 
 			if (match(TokenKind::EndOfFile))
-				TEA_PANIC("unexpected EOF (did you forget to close a function?). line %d, column %d", cur->line, cur->column);
+				ctx.diag.fatal({ fsrc, cur->line, cur->column }, 2000, "unexpected EOF (did you forget to close a function?)");
 		}
 	};
 	std::unique_ptr<AST::Node> Parser::parseStat() {
@@ -461,9 +445,9 @@ namespace tea::frontend {
 		consume(TokenKind::Arrow);
 
 		const tea::string& typeName = parseType();
-		Type* returnType = Type::get(typeName);
+		Type* returnType = ctx.types.get(typeName);
 		if (!returnType)
-			TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
+			ctx.diag.error({ fsrc, cur->line, cur->column }, 2001, "undefined type '%s'", typeName.data());
 
 		auto node = std::make_unique<AST::FunctionNode>(vis, cc, name, params, returnType, vararg, _line, _column);
 		func = node.get();
@@ -474,6 +458,32 @@ namespace tea::frontend {
 
 		parseBlock();
 		func = nullptr;
+	}
+
+	std::unique_ptr<AST::GlobalVariableNode> Parser::parseGlobalVariable(AST::StorageClass vis, uint32_t _line, uint32_t _column) {
+		const tea::string& name = consume(TokenKind::Identf).text;
+
+		Type* type = nullptr;
+		if (match(TokenKind::Colon)) {
+			const tea::string& typeName = parseType();
+			type = ctx.types.get(typeName);
+			if (!type) {
+				ctx.diag.error({ fsrc, cur->line, cur->column }, 2001, "undefined type '%s'", typeName.data());
+				return nullptr;
+			}
+		}
+
+		std::unique_ptr<AST::ExpressionNode> initializer = nullptr;
+		if (match(TokenKind::Assign))
+			initializer = parseExpression();
+		consume(TokenKind::Semicolon);
+
+		if (!type && !initializer) {
+			ctx.diag.error({ fsrc, cur->line, cur->column }, 2002, "can't deduce a type without an initializer");
+			return nullptr;
+		}
+
+		return mknode(AST::GlobalVariableNode, name, type, std::move(initializer), vis);
 	}
 
 	void Parser::parseFuncImport(uint32_t _line, uint32_t _column) {
@@ -491,9 +501,9 @@ namespace tea::frontend {
 		consume(TokenKind::Arrow);
 
 		const tea::string& typeName = parseType();
-		Type* returnType = Type::get(typeName);
+		Type* returnType = ctx.types.get(typeName);
 		if (!returnType)
-			TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
+			ctx.diag.error({ fsrc, cur->line, cur->column }, 2001, "undefined type '%s'", typeName.data());
 
 		auto node = mknode(AST::FunctionImportNode, cc, name, params, returnType, vararg);
 		consume(TokenKind::Semicolon);
@@ -517,9 +527,9 @@ namespace tea::frontend {
 			}
 
 			const tea::string& typeName = parseType();
-			Type* type = Type::get(typeName);
+			Type* type = ctx.types.get(typeName);
 			if (!type)
-				TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
+				ctx.diag.error({ fsrc, cur->line, cur->column }, 2001, "undefined type '%s'", typeName.data());
 
 			result.emplace(type, consume(TokenKind::Identf).text);
 			if (match(TokenKind::Rpar))
@@ -660,7 +670,7 @@ namespace tea::frontend {
 
 			if (cur->kind == TokenKind::Identf) {
 				const tea::string& typeName = parseType();
-				Type* type = Type::get(typeName);
+				Type* type = ctx.types.get(typeName);
 				if (type) {
 					consume(TokenKind::Rpar);
 					auto expr = parseExpression();
@@ -855,9 +865,9 @@ namespace tea::frontend {
 		Type* type = nullptr;
 		if (match(TokenKind::Colon)) {
 			const tea::string& typeName = parseType();
-			type = Type::get(typeName);
+			type = ctx.types.get(typeName);
 			if (!type)
-				TEA_PANIC("undefined type '%s'. line %d, column %d", typeName.data(), cur->line, cur->column);
+				ctx.diag.error({ fsrc, cur->line, cur->column }, 2001, "undefined type '%s'", typeName.data());
 		}
 
 		std::unique_ptr<AST::ExpressionNode> initializer = nullptr;
@@ -865,7 +875,7 @@ namespace tea::frontend {
 			initializer = parseExpression();
 
 		if (!type && !initializer)
-			TEA_PANIC("can't deduce a type without an initializer. line %d, column %d", cur->line, cur->column);
+			ctx.diag.error({ fsrc, cur->line, cur->column }, 2002, "can't deduce a type without an initializer");
 
 		return mknode(AST::VariableNode, name, type, std::move(initializer));
 	}

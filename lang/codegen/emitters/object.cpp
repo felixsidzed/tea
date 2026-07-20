@@ -1,24 +1,24 @@
 #include "codegen/codegen.h"
 
-#include "common/tea.h"
+#include "core/tea.h"
 
 namespace tea {
 
 	void CodeGen::emitObject(const AST::ObjectNode* node) {
 		structMap[node->type] = node;
 
-		Type* pstruct = Type::Pointer(node->type);
+		Type* pstruct = ctx.types.Pointer(node->type);
 		
 		for (const auto& method : node->methods) {
 			tea::vector<Type*> argTypes;
 			for (const auto& arg : method->params)
 				argTypes.emplace(arg.first);
 
-			mir::Function* f = module->addFunction(std::format("{}_{}", node->type->name, method->name).c_str(), Type::Function(method->returnType, argTypes, method->vararg));
+			mir::Function* f = module->addFunction(std::format("{}_{}", node->type->name, method->name).c_str(), ctx.types.Function(method->returnType, argTypes, method->vararg));
 			f->cc = method->cc;
 			f->storage = method->vis;
 				
-			builder.insertInto(f->appendBlock("entry"));
+			builder.block = f->appendBlock("entry");
 			curParams = &method->params;
 
 			for (const auto& var : method->variables)
@@ -26,9 +26,9 @@ namespace tea {
 
 			emitBlock(&method->body);
 
-			if (!builder.getInsertBlock()->getTerminator()) {
+			if (!builder.block->getTerminator()) {
 				if (method->returnType->kind != TypeKind::Void)
-					TEA_PANIC("control reaches end of non-void function '%s.%s'. line %d, column %d", node->type->name, method->name.data(), method->line, method->column);
+					ctx.diag.fatal({ fsrc, method->line, method->column }, 4001, "control reaches end of non-void function '%s'", method->name.data());
 				else {
 					if (f->hasAttribute(AST::FunctionAttribute::NoReturn)) builder.unreachable();
 					else builder.ret(nullptr);
@@ -36,7 +36,7 @@ namespace tea {
 			}
 
 			curParams = nullptr;
-			builder.insertInto(nullptr);
+			builder.block = nullptr;
 		}
 	}
 

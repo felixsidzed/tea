@@ -1,20 +1,25 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
-#include "common/tea.h"
+#include "core/tea.h"
+#include "core/context.h"
 
 namespace tea::args {
-	// TODO: maybe we should prioritize speed over size
 	struct Args {
-		const char* source = nullptr;
-		tea::vector<const char*> importLookup;
-		char* outFile = nullptr;
-		const char* triple = nullptr;
-		bool verbose = false;
+		tea::string outFile;
+
 		uint8_t optLevel = 2;
+		bool verbose = false;
+		bool compileOnly = true;
 		CompilerFlags flags = CompilerFlags::None;
+
+		const char* triple = nullptr;
+
+		tea::vector<const char*> inputs;
+		tea::vector<const char*> importLookup;
 	};
 
-	Args* parse(int argc, char** argv);
+	Args parse(Context& ctx, int argc, char** argv);
 }

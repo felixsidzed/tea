@@ -1,10 +1,11 @@
 #pragma once
 
-#include "common/map.h"
-#include "common/Type.h"
+#include "core/map.h"
+#include "core/Type.h"
+#include "core/context.h"
 #include "frontend/parser/AST.h"
 
-namespace tea::frontend::analysis {
+namespace tea::frontend {
 
 	 class SemanticAnalyzer {
 		 struct Symbol {
@@ -29,21 +30,22 @@ namespace tea::frontend::analysis {
 			 }
 		 };
 
-		 typedef tea::vector<Symbol> Scope;
+		typedef tea::vector<Symbol> Scope;
+
+		uint32_t fsrc = 0;
+		tea::Context& ctx;
 
 		Scope* scope = nullptr;
 		tea::vector<Scope> scopeHistory;
-
-		tea::vector<tea::string> errors;
 
 		bool isMethodCall = false;
 		AST::FunctionNode* func = nullptr;
 		tea::map<StructType*, AST::ObjectNode*> structMap;
 
 	public:
-		const tea::vector<const char*>* importLookup;
+		SemanticAnalyzer(tea::Context& ctx) : ctx(ctx) {}
 
-		tea::vector<tea::string> visit(const frontend::AST::Tree& root);
+		void visit(const frontend::AST::Tree& root, uint32_t fsrc);
 
 	private:
 		Symbol* lookup(const tea::string& name);

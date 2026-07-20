@@ -2,32 +2,21 @@
 
 namespace tea::mir {
 
-	ConstantNumber* ConstantNumber::get(uint64_t val, uint8_t width, bool sign, Context* ctx) {
-		if (!ctx) ctx = getGlobalContext();
+	ConstantNumber* ConstantNumber::get(Module* module, uint64_t val, uint8_t width, bool sign) {
+		auto& types = module->ctx.types;
 
 		Type* type = nullptr;
 		switch (width) {
-		case 1:
-			type = Type::Bool(false, ctx);
-			break;
-		case 8:
-			type = Type::Char(false, sign, ctx);
-			break;
-		case 16:
-			type = Type::Short(false, sign, ctx);
-			break;
-		case 32:
-			type = Type::Int(false, sign, ctx);
-			break;
-		case 64:
-			type = Type::Long(false, sign, ctx);
-			break;
-		default:
-			return nullptr;
+		case 1: type = types.Bool(false); break;
+		case 8: type = types.Char(false); break;
+		case 16: type = types.Short(false); break;
+		case 32: type = types.Int(false); break;
+		case 64: type = types.Long(false); break;
+		default: return nullptr;
 		}
 
 		if (val == 0 || val == 1) {
-			auto& map = val == 0 ? ctx->num0Const : ctx->num1Const;
+			auto& map = val == 0 ? module->num0Const : module->num1Const;
 			auto& entry = map[width];
 			if (!entry)
 				entry.reset(new ConstantNumber(type, val));
@@ -37,7 +26,7 @@ namespace tea::mir {
 			h = (h ^ val) * 1099511628211uLL;
 			h = (h ^ width) * 1099511628211uLL;
 
-			auto& entry = ctx->numConst[h];
+			auto& entry = module->numConst[h];
 			if (!entry)
 				entry.reset(new ConstantNumber(type, val));
 			return entry.get();
@@ -45,72 +34,61 @@ namespace tea::mir {
 	}
 
 	template<typename T, typename>
-	ConstantNumber* ConstantNumber::get(double fval, uint8_t width, bool sign, Context* ctx) {
-		if (!ctx) ctx = getGlobalContext();
+	ConstantNumber* ConstantNumber::get(Module* module, double fval, uint8_t width, bool sign) {
+		auto& types = module->ctx.types;
 
 		Type* type = nullptr;
 		switch (width) {
-		case 32:
-			type = Type::Float(false, sign, ctx);
-			break;
-		case 64:
-			type = Type::Double(false, sign, ctx);
-			break;
-		default:
-			return nullptr;
+		case 32: type = types.Float(false); break;
+		case 64: type = types.Double(false); break;
+		default: return nullptr;
 		}
 
 		uint64_t val = *(uint64_t*)&fval;
 
 		std::unique_ptr<ConstantNumber>* entry = nullptr;
 		if (val == 0 || val == 1) {
-			auto& map = val == 0 ? ctx->num0Const : ctx->num1Const;
+			auto& map = val == 0 ? module->num0Const : module->num1Const;
 			auto& entry = map[width];
 			if (!entry)
 				entry.reset(new ConstantNumber(type, val));
 			return entry.get();
 		} else {
-			auto& entry = ctx->numConst[val];
+			auto& entry = module->numConst[val];
 			if (!entry)
 				entry.reset(new ConstantNumber(type, val));
 			return entry.get();
 		}
 	}
 
-	template ConstantNumber* ConstantNumber::get<double>(double, uint8_t, bool, Context*);
+	template ConstantNumber* ConstantNumber::get<double>(Module*, double, uint8_t, bool);
 
-	ConstantString* ConstantString::get(const tea::string& val, Context* ctx) {
-		if (!ctx) ctx = getGlobalContext();
-
-		auto& entry = ctx->strConst[std::hash<tea::string>()(val)];
+	ConstantString* ConstantString::get(Module* module, const tea::string& val) {
+		auto& entry = module->strConst[val];
 		if (!entry)
-			entry.reset(new ConstantString(val));
+			entry.reset(new ConstantString(module->ctx, val));
 		return entry.get();
 	}
 
-	ConstantArray* ConstantArray::get(Type* elementType, Value** values, uint32_t n, Context* ctx) {
-		if (!ctx) ctx = getGlobalContext();
-
+	ConstantArray* ConstantArray::get(Module* module, Type* elementType, Value** values, uint32_t n) {
 		uint64_t h = 1469598103934665603uLL;
 		for (size_t i = 0; i < n; i++)
 			h = (h ^ (uintptr_t)values[i]) * 1099511628211uLL;
 
-		auto& entry = ctx->arrConst[h];
+		auto& entry = module->arrConst[h];
 		if (!entry)
-			entry.reset(new ConstantArray(elementType, values, n));
+			entry.reset(new ConstantArray(module->ctx, elementType, values, n));
 		return entry.get();
 	}
 
-	ConstantPointer* ConstantPointer::get(Type* pointee, uintptr_t value, Context* ctx) {
-		if (!ctx) ctx = getGlobalContext();
-
+	ConstantPointer* ConstantPointer::get(Module* module, Type* pointee, uintptr_t value) {
 		uint64_t h = 1469598103934665603uLL;
 		h = (h ^ (uintptr_t)pointee) * 1099511628211uLL;
 		h = (h ^ value) * 1099511628211uLL;
 
-		auto& entry = ctx->ptrConst[h];
+		auto& entry = module->ptrConst[h];
 		if (!entry)
-			entry.reset(new ConstantPointer(pointee, value));
+			entry.reset(new ConstantPointer(module->ctx, pointee, value));
 		return entry.get();
 	}
 

@@ -2,28 +2,14 @@
 
 #include <memory>
 
-#include "common/Type.h"
-#include "common/string.h"
-#include "common/vector.h"
-
-#include "frontend/parser/AST.h"
-
 #include "mir/Scope.h"
-#include "mir/Context.h"
-
-namespace tea {
-	class CodeGen;
-	namespace backend {
-		class LLVMLowering;
-		class LuauLowering;
-	}
-}
+#include "core/context.h"
+#include "frontend/parser/AST.h"
 
 namespace tea::mir {
 
+	using GVAttribute = frontend::AST::GVAttribute;
 	using StorageClass = frontend::AST::StorageClass;
-	using RootAttribute = frontend::AST::RootAttribute;
-	using GlobalAttribute = frontend::AST::GlobalAttribute;
 	using CallingConvention = frontend::AST::CallingConvention;
 	using FunctionAttribute = frontend::AST::FunctionAttribute;
 
@@ -71,16 +57,8 @@ namespace tea::mir {
 	};
 
 	class Value {
-	protected:
-		friend class Builder;
-		friend class CodeGen;
-		friend class backend::LLVMLowering;
-		friend class backend::LuauLowering;
-		friend void dump(const tea::mir::Value* value);
-
-		uint32_t subclassData = 0;
-
 	public:
+		uint32_t subclassData = 0; // super necessary
 		ValueKind kind;
 
 		tea::Type* type;
@@ -103,19 +81,14 @@ namespace tea::mir {
 		}
 	};
 
+	class Module;
 	class Function;
 
 	class BasicBlock {
-		friend class CodeGen;
-		friend class Builder;
-		friend class backend::LLVMLowering;
-		friend class backend::LuauLowering;
-		friend void dump(const Function* func);
-
+	public:
 		Scope scope;
 		tea::vector<Instruction> body;
 
-	public:
 		Function* parent = nullptr;
 		const char* name = nullptr;
 
@@ -174,13 +147,8 @@ namespace tea::mir {
 			}
 		}
 
-		double getDouble() const {
-			return value.f;
-		}
-
-		uint64_t getInteger() const {
-			return value.i;
-		}
+		double getDouble() const { return value.f; }
+		uint64_t getInteger() const { return value.i; }
 
 		int64_t getSInteger() const {
 			uint8_t bits = getBitwidth();
@@ -194,62 +162,58 @@ namespace tea::mir {
 			return (int64_t)val;
 		}
 
-		static ConstantNumber* get(uint64_t value, uint8_t bitwidth, bool sign = true, Context* ctx = nullptr);
+		static ConstantNumber* get(Module* module, uint64_t value, uint8_t bitwidth, bool sign = true);
 
 		template<typename T, typename = typename std::enable_if<std::is_same<T, double>::value>::type>
-		static ConstantNumber* get(double value, uint8_t bitwidth, bool sign = true, Context* ctx = nullptr);
+		static ConstantNumber* get(Module* module, double value, uint8_t bitwidth, bool sign = true);
 	};
 
 	class ConstantString : public Value {
 	public:
 		tea::string value;
 
-		ConstantString(const tea::string& value) : Value(ValueKind::Constant, Type::Array(Type::Char(true), (uint32_t)value.length() + 1, true)), value(value) {
+		ConstantString(tea::Context& ctx, const tea::string& value)
+			: Value(ValueKind::Constant, ctx.types.Array(ctx.types.Char(true), (uint32_t)value.length() + 1, true)), value(value) {
 			subclassData = (uint32_t)ConstantKind::String;
 		}
 
-		static ConstantString* get(const tea::string& value, Context* ctx = nullptr);
+		static ConstantString* get(Module* module, const tea::string& value);
 	};
 
 	class ConstantArray : public Value {
 	public:
 		tea::vector<Value*> values;
 
-		ConstantArray(Type* elementType, Value** values, uint32_t n)
-			: Value(ValueKind::Constant, Type::Array(elementType, n, true)), values(values, n) {
+		ConstantArray(tea::Context& ctx, Type* elementType, Value** values, uint32_t n)
+			: Value(ValueKind::Constant, ctx.types.Array(elementType, n, true)), values(values, n) {
 			subclassData = (uint32_t)ConstantKind::Array;
 		}
 
-		static ConstantArray* get(Type* elementType, Value** values, uint32_t n, Context* ctx = nullptr);
+		static ConstantArray* get(Module* module, Type* elementType, Value** values, uint32_t n);
 	};
 
 	class ConstantPointer : public Value {
 	public:
 		uintptr_t value;
 
-		ConstantPointer(tea::Type* pointee, uintptr_t value) : Value(ValueKind::Constant, Type::Pointer(pointee, false)), value(value) {
+		ConstantPointer(tea::Context& ctx, tea::Type* pointee, uintptr_t value)
+			: Value(ValueKind::Constant, ctx.types.Pointer(pointee, false)), value(value) {
 			subclassData = (uint32_t)ConstantKind::Pointer;
 		}
 
-		static ConstantPointer* get(tea::Type* pointee, uintptr_t value, Context* ctx = nullptr);
+		static ConstantPointer* get(Module* module, tea::Type* pointee, uintptr_t value);
 	};
 
 	class Function : public Value {
-		friend class Module;
-		friend class Builder;
-		friend class tea::CodeGen;
-		friend class backend::LLVMLowering;
-		friend class backend::LuauLowering;
-		friend void dump(const Function* func);
-
+	public:
 		Scope scope;
 		tea::vector<std::unique_ptr<Value>> params;
 		tea::vector<std::unique_ptr<BasicBlock>> blocks;
-	
-	public:
+
 		StorageClass storage;
 		CallingConvention cc;
 		Module* parent = nullptr;
+		const char* linkName = nullptr;
 
 		Function(StorageClass storage, tea::FunctionType* type, Module* parent)
 			: Value(ValueKind::Function, type), storage(storage), parent(parent), cc(CallingConvention::Auto) {
@@ -269,6 +233,7 @@ namespace tea::mir {
 	class Global : public Value {
 	public:
 		Value* initializer = nullptr;
+		const char* linkName = nullptr;
 		StorageClass storage = StorageClass::Public;
 
 		Global(Type* type, StorageClass storage, Value* initializer = nullptr) :
@@ -276,9 +241,9 @@ namespace tea::mir {
 		}
 
 		void clearAttributes() { subclassData = 0; };
-		void addAttribute(GlobalAttribute attr) { subclassData |= (uint32_t)attr; };
-		bool hasAttribute(GlobalAttribute attr) const { return subclassData & (uint32_t)attr; };
-		void removeAttribute(GlobalAttribute attr) { subclassData &= ~(uint32_t)attr; };
+		void addAttribute(GVAttribute attr) { subclassData |= (uint32_t)attr; };
+		bool hasAttribute(GVAttribute attr) const { return subclassData & (uint32_t)attr; };
+		void removeAttribute(GVAttribute attr) { subclassData &= ~(uint32_t)attr; };
 	};
 
 	struct DataLayout {
@@ -288,20 +253,26 @@ namespace tea::mir {
 	};
 
 	class Module {
-		friend class tea::CodeGen;
-		friend class backend::LLVMLowering;
-		friend class backend::LuauLowering;
-		friend void dump(const Module* module);
-
+	public:
 		Scope scope;
+		tea::Context& ctx;
 		tea::vector<std::unique_ptr<Value>> body;
 
-	public:
-		tea::string source;
 		DataLayout dl;
+		tea::string source;
 		tea::string triple;
 
-		Module(const tea::string& source) : source(source) {
+		// world wide disappointment
+		tea::map<size_t, std::unique_ptr<ConstantArray>> arrConst;
+		tea::map<tea::string, std::unique_ptr<ConstantString>> strConst;
+
+		tea::map<uint8_t, std::unique_ptr<ConstantNumber>> num0Const;
+		tea::map<uint8_t, std::unique_ptr<ConstantNumber>> num1Const;
+		tea::map<uint64_t, std::unique_ptr<ConstantNumber>> numConst;
+
+		tea::map<size_t, std::unique_ptr<ConstantPointer>> ptrConst;
+
+		Module(tea::Context& ctx, const tea::string& source) : ctx(ctx), source(source) {
 		}
 
 		Function* addFunction(const tea::string& name, tea::FunctionType* ftype);
@@ -314,14 +285,11 @@ namespace tea::mir {
 	};
 
 	class Builder {
+	public:
+		tea::Context& ctx;
 		BasicBlock* block = nullptr;
 
-	public:
-		Builder() {
-		};
-
-		BasicBlock* getInsertBlock() { return block; }
-		void insertInto(BasicBlock* block) { this->block = block; }
+		Builder(tea::Context& ctx) : ctx(ctx) {};
 
 		Instruction* unreachable();
 		Instruction* ret(Value* val);

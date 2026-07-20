@@ -1,6 +1,6 @@
 #include "LLVMLowering.h"
 
-#include "common/tea.h"
+#include "core/tea.h"
 
 #include "llvm-c/Core.h"
 #include "llvm-c/Analysis.h"
@@ -91,14 +91,14 @@ namespace tea::backend {
 
 		LLVMTargetRef T = nullptr;
 		if (LLVMGetTargetFromTriple(triple.data(), &T, &err))
-			TEA_PANIC("%s", err);
+			ctx.diag.fatal(TEA_NO_SOURCELOC, 5000, "%s", err);
 		LLVMTargetMachineRef TM = LLVMCreateTargetMachine(
 			T, triple.data(),
 			"", "",
 			LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault
 		);
 		if (!TM)
-			TEA_PANIC("Lowering to machine code failed: failed to create target machine");
+			ctx.diag.fatal(TEA_NO_SOURCELOC, 5000, "failed to create target machine");
 
 		for (const auto& g : module->body) {
 			switch (g->kind) {
@@ -118,22 +118,22 @@ namespace tea::backend {
 		}
 		
 		if (LLVMVerifyModule(M, LLVMReturnStatusAction, &err)) {
-			if (options.DumpLLVMModule) LLVMDumpModule(M);
-			TEA_PANIC("Lowering to machine code failed: %s", err);
+			if (options.dumpModule) LLVMDumpModule(M);
+			ctx.diag.fatal(TEA_NO_SOURCELOC, 5000, "lowering failed: %s", err);
 		}
 
-		if (options.OptimizationLevel > 0) {
+		if (options.optLevel > 0) {
 			LLVMPassManagerRef pm = LLVMCreatePassManager();
 			LLVMPassManagerBuilderRef pmb = LLVMPassManagerBuilderCreate();
-			LLVMPassManagerBuilderSetOptLevel(pmb, options.OptimizationLevel);
+			LLVMPassManagerBuilderSetOptLevel(pmb, options.optLevel);
 			LLVMPassManagerBuilderPopulateModulePassManager(pmb, pm);
 			LLVMRunPassManager(pm, M);
 			LLVMDisposePassManager(pm);
 		}
-		if (options.DumpLLVMModule) LLVMDumpModule(M);
+		if (options.dumpModule) LLVMDumpModule(M);
 
-		if (LLVMTargetMachineEmitToFile(TM, M, options.OutputFile, LLVMObjectFile, &err))
-			TEA_PANIC("Lowering to machine code failed: %s", err);
+		if (LLVMTargetMachineEmitToFile(TM, M, options.outfile, LLVMObjectFile, &err))
+			ctx.diag.fatal(TEA_NO_SOURCELOC, 5000, "lowering failed: %s", err);
 
 		LLVMDisposeModule(M);
 		LLVMDisposeTargetMachine(TM);
@@ -141,26 +141,16 @@ namespace tea::backend {
 
 	LLVMTypeRef LLVMLowering::lowerType(const Type* ty) {
 		switch (ty->kind) {
-		case TypeKind::Void:
-			return LLVMVoidType();
-		case TypeKind::Bool:
-			return LLVMInt1Type();
-		case TypeKind::Char:
-			return LLVMInt8Type();
-		case TypeKind::Short:
-			return LLVMInt16Type();
-		case TypeKind::Float:
-			return LLVMFloatType();
-		case TypeKind::Int:
-			return LLVMInt32Type();
-		case TypeKind::Double:
-			return LLVMDoubleType();
-		case TypeKind::Long:
-			return LLVMInt64Type();
-		case TypeKind::String:
-			return LLVMPointerType(LLVMInt8Type(), 0);
-		case TypeKind::Pointer:
-			return LLVMPointerType(lowerType(((PointerType*)ty)->pointee), 0);
+		case TypeKind::Void: return LLVMVoidType();
+		case TypeKind::Bool: return LLVMInt1Type();
+		case TypeKind::Char: return LLVMInt8Type();
+		case TypeKind::Short: return LLVMInt16Type();
+		case TypeKind::Float: return LLVMFloatType();
+		case TypeKind::Int: return LLVMInt32Type();
+		case TypeKind::Double: return LLVMDoubleType();
+		case TypeKind::Long: return LLVMInt64Type();
+		case TypeKind::String: return LLVMPointerType(LLVMInt8Type(), 0);
+		case TypeKind::Pointer: return LLVMPointerType(lowerType(((PointerType*)ty)->pointee), 0);
 		case TypeKind::Function: {
 			FunctionType* ftype = (FunctionType*)ty;
 
@@ -193,7 +183,17 @@ namespace tea::backend {
 	}
 
 	void LLVMLowering::lowerGlobal(const mir::Global* g) {
-		LLVMValueRef global = LLVMAddGlobal(M, lowerType(((const PointerType*)g->type)->pointee), g->name);
+		LLVMValueRef global;
+		if (g->linkName)
+			global = LLVMAddGlobal(M, lowerType(((const PointerType*)g->type)->pointee), g->linkName);
+		else {
+			// :eyes:
+			std::string linkName = g->name;
+			for (size_t p = 0; (p = linkName.find("::", p)) != std::string::npos; p += 1)
+				linkName.replace(p, 2, "_");
+			global = LLVMAddGlobal(M, lowerType(((const PointerType*)g->type)->pointee), linkName.c_str());
+		}
+
 		if (g->storage == mir::StorageClass::Private)
 			LLVMSetLinkage(global, LLVMPrivateLinkage);
 
@@ -203,16 +203,25 @@ namespace tea::backend {
 				LLVMSetGlobalConstant(global, true);
 		}
 
-		if (g->hasAttribute(mir::GlobalAttribute::ThreadLocal)) {
+		if (g->hasAttribute(mir::GVAttribute::ThreadLocal)) {
 			LLVMSetThreadLocal(global, true);
 			LLVMSetSection(global, ".tls$BBB");
 		}
 		
-		globalMap[std::hash<tea::string>()(g->name)] = global;
+		globalMap[g->name] = global;
 	}
 
 	LLVMValueRef LLVMLowering::lowerFunction(const mir::Function* f) {
-		LLVMValueRef func = LLVMAddFunction(M, f->name, lowerType(f->type));
+		LLVMValueRef func;
+		if (f->linkName)
+			func = LLVMAddFunction(M, f->linkName, lowerType(f->type));
+		else {
+			std::string linkName = f->name;
+			for (size_t p = 0; (p = linkName.find("::", p)) != std::string::npos; p += 1)
+				linkName.replace(p, 2, "_");
+			func = LLVMAddFunction(M, linkName.c_str(), lowerType(f->type));
+		}
+
 		if (f->storage == mir::StorageClass::Private)
 			LLVMSetLinkage(func, LLVMPrivateLinkage);
 
@@ -227,7 +236,7 @@ namespace tea::backend {
 		if (f->hasAttribute(mir::FunctionAttribute::NoReturn))
 			LLVMAddAttributeAtIndex(func, LLVMAttributeFunctionIndex, LLVMCreateEnumAttribute(LLVMGetGlobalContext(), LLVMNoReturnAttributeKind, 0));
 
-		globalMap[std::hash<tea::string>()(f->name)] = func;
+		globalMap[f->name] = func;
 		
 		if (f->params.size) {
 			for (uint32_t i = 0; i < f->params.size; i++) {
@@ -250,8 +259,8 @@ namespace tea::backend {
 		}
 		
 		LLVMDisposeBuilder(builder);
-		blockMap.data.clear();
-		valueMap.data.clear();
+		blockMap.clear();
+		valueMap.clear();
 		return func;
 	}
 
@@ -466,7 +475,7 @@ namespace tea::backend {
 				break;
 
 			default:
-				TEA_PANIC("cannot lower unknown opcode: %d", insn.op);
+				ctx.diag.fatal(TEA_NO_SOURCELOC, 5000, "cannot lower unknown opcode %d", insn.op);
 			}
 			
 			if (result && insn.result->kind == mir::ValueKind::Instruction)
@@ -478,14 +487,14 @@ namespace tea::backend {
 		switch (val->kind) {
 		case mir::ValueKind::Global: {
 			const mir::Global* g = (const mir::Global*)val;
-			if (auto* it = globalMap.find(std::hash<tea::string>()(g->name)))
+			if (auto* it = globalMap.find(g->name))
 				return *it;
 			return nullptr;
 		}
 
 		case mir::ValueKind::Function: {
 			const mir::Function* f = (const mir::Function*)val;
-			if (auto* it = globalMap.find(std::hash<tea::string>()(f->name)))
+			if (auto* it = globalMap.find(f->name))
 				return *it;
 			return nullptr;
 		}

@@ -1,5 +1,7 @@
 #include "LuauLowering.h"
 
+#include <utility>
+
 #include "Bytecode.h"
 #include "BytecodeUtils.h"
 
@@ -91,7 +93,13 @@ static const OpInfo luau_opcode[] = {
 	{ "JUMPXEQKN", OpInfo::AD },
 	{ "JUMPXEQKS", OpInfo::AD },
 	{ "IDIV", OpInfo::ABC },
-	{ "IDIVK", OpInfo::ABC }
+	{ "IDIVK", OpInfo::ABC },
+	{ "GETUDATAKS", OpInfo::ABC },
+	{ "SETUDATAKS", OpInfo::ABC },
+	{ "NAMECALLUDATA", OpInfo::ABC },
+	{ "NEWCLASSMEMBER", OpInfo::ABC },
+	{ "CALLFB", OpInfo::ABC },
+	{ "CMPPROTO", OpInfo::AD },
 };
 
 template<typename T>
@@ -114,21 +122,47 @@ static uint32_t readVarInt(const uint8_t* data, size_t& offset) {
 	return result;
 }
 
+static uint64_t readVarInt64(const uint8_t* data, size_t& offset) {
+	uint64_t result = 0;
+	uint32_t shift = 0;
+
+	uint8_t byte;
+	do {
+		byte = data[offset++];
+		result |= ((uint64_t)(byte & 127)) << shift;
+		shift += 7;
+	} while (byte & 128);
+	return result;
+}
+
 static const char* ttname(LuauBytecodeTag tag) {
 	switch (tag) {
-	case LBC_CONSTANT_NIL:		return "nil";
-	case LBC_CONSTANT_BOOLEAN:	return "boolean";
-	case LBC_CONSTANT_NUMBER:	return "number";
-	case LBC_CONSTANT_STRING:	return "string";
-	case LBC_CONSTANT_IMPORT:	return "import";
-	case LBC_CONSTANT_TABLE:	return "table";
-	case LBC_CONSTANT_CLOSURE:	return "closure";
-	case LBC_CONSTANT_VECTOR:	return "vector";
-	default:					return "unk";
+	case LBC_CONSTANT_NIL: return "nil";
+	case LBC_CONSTANT_BOOLEAN: return "boolean";
+	case LBC_CONSTANT_NUMBER: return "number";
+	case LBC_CONSTANT_STRING: return "string";
+	case LBC_CONSTANT_IMPORT: return "import";
+	case LBC_CONSTANT_TABLE_WITH_CONSTANTS:
+	case LBC_CONSTANT_TABLE: return "table";
+	case LBC_CONSTANT_CLOSURE: return "closure";
+	case LBC_CONSTANT_VECTOR: return "vector";
+	case LBC_CONSTANT_INTEGER: return "integer";
+	case LBC_CONSTANT_CLASS_SHAPE: return "class";
+	default: return "unk";
 	}
 }
 
 namespace tea::backend {
+
+	static void putsReadable(const tea::string& str) {
+		putchar('"');
+		for (size_t ij = 0; ij < str.length(); ij++) {
+			uint8_t c = str[ij];
+			if (isprint(c)) putchar(c);
+			else printf("\\%02X", c);
+		}
+		putchar('"');
+	}
 
 	void LuauLowering::dump(uint8_t* data, size_t size) {
 		if (!data || size < 2)
@@ -190,10 +224,7 @@ namespace tea::backend {
 					continue;
 				}
 
-				#pragma warning(push)
-				#pragma warning(disable : 6385)
 				const OpInfo& info = luau_opcode[op];
-				#pragma warning(pop)
 				printf("  [%u] %s ", j, info.name);
 
 				switch (info.format) {
@@ -246,16 +277,7 @@ namespace tea::backend {
 						break;
 
 					case LBC_CONSTANT_STRING: {
-						putchar('"');
-						const tea::string& str = strtab[readVarInt(data, offset)];
-						for (size_t ij = 0; ij < str.length(); ij++) {
-							uint8_t c = str[ij];
-							if (isprint(c))
-								putchar(c);
-							else
-								printf("\\%02X", c);
-						}
-						putchar('"');
+						putsReadable(strtab[readVarInt(data, offset)]);
 					} break;
 
 					case LBC_CONSTANT_IMPORT:
@@ -276,6 +298,73 @@ namespace tea::backend {
 					case LBC_CONSTANT_VECTOR:
 						printf("vector(%.3f, %.3f, %.3f)", read<float>(data, offset), read<float>(data, offset), read<float>(data, offset));
 						break;
+
+					case LBC_CONSTANT_TABLE_WITH_CONSTANTS: {
+						uint32_t n = readVarInt(data, offset);
+						printf("table(keys=%u)", n);
+
+						if (n) {
+							putchar('{');
+							for (uint32_t i = 0; i < n; i++) {
+								uint32_t key = readVarInt(data, offset);
+								int32_t kidx = read<int32_t>(data, offset);
+
+								if (i)
+									putchar(','), putchar(' ');
+
+								printf("[%u] = ", key);
+
+								if (kidx >= 0) {
+									printf("K%d", kidx);
+								} else {
+									fputs("nil", stdout);
+								}
+							}
+							putchar('}');
+						}
+						break;
+					}
+
+					case LBC_CONSTANT_CLASS_SHAPE: {
+						uint32_t cnid = readVarInt(data, offset);
+						uint32_t props = readVarInt(data, offset);
+						uint32_t methods = readVarInt(data, offset);
+
+						printf("class(name=");
+
+						if (cnid < strtab.size)
+							putsReadable(strtab[cnid]);
+						else
+							printf("%u", cnid);
+
+						printf(", properties=%u, methods=%u", props, methods);
+
+						if (props + methods) {
+							fputs(", members={", stdout);
+
+							for (uint32_t i = 0; i < props + methods; i++) {
+								uint32_t mid = readVarInt(data, offset);
+
+								if (i)
+									putchar(','), putchar(' ');
+
+								if (mid < strtab.size)
+									putsReadable(strtab[mid]);
+								else
+									printf("%u", mid);
+
+								if (i < props)
+									fputs(":property", stdout);
+								else
+									fputs(":method", stdout);
+							}
+
+							putchar('}');
+						}
+
+						putchar(')');
+						break;
+					}
 
 					default:
 						fputs("unk", stdout);

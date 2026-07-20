@@ -1,27 +1,22 @@
 #pragma once
 
 #include "mir/mir.h"
-#include "llvm-c/Types.h"
+#include "backends/Lowering.h"
+#include "backends/llvm/llvm-c/Types.h"
 
 namespace tea::backend {
 
-	class LLVMLowering {
+	class LLVMLowering : Lowering {
 		LLVMModuleRef M = nullptr;
 
-		tea::map<size_t, LLVMValueRef> globalMap;
+		tea::map<tea::string, LLVMValueRef> globalMap;
 		tea::map<const mir::Value*, LLVMValueRef> valueMap;
 		tea::map<const mir::BasicBlock*, LLVMBasicBlockRef> blockMap;
 
 	public:
-		struct Options {
-			const char* OutputFile = nullptr;
-			bool DumpLLVMModule : 1 = true;
-			uint8_t OptimizationLevel : 2 = 0;
-		};
+		LLVMLowering(tea::Context& ctx) : Lowering(ctx) {};
 
-		Options options;
-
-		void lower(const mir::Module* module, Options options = {});
+		void lower(const mir::Module* module, Options options) override;
 
 	private:
 		LLVMTypeRef lowerType(const Type* ty);

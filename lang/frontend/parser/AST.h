@@ -2,19 +2,20 @@
 
 #include <memory>
 
-#include "common/Type.h"
-#include "common/string.h"
-#include "common/vector.h"
+#include "core/Type.h"
+#include "core/string.h"
+#include "core/vector.h"
 
+// TODO: move to arena alloc
 namespace tea::frontend::AST {
 	enum class NodeKind: uint32_t {
 		Function, Return,
 		Expression, Call,
-		FunctionImport, ModuleImport,
+		FunctionImport,
 		Variable, GlobalVariable,
 		If, Else, ElseIf,
 		WhileLoop, ForLoop, LoopInterrupt,
-		Class, RootAttribute
+		Class, Attribute
 	};
 
 	enum class ExprKind : uint32_t {
@@ -37,18 +38,17 @@ namespace tea::frontend::AST {
 		Std, Fast, C, Auto
 	};
 
-	enum class FunctionAttribute {
+	enum class FunctionAttribute : uint32_t {
 		Inline = 1 << 0,
 		NoReturn = 1 << 1,
-		NoNamespace = 1 << 2,
-		NoMangle = 1 << 3
+		Link = 1 << 2
 	};
 
-	enum class GlobalAttribute {
+	enum class GVAttribute : uint32_t {
 		ThreadLocal = 1 << 0
 	};
 
-	enum class RootAttribute {
+	enum class GlobalAttribute : uint32_t {
 		Module = 1 << 0
 	};
 
@@ -95,6 +95,14 @@ namespace tea::frontend::AST {
 			uint32_t line, uint32_t column
 		) : ExpressionNode(ekind, line, column), lhs(std::move(lhs)), rhs(std::move(rhs)) {
 		}
+	};
+
+	struct AttributeNode : Node {
+		tea::vector<std::unique_ptr<ExpressionNode>> params;
+
+		AttributeNode(
+			uint32_t line, uint32_t column
+		) : Node(NodeKind::Attribute, line, column) {}
 	};
 
 	struct FunctionNode : Node {
@@ -169,17 +177,6 @@ namespace tea::frontend::AST {
 		void removeAttribute(FunctionAttribute attr) { extra &= ~(uint32_t)attr; };
 	};
 
-	struct ModuleImportNode : Node {
-		tea::string path;
-		
-		ModuleImportNode(
-			const tea::string& path,
-			uint32_t line, uint32_t column
-		)
-			: Node(NodeKind::ModuleImport, line, column), path(path) {
-		}
-	};
-
 	struct VariableNode : Node {
 		tea::string name;
 		Type* type;
@@ -250,9 +247,9 @@ namespace tea::frontend::AST {
 		}
 
 		void clearAttributes() { extra = 0; };
-		void addAttribute(GlobalAttribute attr) { extra |= (uint32_t)attr; };
-		bool hasAttribute(GlobalAttribute attr) const { return extra & (uint32_t)attr; };
-		void removeAttribute(GlobalAttribute attr) { extra &= ~(uint32_t)attr; };
+		void addAttribute(GVAttribute attr) { extra |= (uint32_t)attr; };
+		bool hasAttribute(GVAttribute attr) const { return extra & (uint32_t)attr; };
+		void removeAttribute(GVAttribute attr) { extra &= ~(uint32_t)attr; };
 	};
 
 	struct UnaryExprNode : ExpressionNode {
@@ -329,18 +326,6 @@ namespace tea::frontend::AST {
 			tea::vector<std::unique_ptr<GlobalVariableNode>>&& fields,
 			uint32_t line, uint32_t column
 		) : Node(NodeKind::Class, line, column), type(type), methods(std::move(methods)), fields(std::move(fields)) {
-		}
-	};
-
-	struct RootAttributeNode : Node {
-		RootAttribute attr;
-		tea::string val;
-
-		RootAttributeNode(
-			RootAttribute attr,
-			const tea::string& val,
-			uint32_t line, uint32_t column
-		) : Node(NodeKind::RootAttribute, line, column), attr(attr), val(val) {
 		}
 	};
 }

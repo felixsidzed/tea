@@ -1,7 +1,8 @@
 #pragma once
 
-#include "common/string.h"
-#include "common/vector.h"
+#include "core/string.h"
+#include "core/vector.h"
+#include "core/context.h"
 
 namespace tea::frontend {
 	enum class TokenKind {
@@ -18,7 +19,7 @@ namespace tea::frontend {
 		Semicolon, Comma, Colon, Dot,
 
 		// Symbols
-		Scope, At, Assign, Arrow, Tilde, Amp, Hashtag,
+		Scope, At, Assign, Arrow, Tilde, Amp,
 
 		// Arithmetical Operators
 		Star, Sub, Add, Div,
@@ -67,6 +68,6 @@ namespace tea::frontend {
 	/// </summary>
 	/// <param name="source">The source code to tokeize</param>
 	/// <returns>The generated vector of tokens</returns>
-	tea::vector<Token> lex(const tea::string& source);
+	tea::vector<Token> lex(tea::Context& ctx, uint32_t fsrc);
 
 } // namespace tea::frontend

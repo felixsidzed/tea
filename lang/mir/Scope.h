@@ -3,9 +3,9 @@
 #include <string>
 #include <memory>
 
-#include "common/map.h"
-#include "common/string.h"
-#include "common/vector.h"
+#include "core/map.h"
+#include "core/string.h"
+#include "core/vector.h"
 
 namespace tea::mir {
 

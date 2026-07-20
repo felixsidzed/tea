@@ -1,38 +1,42 @@
 #include <fstream>
 #include <iostream>
+#include <filesystem>
 
 #include "argparse.h"
-#include "common/tea.h"
+#include "core/tea.h"
+
+namespace fs = std::filesystem;
 
 int main(int argc, char** argv) {
+	tea::Context ctx;
 	try {
-		tea::args::Args* args = tea::args::parse(argc, argv);
-		if (!args->source) {
-			TEA_PANIC("source is a mandatory argument");
-			TEA_UNREACHABLE();
+		tea::args::Args args = tea::args::parse(ctx, argc, argv);
+
+		for (const char* p : args.importLookup)
+			ctx.importLookup.emplace(p);
+
+		for (const char* input : args.inputs) {
+			tea::string outFile;
+
+			if (!args.outFile.empty() && args.inputs.size == 1)
+				outFile = args.outFile;
+			else {
+				fs::path path = std::string(input);
+				outFile = path.replace_extension(".o").string().c_str();
+			}
+
+			uint32_t fsrc = ctx.sources.load(input);
+			if (fsrc == tea::badid)
+				ctx.diag.error(TEA_NO_SOURCELOC, 2, "could not open file: %s", input);
+
+			tea::compile(ctx, fsrc, outFile, args.triple, args.flags, args.optLevel);
 		}
 
-		if (!args->outFile) {
-			std::string output;
-			const std::string& source = args->source;
-
-			size_t pos = source.rfind('.');
-			if (pos != std::string::npos) output = source.substr(0, pos) + ".o";
-			else output = source + ".o";
-
-			args->outFile = new char[output.size() + 1];
-			memcpy_s(args->outFile, output.size() + 1, output.data(), output.size());
-			args->outFile[output.size() + 1] = '\0';
-		}
-
-		std::ifstream file(args->source);
-		std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-		tea::compile({ content.data(), (uint32_t)content.size() }, args->importLookup, args->outFile, args->triple, args->flags, args->optLevel);
-
-	} catch (const std::exception& e) {
-		std::cout << e.what() << std::endl;
+	} catch (const std::exception&) {
+		ctx.diag.print();
 		return 1;
 	}
 
-	return 0;
+	ctx.diag.print();
+	return (int)ctx.diag.hasError;
 }

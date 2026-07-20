@@ -1,7 +1,7 @@
 #pragma once
 
-#include "string.h"
-#include "vector.h"
+#include "core/string.h"
+#include "core/vector.h"
 
 #if defined(__clang__) && defined(__has_warning)
 	#if __has_feature(cxx_attributes) && __has_warning("-Wimplicit-fallthrough")
@@ -19,7 +19,7 @@
 	#if __has_attribute(noreturn)
 		#define TEA_NORETURN [[noreturn]] void
 	#else
-	#define TEA_NORETURN __attribute__((noreturn)) void
+		#define TEA_NORETURN __attribute__((noreturn)) void
 	#endif
 #elif defined(__GNUC__)
 	#if __GNUC__ >= 4
@@ -32,26 +32,27 @@
 #endif
 
 #ifdef _MSC_VER
-#include <intrin.h>
-
-#define TEA_RETURNADDR _ReturnAddress()
+	#include <intrin.h>
+	#define TEA_RETURNADDR _ReturnAddress()
 #else
-#define TEA_RETURNADDR __builtin_return_address(0)
+	#define TEA_RETURNADDR __builtin_return_address(0)
 #endif
 
 #ifdef _MSC_VER
-#define TEA_LIKELY(pred) pred
-#define TEA_UNLIKELY(pred) pred
-#define TEA_UNREACHABLE() __assume(false)
+	#define TEA_LIKELY(pred) pred
+	#define TEA_UNLIKELY(pred) pred
+	#define TEA_UNREACHABLE() __assume(false)
 #else
-#define TEA_LIKELY(pred) __builtin_expect(pred, 1)
-#define TEA_UNLIKELY(pred) __builtin_expect(pred, 0)
-#define TEA_UNREACHABLE() __builtin_unreachable()
+	#define TEA_LIKELY(pred) __builtin_expect(pred, 1)
+	#define TEA_UNLIKELY(pred) __builtin_expect(pred, 0)
+	#define TEA_UNREACHABLE() __builtin_unreachable()
 #endif
 
-#define TEA_PANIC tea::configuration.panic
-
 namespace tea {
+	static constexpr uint32_t badid = (uint32_t)-1;
+
+	struct Context;
+
 	struct CompilerFlags {
 	public:
 		enum Flag : uint8_t {
@@ -67,8 +68,8 @@ namespace tea {
 
 		void set(Flag f) { value |= (uint8_t)f; }
 		void clear(Flag f) { value &= ~(uint8_t)f; }
-		bool has(Flag f) const { return (value & (uint8_t)f) != 0; }
 		void toggle(Flag f) { value ^= (uint8_t)f; }
+		bool has(Flag f) const { return (value & (uint8_t)f) != 0; }
 
 		CompilerFlags operator|(CompilerFlags other) const {
 			CompilerFlags result;
@@ -88,18 +89,9 @@ namespace tea {
 		));
 	}
 
-	struct Configuration {
-		void(*panic)(const char* message, ...);
-	};
-
-	extern Configuration configuration;
-
 	void compile(
-		const tea::string& source,
-		const tea::vector<const char*>& importLookup,
-		const char* outFile,
-		const char* triple = nullptr,
-		const CompilerFlags& flags = CompilerFlags::None,
-		uint8_t optLevel = 2
+		tea::Context& ctx, uint32_t fsrc,
+		const char* outfile, const char* triple,
+		const CompilerFlags& flags, uint8_t optLevel
 	);
 }

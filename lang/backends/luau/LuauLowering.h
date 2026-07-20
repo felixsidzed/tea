@@ -1,6 +1,7 @@
 #pragma once
 
 #include "mir/mir.h"
+#include "backends/Lowering.h"
 
 enum LuauOpcode;
 
@@ -34,7 +35,7 @@ namespace tea::backend {
 		uint32_t emitABC(LuauOpcode op, uint8_t a, uint8_t b, uint8_t c);
 	};
 
-	class LuauLowering {
+	class LuauLowering : Lowering {
 		tea::vector<uint8_t> M;
 		std::unique_ptr<ProtoBuilder> proto = nullptr;
 
@@ -45,12 +46,7 @@ namespace tea::backend {
 		tea::map<const mir::Value*, std::pair<uint32_t, uint32_t>> globalMap;
 
 	public:
-		struct Options {
-			const char* OutputFile = nullptr;
-			bool DumpBytecode = false;
-		};
-
-		Options options;
+		LuauLowering(tea::Context& ctx) : Lowering(ctx) {}
 
 		static void dump(uint8_t* data, size_t size);
 		void lower(const mir::Module* module, Options options = {});

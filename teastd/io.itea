@@ -1,3 +1,5 @@
+@!module("io")
+
 import func print(string message) -> void;
 import func printf(string fmt, ...) -> void;
 

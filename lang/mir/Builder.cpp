@@ -1,6 +1,6 @@
 #include "mir.h"
 
-#include "common/tea.h"
+#include "core/tea.h"
 
 // TODO:	more constant folding
 //			more safety checks
@@ -19,7 +19,7 @@ namespace tea::mir {
 		Instruction* insn = block->body.emplace();
 		insn->op = OpCode::Alloca;
 
-		insn->result = std::make_unique<Value>(ValueKind::Instruction, tea::Type::Pointer(type));
+		insn->result = std::make_unique<Value>(ValueKind::Instruction, ctx.types.Pointer(type));
 		insn->result->name = block->scope.add(name);
 
 		return insn->result.get();
@@ -53,6 +53,7 @@ namespace tea::mir {
 		if (val->type == targetType)
 			return val;
 
+		Module* module = block->parent->parent;
 		if (val->kind == ValueKind::Constant) {
 			ConstantKind ck = (ConstantKind)val->subclassData;
 
@@ -61,12 +62,12 @@ namespace tea::mir {
 
 				if (val->type->isFloat()) {
 					if (targetType->isFloat())
-						return ConstantNumber::get<double>(num->getDouble(), targetType->kind == TypeKind::Float ? 32 : 64);
+						return ConstantNumber::get<double>(module, num->getDouble(), targetType->kind == TypeKind::Float ? 32 : 64);
 					else if (targetType->isNumeric())
-						return ConstantNumber::get(num->getInteger(), num->getBitwidth(), targetType->sign);
+						return ConstantNumber::get(module, num->getInteger(), num->getBitwidth(), targetType->sign);
 				} else if (val->type->isNumeric()) {
 					if (targetType->isFloat())
-						return ConstantNumber::get<double>(num->getDouble(), targetType->kind == TypeKind::Float ? 32 : 64);
+						return ConstantNumber::get<double>(module, num->getDouble(), targetType->kind == TypeKind::Float ? 32 : 64);
 					else if (targetType->isNumeric()) {
 						uint8_t width = 0;
 						switch (targetType->kind) {
@@ -77,14 +78,14 @@ namespace tea::mir {
 							case TypeKind::Long:  width = 64;  break;
 							default:                         break;
 						}
-						return ConstantNumber::get(num->getInteger(), width, targetType->sign);
+						return ConstantNumber::get(module, num->getInteger(), width, targetType->sign);
 					} else if (targetType->kind == TypeKind::Pointer)
-						return ConstantPointer::get(((PointerType*)targetType)->pointee, num->getInteger());
+						return ConstantPointer::get(module, ((PointerType*)targetType)->pointee, num->getInteger());
 				}
 			} else if (ck == ConstantKind::Pointer) {
 				uintptr_t value = ((ConstantPointer*)val)->value;
 				if (targetType->kind == TypeKind::Pointer)
-					return ConstantPointer::get(((PointerType*)targetType)->pointee, value);
+					return ConstantPointer::get(module, ((PointerType*)targetType)->pointee, value);
 				else if (targetType->isNumeric()) {
 					uint8_t width = 0;
 					switch (targetType->kind) {
@@ -95,7 +96,7 @@ namespace tea::mir {
 						case TypeKind::Long:  width = 64;  break;
 						default:                         break;
 					}
-					return ConstantNumber::get(value, width, targetType->sign);
+					return ConstantNumber::get(module, value, width, targetType->sign);
 				}
 			}
 		}
@@ -112,12 +113,13 @@ namespace tea::mir {
 	}
 
 	Value* Builder::globalString(const tea::string& val) {
-		ConstantString* str = ConstantString::get(val);
+		Module* module = block->parent->parent;
+		ConstantString* str = ConstantString::get(module, val);
 
 		Global* g = block->parent->parent->addGlobal("", str->type, str);
 		g->storage = StorageClass::Private;
 
-		ConstantNumber* zero = ConstantNumber::get(0, 32);
+		ConstantNumber* zero = ConstantNumber::get(module, 0, 32);
 		Value* indicies[] = { zero, zero };
 		return gep(g, indicies, 2, "");
 	}
@@ -141,27 +143,28 @@ namespace tea::mir {
 		if (op < OpCode::Add || op > OpCode::Mod || !lhs->type->equals(rhs->type))
 			return nullptr;
 
+		Module* module = block->parent->parent;
 		if (lhs->kind == ValueKind::Constant && rhs->kind == ValueKind::Constant) {
 			uint8_t width = ((ConstantNumber*)lhs)->getBitwidth();
 			if (lhs->type->isNumeric() && rhs->type->isNumeric()) {
 				uint64_t lnum = ((ConstantNumber*)lhs)->getInteger();
 				uint64_t rnum = ((ConstantNumber*)rhs)->getInteger();
 				switch (op) {
-				case OpCode::Add: return ConstantNumber::get(lnum + rnum, width, lhs->type->sign);
-				case OpCode::Sub: return ConstantNumber::get(lnum - rnum, width, lhs->type->sign);
-				case OpCode::Mul: return ConstantNumber::get(lnum * rnum, width, lhs->type->sign);
-				case OpCode::Div: return ConstantNumber::get(lnum / rnum, width, lhs->type->sign);
-				case OpCode::Mod: return ConstantNumber::get(lnum % rnum, width, lhs->type->sign);
+				case OpCode::Add: return ConstantNumber::get(module, lnum + rnum, width, lhs->type->sign);
+				case OpCode::Sub: return ConstantNumber::get(module, lnum - rnum, width, lhs->type->sign);
+				case OpCode::Mul: return ConstantNumber::get(module, lnum * rnum, width, lhs->type->sign);
+				case OpCode::Div: return ConstantNumber::get(module, lnum / rnum, width, lhs->type->sign);
+				case OpCode::Mod: return ConstantNumber::get(module, lnum % rnum, width, lhs->type->sign);
 				default: TEA_UNREACHABLE();
 				}
 			} else if (lhs->type->isFloat() && rhs->type->isFloat()) {
 				double lnum = ((ConstantNumber*)lhs)->getDouble();
 				double rnum = ((ConstantNumber*)rhs)->getDouble();
 				switch (op) {
-				case OpCode::Add: return ConstantNumber::get<double>(lnum + rnum, width, lhs->type->sign);
-				case OpCode::Sub: return ConstantNumber::get<double>(lnum - rnum, width, lhs->type->sign);
-				case OpCode::Mul: return ConstantNumber::get<double>(lnum * rnum, width, lhs->type->sign);
-				case OpCode::Div: return ConstantNumber::get<double>(lnum / rnum, width, lhs->type->sign);
+				case OpCode::Add: return ConstantNumber::get<double>(module, lnum + rnum, width, lhs->type->sign);
+				case OpCode::Sub: return ConstantNumber::get<double>(module, lnum - rnum, width, lhs->type->sign);
+				case OpCode::Mul: return ConstantNumber::get<double>(module, lnum * rnum, width, lhs->type->sign);
+				case OpCode::Div: return ConstantNumber::get<double>(module, lnum / rnum, width, lhs->type->sign);
 				default: break;
 				}
 			}
@@ -192,15 +195,16 @@ namespace tea::mir {
 			ptr->type->kind == TypeKind::Pointer &&
 			((PointerType*)ptr->type)->pointee->kind == TypeKind::Struct
 		) {
+			Module* module = block->parent->parent;
 			Instruction* insn = block->body.emplace();
 			insn->op = OpCode::GetElementPtr;
 			insn->operands.emplace(ptr);
-			insn->operands.emplace(ConstantNumber::get(0, 32));
+			insn->operands.emplace(ConstantNumber::get(module, 0, 32));
 			insn->operands.emplace(idx);
 
 			StructType* st = (StructType*)(((PointerType*)ptr->type)->pointee);
 
-			insn->result = std::make_unique<Value>(ValueKind::Instruction, Type::Pointer(st->body[(uint32_t)((ConstantNumber*)idx)->getInteger()], false));
+			insn->result = std::make_unique<Value>(ValueKind::Instruction, ctx.types.Pointer(st->body[(uint32_t)((ConstantNumber*)idx)->getInteger()], false));
 			insn->result->name = block->scope.add(name);
 
 			return insn->result.get();
@@ -227,7 +231,7 @@ namespace tea::mir {
 			ty = ty->getElementType();
 		}
 
-		insn->result = std::make_unique<Value>(ValueKind::Instruction, Type::Pointer(ty));
+		insn->result = std::make_unique<Value>(ValueKind::Instruction, ctx.types.Pointer(ty));
 		insn->result->name = block->scope.add(name);
 
 		return insn->result.get();
@@ -269,17 +273,18 @@ namespace tea::mir {
 		if (!lhs->type->isNumeric() || !rhs->type->isNumeric())
 			return nullptr;
 
+		Module* module = block->parent->parent;
 		if (lhs->kind == ValueKind::Constant && rhs->kind == ValueKind::Constant) {
 			if (lhs->type->sign) {
 				int64_t lnum = (int64_t)((ConstantNumber*)lhs)->getInteger();
 				int64_t rnum = (int64_t)((ConstantNumber*)rhs)->getInteger();
 				switch (pred) {
-				case ICmpPredicate::EQ: return ConstantNumber::get(lnum == rnum, 1);
-				case ICmpPredicate::NEQ: return ConstantNumber::get(lnum != rnum, 1);
-				case ICmpPredicate::SGT: return ConstantNumber::get(lnum > rnum, 1);
-				case ICmpPredicate::SGE: return ConstantNumber::get(lnum >= rnum, 1);
-				case ICmpPredicate::SLT: return ConstantNumber::get(lnum < rnum, 1);
-				case ICmpPredicate::SLE: return ConstantNumber::get(lnum <= rnum, 1);
+				case ICmpPredicate::EQ: return ConstantNumber::get(module, lnum == rnum, 1);
+				case ICmpPredicate::NEQ: return ConstantNumber::get(module, lnum != rnum, 1);
+				case ICmpPredicate::SGT: return ConstantNumber::get(module, lnum > rnum, 1);
+				case ICmpPredicate::SGE: return ConstantNumber::get(module, lnum >= rnum, 1);
+				case ICmpPredicate::SLT: return ConstantNumber::get(module, lnum < rnum, 1);
+				case ICmpPredicate::SLE: return ConstantNumber::get(module, lnum <= rnum, 1);
 				default: break;
 				}
 			}
@@ -287,12 +292,12 @@ namespace tea::mir {
 			uint64_t lnum = ((ConstantNumber*)lhs)->getInteger();
 			uint64_t rnum = ((ConstantNumber*)rhs)->getInteger();
 			switch (pred) {
-			case ICmpPredicate::EQ: return ConstantNumber::get(lnum == rnum, 1);
-			case ICmpPredicate::NEQ: return ConstantNumber::get(lnum != rnum, 1);
-			case ICmpPredicate::UGT: return ConstantNumber::get(lnum > rnum, 1);
-			case ICmpPredicate::UGE: return ConstantNumber::get(lnum >= rnum, 1);
-			case ICmpPredicate::ULT: return ConstantNumber::get(lnum < rnum, 1);
-			case ICmpPredicate::ULE: return ConstantNumber::get(lnum <= rnum, 1);
+			case ICmpPredicate::EQ: return ConstantNumber::get(module, lnum == rnum, 1);
+			case ICmpPredicate::NEQ: return ConstantNumber::get(module, lnum != rnum, 1);
+			case ICmpPredicate::UGT: return ConstantNumber::get(module, lnum > rnum, 1);
+			case ICmpPredicate::UGE: return ConstantNumber::get(module, lnum >= rnum, 1);
+			case ICmpPredicate::ULT: return ConstantNumber::get(module, lnum < rnum, 1);
+			case ICmpPredicate::ULE: return ConstantNumber::get(module, lnum <= rnum, 1);
 			default: break;
 			}
 		} else {
@@ -302,7 +307,7 @@ namespace tea::mir {
 			insn->operands.emplace(rhs);
 			insn->extra = (uint32_t)pred;
 
-			insn->result = std::make_unique<Value>(ValueKind::Instruction, Type::Bool());
+			insn->result = std::make_unique<Value>(ValueKind::Instruction, ctx.types.Bool());
 			insn->result->name = block->scope.add(name);
 
 			return insn->result.get();
@@ -314,18 +319,19 @@ namespace tea::mir {
 		if (!lhs->type->isFloat() || !rhs->type->isFloat())
 			return nullptr;
 
+		Module* module = block->parent->parent;
 		if (lhs->kind == ValueKind::Constant && rhs->kind == ValueKind::Constant) {
 			double lnum = ((ConstantNumber*)lhs)->getDouble();
 			double rnum = ((ConstantNumber*)rhs)->getDouble();
 			switch (pred) {
-			case FCmpPredicate::OEQ: return ConstantNumber::get(lnum == rnum, 1);
-			case FCmpPredicate::ONEQ: return ConstantNumber::get(lnum != rnum, 1);
-			case FCmpPredicate::OGT: return ConstantNumber::get(lnum > rnum, 1);
-			case FCmpPredicate::OGE: return ConstantNumber::get(lnum >= rnum, 1);
-			case FCmpPredicate::OLT: return ConstantNumber::get(lnum < rnum, 1);
-			case FCmpPredicate::OLE: return ConstantNumber::get(lnum <= rnum, 1);
-			case FCmpPredicate::TRUE: return ConstantNumber::get(1, 1);
-			case FCmpPredicate::FALSE: return ConstantNumber::get(0, 1);
+			case FCmpPredicate::OEQ: return ConstantNumber::get(module, lnum == rnum, 1);
+			case FCmpPredicate::ONEQ: return ConstantNumber::get(module, lnum != rnum, 1);
+			case FCmpPredicate::OGT: return ConstantNumber::get(module, lnum > rnum, 1);
+			case FCmpPredicate::OGE: return ConstantNumber::get(module, lnum >= rnum, 1);
+			case FCmpPredicate::OLT: return ConstantNumber::get(module, lnum < rnum, 1);
+			case FCmpPredicate::OLE: return ConstantNumber::get(module, lnum <= rnum, 1);
+			case FCmpPredicate::TRUE: return ConstantNumber::get(module, 1, 1);
+			case FCmpPredicate::FALSE: return ConstantNumber::get(module, 0, 1);
 			default: return nullptr;
 			}
 		} else {
@@ -335,7 +341,7 @@ namespace tea::mir {
 			insn->operands.emplace(rhs);
 			insn->extra = (uint32_t)pred;
 
-			insn->result = std::make_unique<Value>(ValueKind::Instruction, Type::Bool());
+			insn->result = std::make_unique<Value>(ValueKind::Instruction, ctx.types.Bool());
 			insn->result->name = block->scope.add(name);
 
 			return insn->result.get();

@@ -1,11 +1,11 @@
 #include "codegen/codegen.h"
 
-#include "common/tea.h"
+#include "core/tea.h"
 
 namespace tea {
 
 	void CodeGen::emitBlock(const AST::Tree* tree) {
-		tea::map<size_t, Local> oldLocals = locals;
+		tea::map<tea::string, Local> oldLocals = locals;
 
 		for (const auto& node : *tree) {
 			switch (node->kind) {
@@ -20,7 +20,7 @@ namespace tea {
 			case AST::NodeKind::If: {
 				AST::IfNode* ifNode = (AST::IfNode*)node.get();
 
-				mir::Function* func = builder.getInsertBlock()->parent;
+				mir::Function* func = builder.block->parent;
 				mir::BasicBlock* merge = func->appendBlock("if.merge");
 				
 				mir::Value* pred = expr2bool(emitExpression(ifNode->pred.get()));
@@ -37,14 +37,14 @@ namespace tea {
 					falseTarget = merge;
 				builder.cbr(pred, thenBlock, falseTarget);
 
-				builder.insertInto(thenBlock);
+				builder.block = thenBlock;
 				emitBlock(&ifNode->body);
-				if (!builder.getInsertBlock()->getTerminator())
+				if (!builder.block->getTerminator())
 					builder.br(merge);
 
 				mir::BasicBlock* curCondBlock = falseTarget;
 				while (elseifNode) {
-					builder.insertInto(curCondBlock);
+					builder.block = curCondBlock;
 
 					mir::Value* elifPred = expr2bool(emitExpression(elseifNode->pred.get()));
 					mir::BasicBlock* elifThenBlock = func->appendBlock("if.elseif.then");
@@ -57,27 +57,27 @@ namespace tea {
 						curCondBlock = merge;
 					builder.cbr(elifPred, elifThenBlock, curCondBlock);
 
-					builder.insertInto(elifThenBlock);
+					builder.block = elifThenBlock;
 					emitBlock(&elseifNode->body);
-					if (!builder.getInsertBlock()->getTerminator())
+					if (!builder.block->getTerminator())
 						builder.br(merge);
 
 					elseifNode = elseifNode->next.get();
 				}
 
 				if (ifNode->otherwise) {
-					builder.insertInto(curCondBlock);
+					builder.block = curCondBlock;
 					emitBlock(&ifNode->otherwise->body);
-					if (!builder.getInsertBlock()->getTerminator())
+					if (!builder.block->getTerminator())
 						builder.br(merge);
 				}
 
-				builder.insertInto(merge);
+				builder.block = merge;
 			} break;
 
 			case AST::NodeKind::WhileLoop: {
 				AST::WhileLoopNode* loop = (AST::WhileLoopNode*)node.get();
-				mir::Function* func = builder.getInsertBlock()->parent;
+				mir::Function* func = builder.block->parent;
 
 				mir::BasicBlock* pred = func->appendBlock("loop.pred");
 				mir::BasicBlock* body = func->appendBlock("loop.body");
@@ -92,12 +92,12 @@ namespace tea {
 					body, merge
 				);
 
-				builder.insertInto(body);
+				builder.block = body;
 				emitBlock(&loop->body);
 
-				if (!builder.getInsertBlock()->getTerminator())
+				if (!builder.block->getTerminator())
 					builder.br(pred);
-				builder.insertInto(merge);
+				builder.block = merge;
 
 				contTarget = nullptr;
 				breakTarget = nullptr;
@@ -120,7 +120,7 @@ namespace tea {
 
 			case AST::NodeKind::ForLoop: {
 				AST::ForLoopNode* loop = (AST::ForLoopNode*)node.get();
-				mir::Function* func = builder.getInsertBlock()->parent;
+				mir::Function* func = builder.block->parent;
 
 				mir::BasicBlock* pred = func->appendBlock("loop.pred");
 				mir::BasicBlock* body = func->appendBlock("loop.body");
@@ -140,10 +140,10 @@ namespace tea {
 				else
 					builder.br(body);
 
-				builder.insertInto(body);
+				builder.block = body;
 				emitBlock(&loop->body);
 
-				mir::Instruction* term = (mir::Instruction*)builder.getInsertBlock()->getTerminator();
+				mir::Instruction* term = (mir::Instruction*)builder.block->getTerminator();
 				if (!term) {
 					emitExpression(loop->step.get());
 					builder.br(pred);
@@ -154,14 +154,14 @@ namespace tea {
 					emitExpression(loop->step.get());
 					builder.br(pred);
 				}
-				builder.insertInto(merge);
+				builder.block = merge;
 
 				contTarget = nullptr;
 				breakTarget = nullptr;
 			} break;
 
 			default:
-				TEA_PANIC("unknown statement %d", node->kind);
+				ctx.diag.fatal({ fsrc, node->line, node->column }, 4002, "unknown statement %d", node->kind);
 			}
 		}
 
