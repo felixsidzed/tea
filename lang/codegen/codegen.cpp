@@ -31,6 +31,9 @@ namespace tea {
 				f->storage = func->vis;
 				f->cc = func->cc;
 
+				if (func->hasAttribute(AST::FunctionAttribute::Link))
+					f->linkName = ((AST::LiteralNode*)(*func->getAttrParams(AST::FunctionAttribute::Link)->data).get())->value;
+
 				builder.block = f->appendBlock("entry");
 				curParams = &func->params;
 

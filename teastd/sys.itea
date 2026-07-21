@@ -1,3 +1,5 @@
+@!module("sys")
+
 @noreturn
 import func exit(int exitCode) -> void;
 

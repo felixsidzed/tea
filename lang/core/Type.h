@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/map.h"
+#include "core/umap.h"
 #include "core/string.h"
 #include "core/vector.h"
 
@@ -22,8 +23,8 @@ namespace tea {
 	class TypeTable {
 	public:
 		tea::vector<std::unique_ptr<Type>> types;
-		tea::map<size_t, std::unique_ptr<StructType>> structTypes;
-		tea::map<size_t, std::unique_ptr<FunctionType>> funcTypes;
+		tea::umap<size_t, std::unique_ptr<StructType>> structTypes;
+		tea::umap<size_t, std::unique_ptr<FunctionType>> funcTypes;
 
 		Type* get(const tea::string& name);
 
@@ -66,7 +67,7 @@ namespace tea {
 
 		virtual ~Type() = default;
 
-		tea::string str();
+		tea::string str() const;
 
 		bool isFloat() const;
 		bool isNumeric() const;

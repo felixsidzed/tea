@@ -262,15 +262,14 @@ namespace tea::mir {
 		tea::string source;
 		tea::string triple;
 
-		// world wide disappointment
-		tea::map<size_t, std::unique_ptr<ConstantArray>> arrConst;
+		tea::umap<size_t, std::unique_ptr<ConstantArray>> arrConst;
 		tea::map<tea::string, std::unique_ptr<ConstantString>> strConst;
 
-		tea::map<uint8_t, std::unique_ptr<ConstantNumber>> num0Const;
-		tea::map<uint8_t, std::unique_ptr<ConstantNumber>> num1Const;
-		tea::map<uint64_t, std::unique_ptr<ConstantNumber>> numConst;
+		tea::umap<uint8_t, std::unique_ptr<ConstantNumber>> num0Const;
+		tea::umap<uint8_t, std::unique_ptr<ConstantNumber>> num1Const;
+		tea::umap<uint64_t, std::unique_ptr<ConstantNumber>> numConst;
 
-		tea::map<size_t, std::unique_ptr<ConstantPointer>> ptrConst;
+		tea::umap<size_t, std::unique_ptr<ConstantPointer>> ptrConst;
 
 		Module(tea::Context& ctx, const tea::string& source) : ctx(ctx), source(source) {
 		}

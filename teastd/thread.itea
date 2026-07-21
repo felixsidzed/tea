@@ -1,3 +1,5 @@
+@!module("thread")
+
 import func spawn(void* f) -> void*;
 import func join(void* thread) -> void;
 import func close(void* thread) -> void;

@@ -165,8 +165,8 @@ namespace tea {
 				mir::Function* curFunc = builder.block->parent;
 
 				mir::Value* retVal = nullptr;
-				tea::map<const mir::Value*, mir::Value*> valueMap;
-				tea::map<const mir::BasicBlock*, mir::BasicBlock*> blockMap;
+				tea::umap<const mir::Value*, mir::Value*> valueMap;
+				tea::umap<const mir::BasicBlock*, mir::BasicBlock*> blockMap;
 
 				for (uint32_t i = 0; i < func->params.size; i++)
 					valueMap[func->params[i].get()] = args[i];

@@ -41,7 +41,9 @@ namespace tea::frontend::AST {
 	enum class FunctionAttribute : uint32_t {
 		Inline = 1 << 0,
 		NoReturn = 1 << 1,
-		Link = 1 << 2
+		Link = 1 << 2,
+
+		_count = 3
 	};
 
 	enum class GVAttribute : uint32_t {
@@ -97,8 +99,11 @@ namespace tea::frontend::AST {
 		}
 	};
 
+	// blame hypergamy
+	typedef tea::vector<std::unique_ptr<ExpressionNode>> ExpressionList;
+
 	struct AttributeNode : Node {
-		tea::vector<std::unique_ptr<ExpressionNode>> params;
+		ExpressionList params;
 
 		AttributeNode(
 			uint32_t line, uint32_t column
@@ -110,8 +115,9 @@ namespace tea::frontend::AST {
 		StorageClass vis;
 		bool vararg;
 		tea::string name;
-		tea::vector<std::pair<Type*, tea::string>> params;
 		Type* returnType;
+		tea::vector<std::pair<Type*, tea::string>> params;
+		tea::umap<FunctionAttribute, ExpressionList> attrParams;
 		tea::vector<std::unique_ptr<struct VariableNode>> variables;
 
 		Tree body;
@@ -132,6 +138,13 @@ namespace tea::frontend::AST {
 		void addAttribute(FunctionAttribute attr) { extra |= (uint32_t)attr; };
 		bool hasAttribute(FunctionAttribute attr) const { return extra & (uint32_t)attr; };
 		void removeAttribute(FunctionAttribute attr) { extra &= ~(uint32_t)attr; };
+
+		void addAttribute(FunctionAttribute attr, ExpressionList&& params) {
+			extra |= (uint32_t)attr;
+			if (!params.empty())
+				attrParams[attr] = std::move(params);
+		};
+		const ExpressionList* getAttrParams(FunctionAttribute attr) const { return attrParams.find(attr); }
 	};
 
 	struct ReturnNode : Node {
@@ -144,11 +157,11 @@ namespace tea::frontend::AST {
 
 	struct CallNode : ExpressionNode {
 		std::unique_ptr<ExpressionNode> callee;
-		tea::vector<std::unique_ptr<ExpressionNode>> args;
+		ExpressionList args;
 
 		CallNode(
 			std::unique_ptr<ExpressionNode> callee,
-			tea::vector<std::unique_ptr<ExpressionNode>>&& args,
+			ExpressionList&& args,
 			uint32_t _line, uint32_t _column
 		) : args(std::move(args)), callee(std::move(callee)), ExpressionNode(ExprKind::Call, _line, _column) {}
 	};
@@ -157,8 +170,9 @@ namespace tea::frontend::AST {
 		CallingConvention cc;
 		bool vararg;
 		tea::string name;
-		tea::vector<std::pair<Type*, tea::string>> params;
 		Type* returnType;
+		tea::vector<std::pair<Type*, tea::string>> params;
+		tea::umap<FunctionAttribute, ExpressionList> attrParams;
 
 		FunctionImportNode(
 			CallingConvention cc,
@@ -175,6 +189,13 @@ namespace tea::frontend::AST {
 		void addAttribute(FunctionAttribute attr) { extra |= (uint32_t)attr; };
 		bool hasAttribute(FunctionAttribute attr) const { return extra & (uint32_t)attr; };
 		void removeAttribute(FunctionAttribute attr) { extra &= ~(uint32_t)attr; };
+
+		void addAttribute(FunctionAttribute attr, ExpressionList&& params) {
+			extra |= (uint32_t)attr;
+			if (!params.empty())
+				attrParams[attr] = std::move(params);
+		};
+		const ExpressionList* getAttrParams(FunctionAttribute attr) const { return attrParams.find(attr); }
 	};
 
 	struct VariableNode : Node {
@@ -232,8 +253,9 @@ namespace tea::frontend::AST {
 	struct GlobalVariableNode : Node {
 		tea::string name;
 		Type* type;
-		std::unique_ptr<ExpressionNode> initializer;
 		StorageClass vis;
+		std::unique_ptr<ExpressionNode> initializer;
+		tea::umap<GVAttribute, ExpressionList> attrParams;
 
 		GlobalVariableNode(
 			const tea::string& name,
@@ -250,6 +272,13 @@ namespace tea::frontend::AST {
 		void addAttribute(GVAttribute attr) { extra |= (uint32_t)attr; };
 		bool hasAttribute(GVAttribute attr) const { return extra & (uint32_t)attr; };
 		void removeAttribute(GVAttribute attr) { extra &= ~(uint32_t)attr; };
+
+		void addAttribute(GVAttribute attr, ExpressionList&& params) {
+			extra |= (uint32_t)attr;
+			if (!params.empty())
+				attrParams[attr] = std::move(params);
+		};
+		const ExpressionList* getAttrParams(GVAttribute attr) const { return attrParams.find(attr); }
 	};
 
 	struct UnaryExprNode : ExpressionNode {
@@ -290,10 +319,10 @@ namespace tea::frontend::AST {
 	};
 
 	struct ArrayNode : ExpressionNode {
-		tea::vector<std::unique_ptr<ExpressionNode>> values;
+		ExpressionList values;
 
 		ArrayNode(
-			tea::vector<std::unique_ptr<ExpressionNode>>&& values,
+			ExpressionList&& values,
 			uint32_t line, uint32_t column
 		) : ExpressionNode(ExprKind::Array, line, column), values(std::move(values)) {
 		}

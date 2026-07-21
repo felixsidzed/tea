@@ -1,3 +1,5 @@
+@!module("mutex")
+
 import func new() -> void*; // result is on heap
 import func lock(void*) -> void;
 import func unlock(void*) -> void;

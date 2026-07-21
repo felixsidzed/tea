@@ -21,7 +21,7 @@ namespace tea {
 		tea::vector<std::pair<Type*, tea::string>>* curParams = nullptr;
 
 		tea::map<tea::string, Local> locals;
-		tea::map<const StructType*, const AST::ObjectNode*> structMap;
+		tea::umap<const StructType*, const AST::ObjectNode*> structMap;
 
 		mir::Value* self = nullptr;
 		mir::BasicBlock* contTarget = nullptr;

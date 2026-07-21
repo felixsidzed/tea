@@ -106,9 +106,9 @@ namespace tea::frontend {
 
 					consume(TokenKind::Semicolon);
 
-					const auto& tokens = tea::frontend::lex(ctx, mfsrc);
-					tea::frontend::Parser parser(ctx);
-					tea::frontend::AST::Tree itree = parser.parse(tokens, mfsrc);
+					const auto& tokens = lex(ctx, mfsrc);
+					Parser parser(ctx);
+					AST::Tree itree = parser.parse(tokens, mfsrc);
 					if (ctx.diag.hasError)
 						return root;
 
@@ -159,7 +159,7 @@ namespace tea::frontend {
 					while (true) {
 						if (cur->kind == TokenKind::EndOfFile)
 							unexpected();
-
+						
 						if (cur->extra == (uint32_t)KeywordKind::End)
 							break;
 
@@ -217,15 +217,20 @@ namespace tea::frontend {
 				uint32_t _line = cur->line, _column = cur->column;
 				auto attrNode = std::make_unique<AST::AttributeNode>(_line, _column);
 				const tea::string& attrName = consume(TokenKind::Identf).text;
-				
-				if (auto it = name2fnAttr.find(attrName); !isGlobal) {
-					fnAttr |= (uint32_t)*it;
-				} else if (auto it = name2gvAttr.find(attrName); !isGlobal) {
-					gvAttr |= (uint32_t)*it;
-				} else if (auto it = name2globalAttr.find(attrName)) {
-					globalAttr |= (uint32_t)*it;
-				} else
-					ctx.diag.error({ fsrc, cur->line, cur->column }, 2001, "'%s' is not a valid attribute", attrName.data());
+
+				if (!isGlobal) {
+					if (auto it = name2fnAttr.find(attrName))
+						fnAttr |= (uint32_t)*it;
+					else if (auto it = name2gvAttr.find(attrName))
+						gvAttr |= (uint32_t)*it;
+					else
+						ctx.diag.error({ fsrc, cur->line, cur->column }, 2001, "'%s' is not a valid attribute", attrName.data());
+				} else {
+					if (auto it = name2globalAttr.find(attrName))
+						globalAttr |= (uint32_t)*it;
+					else
+						ctx.diag.error({ fsrc, cur->line, cur->column }, 2001, "'%s' is not a valid attribute", attrName.data());
+				}
 
 				if (cur->kind == TokenKind::Lpar) {
 					next();
@@ -442,14 +447,20 @@ namespace tea::frontend {
 		const tea::string& name = consume(TokenKind::Identf).text;
 		const auto& [vararg, params] = parseParams();
 
-		consume(TokenKind::Arrow);
+		Type* returnType = nullptr;
+		if (match(TokenKind::Arrow)) {
+			const tea::string& typeName = parseType();
+			returnType = ctx.types.get(typeName);
+			if (!returnType)
+				ctx.diag.error({ fsrc, cur->line, cur->column }, 2001, "undefined type '%s'", typeName.data());
+		}
 
-		const tea::string& typeName = parseType();
-		Type* returnType = ctx.types.get(typeName);
-		if (!returnType)
-			ctx.diag.error({ fsrc, cur->line, cur->column }, 2001, "undefined type '%s'", typeName.data());
+		auto node = mknode(AST::FunctionNode, vis, cc, name, params, returnType, vararg);
 
-		auto node = std::make_unique<AST::FunctionNode>(vis, cc, name, params, returnType, vararg, _line, _column);
+		for (auto& attr : attrStack)
+			node->addAttribute((AST::FunctionAttribute)attr->extra, std::move(attr->params));
+		attrStack.clear();
+
 		func = node.get();
 		auto body = &node->body;
 		treeHistory.emplace(tree);

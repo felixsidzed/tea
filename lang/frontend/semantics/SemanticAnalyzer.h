@@ -40,7 +40,7 @@ namespace tea::frontend {
 
 		bool isMethodCall = false;
 		AST::FunctionNode* func = nullptr;
-		tea::map<StructType*, AST::ObjectNode*> structMap;
+		tea::umap<tea::StructType*, AST::ObjectNode*> structMap;
 
 	public:
 		SemanticAnalyzer(tea::Context& ctx) : ctx(ctx) {}
@@ -51,6 +51,7 @@ namespace tea::frontend {
 		Symbol* lookup(const tea::string& name);
 
 		void visitVariable(AST::VariableNode* node);
+		AST::ReturnNode* findFirstReturn(const AST::Tree& tree);
 		void visitStat(const frontend::AST::Node* node, bool inLoop = false);
 		void visitBlock(const frontend::AST::Tree& tree, bool inLoop = false);
 

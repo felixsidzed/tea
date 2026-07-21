@@ -1,4 +1,6 @@
-@noreturn, @nonamespace
+@!module("except")
+
+@noreturn
 import func throw(string message) -> void;
 
 import func pcall(void* f) -> string;

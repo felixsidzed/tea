@@ -40,10 +40,10 @@ namespace tea::backend {
 		std::unique_ptr<ProtoBuilder> proto = nullptr;
 
 		uint8_t nextReg = 0;
-		tea::map<const mir::Value*, uint8_t> valueMap;
-		tea::map<const mir::BasicBlock*, uint32_t> blockLabels;
+		tea::umap<const mir::Value*, uint8_t> valueMap;
+		tea::umap<const mir::BasicBlock*, uint32_t> blockLabels;
 		tea::vector<std::pair<const mir::BasicBlock*, uint32_t>> jmpReloc;
-		tea::map<const mir::Value*, std::pair<uint32_t, uint32_t>> globalMap;
+		tea::umap<const mir::Value*, std::pair<uint32_t, uint32_t>> globalMap;
 
 	public:
 		LuauLowering(tea::Context& ctx) : Lowering(ctx) {}

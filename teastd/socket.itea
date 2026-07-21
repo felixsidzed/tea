@@ -1,3 +1,5 @@
+@!module("socket")
+
 import func connect(const char* host, unsigned short port) -> void*;
 
 import func accept(void* sock) -> void*;

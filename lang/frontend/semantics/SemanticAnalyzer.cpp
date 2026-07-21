@@ -1,5 +1,6 @@
 #include "SemanticAnalyzer.h"
 
+#include <span>
 #include <fstream>
 #include <filesystem>
 
@@ -24,6 +25,25 @@ namespace tea::frontend {
 		"&", "|", "^", ">>", "<<"
 	};
 
+	static const char* strtypekind(const TypeKind& kind) {
+		switch (kind) {
+		case TypeKind::Void: return "void";
+		case TypeKind::Bool: return "bool";
+		case TypeKind::Char: return "char";
+		case TypeKind::Short: return "short";
+		case TypeKind::Float: return "float";
+		case TypeKind::Int: return "int";
+		case TypeKind::Double: return "double";
+		case TypeKind::Long: return "long";
+		case TypeKind::String: return "string";
+		case TypeKind::Pointer: return "pointer";
+		case TypeKind::Function: return "function";
+		case TypeKind::Array: return "array";
+		case TypeKind::Struct: return "struct";
+		}
+		return nullptr;
+	}
+
 	void SemanticAnalyzer::visit(const AST::Tree& root, uint32_t fsrc_) {
 		fsrc = fsrc_;
 		pushscope();
@@ -32,20 +52,61 @@ namespace tea::frontend {
 			switch (node->kind) {
 			case AST::NodeKind::Function: {
 				func = (AST::FunctionNode*)node.get();
+
+				// TODO: specify which attribute
+				for (uint32_t attr = 0; attr < (uint32_t)AST::FunctionAttribute::_count; attr++) {
+					AST::ExpressionList* plist = func->attrParams.find((AST::FunctionAttribute)(1 << attr));
+					if (!(func->extra & (1 << attr)))
+						continue;
+
+					AST::ExpressionList savemebenjaminnetanyahu;
+					if (!plist)
+						plist = &savemebenjaminnetanyahu;
+
+					std::initializer_list<TypeKind> sig;
+					switch ((AST::FunctionAttribute)(1 << attr)) {
+					case AST::FunctionAttribute::Link:
+						sig = { TypeKind::String };
+					}
+
+					if (sig.size() != plist->size) {
+						ctx.diag.fatal({ fsrc, func->line, func->column }, 3002, "argument count mismatch in attribute, expected %u, got %u", sig.size(), plist->size);
+						break;
+					}
+
+					for (uint32_t i = 0; i < sig.size(); i++) {
+						const TypeKind& expected = sig.begin()[i];
+						const Type* got = visitExpression(plist->operator[](i).get());
+						if (got->kind != expected) {
+							ctx.diag.error({ fsrc, func->line, func->column }, 3003,
+								"(attribute argument #%u) expected type %s, got %s",
+								i + 1, strtypekind(expected), got->str()
+							);
+							break;
+						}
+					}
+				}
 				
 				tea::vector<Type*> params;
 				for (const auto& [ty, _] : func->params)
 					params.emplace(ty);
 
-				Type* ftype = ctx.types.Function(func->returnType, params, func->vararg);
-				pushsym(func->name, ftype, false, true, false, func->vis == AST::StorageClass::Public, true);
-				
 				pushscope();
 				for (const auto& [ty, name] : func->params)
 					pushsym(name, ty, false, false, false, false, true);
 
 				for (const auto& var : func->variables)
 					visitVariable(var.get());
+
+				Type* retty = func->returnType;
+				if (!retty) {
+					if (auto* ret = findFirstReturn(func->body))
+						retty = visitExpression(ret->value.get());
+					else retty = ctx.types.Void();
+				}
+
+				Type* ftype = ctx.types.Function(func->returnType, params, func->vararg);
+				scopeHistory[scopeHistory.size - 2].emplace(func->name, ftype, false, true, false, func->vis == AST::StorageClass::Public, true);
 
 				visitBlock(func->body);
 				popscope();
@@ -86,9 +147,33 @@ namespace tea::frontend {
 				structMap[obj->type] = obj;
 			} break;
 
-			// TODO: actually check this
-			case AST::NodeKind::Attribute:
-				break;
+			case AST::NodeKind::Attribute: {
+				AST::AttributeNode* attr = (AST::AttributeNode*)node.get();
+
+				std::initializer_list<TypeKind> sig;
+				switch ((AST::GlobalAttribute)node->extra) {
+				case AST::GlobalAttribute::Module:
+					sig = {TypeKind::String};
+				}
+
+				if (sig.size() != attr->params.size) {
+					ctx.diag.error({ fsrc, attr->line, attr->column }, 3002, "argument count mismatch, expected %u, got %u", sig.size(), attr->params.size);
+					break;
+				}
+
+				for (uint32_t i = 0; i < sig.size(); i++) {
+					const TypeKind& expected = sig.begin()[i];
+					const Type* got = visitExpression(attr->params[i].get());
+					if (got->kind != expected) {
+						ctx.diag.error({ fsrc, node->line, node->column }, 3003,
+							"(argument #%u) expected type %s, got %s",
+							i + 1, strtypekind(expected), got->str()
+						);
+						break;
+					}
+				}
+
+			} break;
 
 			default:
 				ctx.diag.warn({ fsrc, node->line, node->column }, "unhandled root statement kind %d in SemanticAnalyzer\n", node->kind);
@@ -122,7 +207,9 @@ namespace tea::frontend {
 		switch (node->kind) {
 		case AST::NodeKind::Return: {
 			Type* returnedType = visitExpression(((AST::ReturnNode*)node)->value.get());
-			if (!func->returnType->equals(returnedType))
+			if (!func->returnType)
+				func->returnType = returnedType;
+			else if (!func->returnType->equals(returnedType))
 				ctx.diag.error({ fsrc, node->line, node->column }, 3003,
 					"return type mismatch, expected '%s', got '%s'",
 					func->returnType->str().data(), returnedType->str().data()
@@ -226,7 +313,7 @@ namespace tea::frontend {
 					nargs++;
 
 				if ((ftype->extra && ftype->params.size > nargs) || (!ftype->extra && ftype->params.size != nargs))
-					ctx.diag.error({ fsrc, node->line, node->column }, 3005,
+					ctx.diag.error({ fsrc, node->line, node->column }, 3002,
 						"argument count mismatch, expected%s %u, got %u",
 						ftype->extra ? " atleast" : "",
 						ftype->params.size, nargs
@@ -502,6 +589,46 @@ namespace tea::frontend {
 		}
 
 		pushsym(node->name, node->type, (bool)node->type->constant, false, false, false, node->type != nullptr);
+	}
+
+	AST::ReturnNode* SemanticAnalyzer::findFirstReturn(const AST::Tree& tree) {
+		for (const auto& node : tree) {
+			switch (node->kind) {
+			case AST::NodeKind::Return:
+				return (AST::ReturnNode*)node.get();
+
+			case AST::NodeKind::If: {
+				AST::IfNode* ifNode = (AST::IfNode*)node.get();
+				if (auto* r = findFirstReturn(ifNode->body))
+					return r;
+
+				AST::ElseIfNode* elseIf = ifNode->elseIf.get();
+				while (elseIf) {
+					if (auto* r = findFirstReturn(elseIf->body))
+						return r;
+					elseIf = elseIf->next.get();
+				}
+
+				if (ifNode->otherwise)
+					if (auto* r = findFirstReturn(ifNode->otherwise->body))
+						return r;
+			} break;
+
+			case AST::NodeKind::WhileLoop:
+				if (auto* r = findFirstReturn(((AST::WhileLoopNode*)node.get())->body))
+					return r;
+				break;
+
+			case AST::NodeKind::ForLoop:
+				if (auto* r = findFirstReturn(((AST::ForLoopNode*)node.get())->body))
+					return r;
+				break;
+
+			default:
+				break;
+			}
+		}
+		return nullptr;
 	}
 
 }

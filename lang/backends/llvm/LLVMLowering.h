@@ -10,8 +10,8 @@ namespace tea::backend {
 		LLVMModuleRef M = nullptr;
 
 		tea::map<tea::string, LLVMValueRef> globalMap;
-		tea::map<const mir::Value*, LLVMValueRef> valueMap;
-		tea::map<const mir::BasicBlock*, LLVMBasicBlockRef> blockMap;
+		tea::umap<const mir::Value*, LLVMValueRef> valueMap;
+		tea::umap<const mir::BasicBlock*, LLVMBasicBlockRef> blockMap;
 
 	public:
 		LLVMLowering(tea::Context& ctx) : Lowering(ctx) {};

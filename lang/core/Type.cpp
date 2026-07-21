@@ -252,7 +252,7 @@ namespace tea {
 			kind == TypeKind::Long;
 	}
 
-	tea::string Type::str() {
+	tea::string Type::str() const {
 		tea::string result;
 
 		switch (kind) {

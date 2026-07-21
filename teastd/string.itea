@@ -1,3 +1,5 @@
+@!module("string")
+
 import func len(string str) -> int;
 import func eq(string s1, string s2) -> bool;
 

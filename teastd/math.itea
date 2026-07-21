@@ -1,3 +1,5 @@
+@!module("math")
+
 import func abs(int num) -> int;
 import func sqrt(int num) -> int;
 

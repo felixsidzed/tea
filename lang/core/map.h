@@ -3,11 +3,10 @@
 #include "vector.h"
 
 #include <utility>
-#include <initializer_list>
 #include <functional>
+#include <initializer_list>
 
 namespace tea {
-	// TODO: maybe not hash key sometimes
 	template<typename K, typename V>
 	class map {
 	public:
