@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{c266904f-a23a-4cea-a282-a9d9a594c423}</ProjectGuid>
+    <RootNamespace>lang</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>.</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>D:\LLVM\lib\LLVM-C.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>.</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>D:\LLVM\lib\LLVM-C.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="argparse.cpp" />
+    <ClCompile Include="backends\llvm\LLVMLowering.cpp" />
+    <ClCompile Include="backends\luau\LuauDumper.cpp" />
+    <ClCompile Include="backends\luau\LuauLowering.cpp" />
+    <ClCompile Include="codegen\codegen.cpp" />
+    <ClCompile Include="codegen\emitters\block.cpp" />
+    <ClCompile Include="codegen\emitters\expression.cpp" />
+    <ClCompile Include="codegen\emitters\import.cpp" />
+    <ClCompile Include="codegen\emitters\object.cpp" />
+    <ClCompile Include="codegen\emitters\variable.cpp" />
+    <ClCompile Include="core\context.cpp" />
+    <ClCompile Include="mir\Builder.cpp" />
+    <ClCompile Include="mir\Constant.cpp" />
+    <ClCompile Include="core\tea.cpp" />
+    <ClCompile Include="core\Type.cpp" />
+    <ClCompile Include="frontend\lexer\Lexer.cpp" />
+    <ClCompile Include="frontend\parser\Parser.cpp" />
+    <ClCompile Include="frontend\semantics\SemanticAnalyzer.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="mir\dump\dump.cpp" />
+    <ClCompile Include="mir\mir.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="argparse.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Analysis.h" />
+    <ClInclude Include="backends\llvm\llvm-c\BitReader.h" />
+    <ClInclude Include="backends\llvm\llvm-c\BitWriter.h" />
+    <ClInclude Include="backends\llvm\llvm-c\blake3.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Comdat.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Config\abi-breaking.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Config\config.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Config\llvm-config.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Core.h" />
+    <ClInclude Include="backends\llvm\llvm-c\DataTypes.h" />
+    <ClInclude Include="backends\llvm\llvm-c\DebugInfo.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Deprecated.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Disassembler.h" />
+    <ClInclude Include="backends\llvm\llvm-c\DisassemblerTypes.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Error.h" />
+    <ClInclude Include="backends\llvm\llvm-c\ErrorHandling.h" />
+    <ClInclude Include="backends\llvm\llvm-c\ExecutionEngine.h" />
+    <ClInclude Include="backends\llvm\llvm-c\ExternC.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Initialization.h" />
+    <ClInclude Include="backends\llvm\llvm-c\IRReader.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Linker.h" />
+    <ClInclude Include="backends\llvm\llvm-c\LLJIT.h" />
+    <ClInclude Include="backends\llvm\llvm-c\lto.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Object.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Orc.h" />
+    <ClInclude Include="backends\llvm\llvm-c\OrcEE.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Remarks.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Support.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Target.h" />
+    <ClInclude Include="backends\llvm\llvm-c\TargetMachine.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Transforms\AggressiveInstCombine.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Transforms\InstCombine.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Transforms\IPO.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Transforms\PassBuilder.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Transforms\PassManagerBuilder.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Transforms\Scalar.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Transforms\Utils.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Transforms\Vectorize.h" />
+    <ClInclude Include="backends\llvm\llvm-c\Types.h" />
+    <ClInclude Include="backends\llvm\LLVMLowering.h" />
+    <ClInclude Include="backends\Lowering.h" />
+    <ClInclude Include="backends\luau\Bytecode.h" />
+    <ClInclude Include="backends\luau\BytecodeUtils.h" />
+    <ClInclude Include="backends\luau\LuauLowering.h" />
+    <ClInclude Include="codegen\codegen.h" />
+    <ClInclude Include="codegen\flags.h" />
+    <ClInclude Include="core\context.h" />
+    <ClInclude Include="core\map.h" />
+    <ClInclude Include="core\string.h" />
+    <ClInclude Include="core\tea.h" />
+    <ClInclude Include="core\Type.h" />
+    <ClInclude Include="core\umap.h" />
+    <ClInclude Include="core\vector.h" />
+    <ClInclude Include="frontend\lexer\Lexer.h" />
+    <ClInclude Include="frontend\parser\AST.h" />
+    <ClInclude Include="frontend\parser\Parser.h" />
+    <ClInclude Include="frontend\semantics\SemanticAnalyzer.h" />
+    <ClInclude Include="mir\dump\dump.h" />
+    <ClInclude Include="mir\mir.h" />
+    <ClInclude Include="mir\Scope.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="backends\llvm\llvm-c\Config\AsmParsers.def" />
+    <None Include="backends\llvm\llvm-c\Config\AsmPrinters.def" />
+    <None Include="backends\llvm\llvm-c\Config\Disassemblers.def" />
+    <None Include="backends\llvm\llvm-c\Config\TargetMCAs.def" />
+    <None Include="backends\llvm\llvm-c\Config\Targets.def" />
+    <None Include="backends\llvm\llvm-c\module.modulemap" />
+    <None Include="playground\test.tea" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
