@@ -146,7 +146,7 @@
     <ClCompile Include="core\Type.cpp" />
     <ClCompile Include="frontend\lexer\Lexer.cpp" />
     <ClCompile Include="frontend\parser\Parser.cpp" />
-    <ClCompile Include="frontend\semantics\SemanticAnalyzer.cpp" />
+    <ClCompile Include="frontend\analysis\Analyzer.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="mir\dump\dump.cpp" />
     <ClCompile Include="mir\mir.cpp" />
@@ -209,7 +209,7 @@
     <ClInclude Include="frontend\lexer\Lexer.h" />
     <ClInclude Include="frontend\parser\AST.h" />
     <ClInclude Include="frontend\parser\Parser.h" />
-    <ClInclude Include="frontend\semantics\SemanticAnalyzer.h" />
+    <ClInclude Include="frontend\analysis\Analyzer.h" />
     <ClInclude Include="mir\dump\dump.h" />
     <ClInclude Include="mir\mir.h" />
     <ClInclude Include="mir\Scope.h" />
@@ -222,6 +222,9 @@
     <None Include="backends\llvm\llvm-c\Config\Targets.def" />
     <None Include="backends\llvm\llvm-c\module.modulemap" />
     <None Include="playground\test.tea" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ErrorCodes.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

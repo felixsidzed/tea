@@ -6,7 +6,7 @@
 
 namespace tea::backend {
 
-	class LLVMLowering : Lowering {
+	class LLVMLowering : public Lowering {
 		LLVMModuleRef M = nullptr;
 
 		tea::map<tea::string, LLVMValueRef> globalMap;
@@ -14,7 +14,10 @@ namespace tea::backend {
 		tea::umap<const mir::BasicBlock*, LLVMBasicBlockRef> blockMap;
 
 	public:
-		LLVMLowering(tea::Context& ctx) : Lowering(ctx) {};
+		LLVMLowering(tea::Context& ctx);
+
+		tea::string name() override { return "llvm"; }
+		tea::vector<tea::string> supportedTargets() override;
 
 		void lower(const mir::Module* module, Options options) override;
 

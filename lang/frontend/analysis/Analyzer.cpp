@@ -1,4 +1,4 @@
-#include "SemanticAnalyzer.h"
+#include "Analyzer.h"
 
 #include <span>
 #include <fstream>
@@ -44,7 +44,7 @@ namespace tea::frontend {
 		return nullptr;
 	}
 
-	void SemanticAnalyzer::visit(const AST::Tree& root, uint32_t fsrc_) {
+	void Analyzer::visit(const AST::Tree& root, uint32_t fsrc_) {
 		fsrc = fsrc_;
 		pushscope();
 
@@ -176,7 +176,7 @@ namespace tea::frontend {
 			} break;
 
 			default:
-				ctx.diag.warn({ fsrc, node->line, node->column }, "unhandled root statement kind %d in SemanticAnalyzer\n", node->kind);
+				ctx.diag.warn({ fsrc, node->line, node->column }, "unhandled root statement kind %d in Analyzer\n", node->kind);
 				break;
 			}
 		}
@@ -184,7 +184,7 @@ namespace tea::frontend {
 		popscope();
 	}
 
-	SemanticAnalyzer::Symbol* SemanticAnalyzer::lookup(const tea::string& name) {
+	Analyzer::Symbol* Analyzer::lookup(const tea::string& name) {
 		auto it = scopeHistory.end() - 1;
 		while (true) {
 			for (auto& sym : *it)
@@ -198,12 +198,12 @@ namespace tea::frontend {
 		return nullptr;
 	}
 
-	void SemanticAnalyzer::visitBlock(const AST::Tree& tree, bool inLoop) {
+	void Analyzer::visitBlock(const AST::Tree& tree, bool inLoop) {
 		for (const auto& node : tree)
 			visitStat(node.get(), inLoop);
 	}
 
-	void SemanticAnalyzer::visitStat(const AST::Node* node, bool inLoop) {
+	void Analyzer::visitStat(const AST::Node* node, bool inLoop) {
 		switch (node->kind) {
 		case AST::NodeKind::Return: {
 			Type* returnedType = visitExpression(((AST::ReturnNode*)node)->value.get());
@@ -261,13 +261,13 @@ namespace tea::frontend {
 
 		default:
 			#ifdef _DEBUG
-			fprintf(stderr, "SemanticAnalyzer: unhandled statement kind %d\n", node->kind);
+			fprintf(stderr, "Analyzer: unhandled statement kind %d\n", node->kind);
 			#endif
 			break;
 		}
 	}
 
-	Type* SemanticAnalyzer::visitExpression(AST::ExpressionNode* node, bool isCallee) {
+	Type* Analyzer::visitExpression(AST::ExpressionNode* node, bool isCallee) {
 		Type* type = ctx.types.Void();
 		switch (node->getEKind()) {
 		case AST::ExprKind::Int: type = ctx.types.Int(); break;
@@ -556,7 +556,7 @@ namespace tea::frontend {
 
 		default:
 			#ifdef _DEBUG
-			fprintf(stderr, "SemanticAnalyzer: unhandled expression kind %d\n", node->extra);
+			fprintf(stderr, "Analyzer: unhandled expression kind %d\n", node->extra);
 			#endif
 			break;
 		}
@@ -564,7 +564,7 @@ namespace tea::frontend {
 		return type;
 	}
 
-	void SemanticAnalyzer::visitVariable(AST::VariableNode* node) {
+	void Analyzer::visitVariable(AST::VariableNode* node) {
 		Type* initType = nullptr;
 		if (node->initializer)
 			initType = visitExpression(node->initializer.get());
@@ -591,7 +591,7 @@ namespace tea::frontend {
 		pushsym(node->name, node->type, (bool)node->type->constant, false, false, false, node->type != nullptr);
 	}
 
-	AST::ReturnNode* SemanticAnalyzer::findFirstReturn(const AST::Tree& tree) {
+	AST::ReturnNode* Analyzer::findFirstReturn(const AST::Tree& tree) {
 		for (const auto& node : tree) {
 			switch (node->kind) {
 			case AST::NodeKind::Return:

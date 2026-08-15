@@ -35,7 +35,7 @@ namespace tea::backend {
 		uint32_t emitABC(LuauOpcode op, uint8_t a, uint8_t b, uint8_t c);
 	};
 
-	class LuauLowering : Lowering {
+	class LuauLowering : public Lowering {
 		tea::vector<uint8_t> M;
 		std::unique_ptr<ProtoBuilder> proto = nullptr;
 
@@ -47,6 +47,9 @@ namespace tea::backend {
 
 	public:
 		LuauLowering(tea::Context& ctx) : Lowering(ctx) {}
+
+		tea::string name() override { return "luau"; }
+		tea::vector<tea::string> supportedTargets() override;
 
 		static void dump(uint8_t* data, size_t size);
 		void lower(const mir::Module* module, Options options = {});

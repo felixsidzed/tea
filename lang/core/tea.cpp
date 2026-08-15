@@ -8,12 +8,12 @@
 #include "frontend/parser/Parser.h"
 #include "backends/llvm/LLVMLowering.h"
 #include "backends/luau/LuauLowering.h"
-#include "frontend/semantics/SemanticAnalyzer.h"
+#include "frontend/analysis/Analyzer.h"
 
 namespace tea {
 	void compile(
 		Context& ctx, uint32_t fsrc,
-		const char* outfile, const char* triple,
+		const char* outfile, const char* fqTarget,
 		const CompilerFlags& flags, uint8_t optLevel
 	) {
 		clock_t start = clock();
@@ -27,17 +27,33 @@ namespace tea {
 		if (ctx.diag.hasError)
 			return;
 
-		tea::frontend::SemanticAnalyzer analyzer(ctx);
+		tea::frontend::Analyzer analyzer(ctx);
 		analyzer.visit(ast, fsrc);
 		if (ctx.diag.hasError)
 			return;
 
+		tea::string backendName = "llvm";
+		tea::string target = fqTarget ? fqTarget : "";
+
+		if (fqTarget) {
+			const char* at = strchr(fqTarget, '@');
+			if (at) {
+				backendName = tea::string(fqTarget, at - fqTarget);
+				target = at + 1;
+			}
+		}
+
+		if (target.empty()) {
+			ctx.diag.fatal(TEA_NO_SOURCELOC, 0, "missing target");
+			return;
+		}
+
 		tea::CodeGen codegen(ctx);
 		tea::CodeGen::Options coptions;
-		if (triple)
-			coptions.triple = triple;
-		auto module = codegen.emit(fsrc, ast, coptions);
+		if (fqTarget)
+			coptions.target = target;
 
+		auto module = codegen.emit(fsrc, ast, coptions);
 		if (flags.has(CompilerFlags::DumpMIR)) {
 			tea::mir::dump(module.get());
 			putchar('\n');
@@ -46,21 +62,27 @@ namespace tea {
 		if (ctx.diag.hasError)
 			return;
 
-		if (module->triple == "experimental-luau-0.730") {
-			tea::backend::LuauLowering lowering(ctx);
-			lowering.lower(module.get(), {
-				.outfile = outfile,
-				.dumpModule = flags.has(CompilerFlags::DumpFinalIR),
-				.optLevel = optLevel
-			});
+		std::unique_ptr<tea::backend::Lowering> lowering = nullptr;
+		if (backendName == "llvm") {
+			lowering = std::make_unique<tea::backend::LLVMLowering>(ctx);
+		} else if (backendName == "luau") {
+			lowering = std::make_unique<tea::backend::LuauLowering>(ctx);
 		} else {
-			tea::backend::LLVMLowering lowering(ctx);
-			lowering.lower(module.get(), {
-				.outfile = outfile,
-				.dumpModule = flags.has(CompilerFlags::DumpFinalIR),
-				.optLevel = optLevel,
-			});
+			ctx.diag.fatal(TEA_NO_SOURCELOC, 0, "unknown backend '%s'", backendName.data());
+			return;
 		}
+
+		auto it = lowering->supportedTargets().find(target);
+		if (!it) {
+			ctx.diag.fatal(TEA_NO_SOURCELOC, 1, "the backend '%s' doesn't support the target '%s'", backendName.data(), target.data());
+			return;
+		}
+
+		lowering->lower(module.get(), {
+			.outfile = outfile,
+			.dumpModule = flags.has(CompilerFlags::DumpFinalIR),
+			.optLevel = optLevel,
+		});
 
 		double diff = (clock() - start) / (double)CLOCKS_PER_SEC;
 		printf("Compilation took %ldm %lds %ldms\n",

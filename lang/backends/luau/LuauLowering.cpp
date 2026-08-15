@@ -600,4 +600,8 @@ namespace tea::backend {
 		TEA_UNREACHABLE();
 	}
 
+	tea::vector<tea::string> LuauLowering::supportedTargets() {
+		return { "", "0.730" };
+	}
+
 } // namespace tea::backend

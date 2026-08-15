@@ -1,0 +1,33 @@
+CLI:
+0000 = missing argument
+0001 = invalid argument
+0002 = unable to open file
+
+Lexer:
+1000 = unterminated char/string literal
+1001 = invalid character
+
+Parser:
+2000 = unexpected token
+2001 = invalid token/type/attribute
+2002 = unable to deduce type
+2003 = module import error
+
+Analyzer:
+3000 = undefined symbol
+3002 = argument count mismatch
+3003 = type mismatch
+3004 = unable to deduce type
+3005 = bad statement
+3006 = not a member of
+
+CodeGen:
+4000 = internal error
+4001 = control flow error
+4002 = bad statement
+4003 = non constant expression
+4004 = undefined symbol # hoooly cuz 404 Not Found
+4005 = bad assignment
+
+Lowering:
+5000 = internal error

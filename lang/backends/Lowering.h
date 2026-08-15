@@ -18,6 +18,9 @@ namespace tea::backend {
 
 		Lowering(tea::Context& ctx) : ctx(ctx) {};
 
+		virtual tea::string name() = 0;
+		virtual tea::vector<tea::string> supportedTargets() = 0;
+
 		virtual void lower(const mir::Module* module, Options options = {}) = 0;
 	};
 

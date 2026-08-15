@@ -260,7 +260,7 @@ namespace tea::mir {
 
 		DataLayout dl;
 		tea::string source;
-		tea::string triple;
+		tea::string target;
 
 		tea::umap<size_t, std::unique_ptr<ConstantArray>> arrConst;
 		tea::map<tea::string, std::unique_ptr<ConstantString>> strConst;

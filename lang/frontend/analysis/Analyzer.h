@@ -7,7 +7,7 @@
 
 namespace tea::frontend {
 
-	 class SemanticAnalyzer {
+	 class Analyzer {
 		 struct Symbol {
 			 tea::string name;
 			 Type* type;
@@ -43,7 +43,7 @@ namespace tea::frontend {
 		tea::umap<tea::StructType*, AST::ObjectNode*> structMap;
 
 	public:
-		SemanticAnalyzer(tea::Context& ctx) : ctx(ctx) {}
+		Analyzer(tea::Context& ctx) : ctx(ctx) {}
 
 		void visit(const frontend::AST::Tree& root, uint32_t fsrc);
 

@@ -36,8 +36,8 @@ namespace tea::mir {
 			module->dl.endian == (uint8_t)std::endian::big ? 'E' : 'e',
 			module->dl.maxNativeBytes
 		);
-		if (!module->triple.empty())
-			printf("// Triple: \"%s\"\n", module->triple.data());
+		if (!module->target.empty())
+			printf("// Triple: \"%s\"\n", module->target.data());
 		putchar('\n');
 
 		for (const auto& g : module->body) {

@@ -1,5 +1,7 @@
 #include "LLVMLowering.h"
 
+#include <algorithm>
+
 #include "core/tea.h"
 
 #include "llvm-c/Core.h"
@@ -57,20 +59,22 @@ namespace tea::backend {
 		}
 	}
 
-	void LLVMLowering::lower(const mir::Module* module, Options options) {
+	LLVMLowering::LLVMLowering(tea::Context& ctx) : Lowering(ctx) {
 		LLVMInitializeAllTargets();
 		LLVMInitializeAllTargetMCs();
 		LLVMInitializeAllTargetInfos();
 		LLVMInitializeAllAsmPrinters();
 		LLVMContextSetOpaquePointers(LLVMGetGlobalContext(), false);
+	}
 
+	void LLVMLowering::lower(const mir::Module* module, Options options) {
 		M = LLVMModuleCreateWithName(module->source.data());
 		this->options = options;
 
 		char* err = nullptr;
 
-		tea::string triple = module->triple;
-		if (module->triple.empty())
+		tea::string triple = module->target;
+		if (triple.empty())
 			triple = LLVMGetDefaultTargetTriple();
 
 		std::string dl; {
@@ -546,6 +550,45 @@ namespace tea::backend {
 		default:
 			return LLVMConstNull(LLVMPointerType(LLVMVoidType(), 0));
 		}
+	}
+
+	static const char* _targetSuffixes[] = {
+		"",
+		"-unknown-unknown",
+		"-unknown-unknown-elf",
+		"-unknown-linux-gnu",
+		"-unknown-linux-musl",
+		"-pc-windows-msvc",
+		"-pc-windows-gnu",
+		"-apple-darwin",
+		"-apple-ios",
+		"-none-eabi",
+	};
+
+	tea::vector<tea::string> LLVMLowering::supportedTargets() {
+		// llvm kinda stupid
+		tea::vector<tea::string> valid = { "" };
+
+		for (LLVMTargetRef target = LLVMGetFirstTarget(); target != nullptr; target = LLVMGetNextTarget(target)) {
+
+			tea::string arch = LLVMGetTargetName(target);
+			std::replace(arch.data(), arch.data() + arch.length(), '-', '_');
+
+			for (const char* pattern : _targetSuffixes) {
+				const std::string& candidate = std::format("{}{}", arch, pattern);
+
+				char* errorMsg = nullptr;
+				LLVMTargetRef resolved = nullptr;
+				LLVMBool failed = LLVMGetTargetFromTriple(candidate.c_str(), &resolved, &errorMsg);
+				if (errorMsg)
+					LLVMDisposeMessage(errorMsg);
+
+				if (!failed && resolved == target)
+					valid.push(candidate.data());
+			}
+		}
+
+		return valid;
 	}
 
 } // namespace tea::backend

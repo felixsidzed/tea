@@ -33,8 +33,8 @@ namespace tea {
 
 	public:
 		struct Options {
-			tea::string triple;
 			mir::DataLayout dl;
+			tea::string target;
 		};
 
 		CodeGen(tea::Context& ctx) : ctx(ctx), builder(ctx) {}

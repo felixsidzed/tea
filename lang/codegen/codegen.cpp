@@ -12,7 +12,7 @@ namespace tea {
 		fsrc = fsrc_;
 
 		module = std::make_unique<mir::Module>(ctx, "[module]");
-		module->triple = options.triple;
+		module->target = options.target;
 		module->dl = options.dl;
 
 		for (const auto& node : tree) {

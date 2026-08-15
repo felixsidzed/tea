@@ -28,8 +28,8 @@ int main(int argc, char** argv) {
 			uint32_t fsrc = ctx.sources.load(input);
 			if (fsrc == tea::badid)
 				ctx.diag.error(TEA_NO_SOURCELOC, 2, "could not open file: %s", input);
-
-			tea::compile(ctx, fsrc, outFile, args.triple, args.flags, args.optLevel);
+			else
+				tea::compile(ctx, fsrc, outFile, args.triple, args.flags, args.optLevel);
 		}
 
 	} catch (const std::exception&) {
