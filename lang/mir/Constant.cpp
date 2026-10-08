@@ -2,8 +2,8 @@
 
 namespace tea::mir {
 
-	ConstantNumber* ConstantNumber::get(Module* module, uint64_t val, uint8_t width, bool sign) {
-		auto& types = module->ctx.types;
+	ConstantNumber* Module::constnum(uint64_t val, uint8_t width, bool sign) {
+		auto& types = ctx.types;
 
 		Type* type = nullptr;
 		switch (width) {
@@ -16,7 +16,7 @@ namespace tea::mir {
 		}
 
 		if (val == 0 || val == 1) {
-			auto& map = val == 0 ? module->num0Const : module->num1Const;
+			auto& map = val == 0 ? num0Const : num1Const;
 			auto& entry = map[width];
 			if (!entry)
 				entry.reset(new ConstantNumber(type, val));
@@ -26,7 +26,7 @@ namespace tea::mir {
 			h = (h ^ val) * 1099511628211uLL;
 			h = (h ^ width) * 1099511628211uLL;
 
-			auto& entry = module->numConst[h];
+			auto& entry = numConst[h];
 			if (!entry)
 				entry.reset(new ConstantNumber(type, val));
 			return entry.get();
@@ -34,8 +34,8 @@ namespace tea::mir {
 	}
 
 	template<typename T, typename>
-	ConstantNumber* ConstantNumber::get(Module* module, double fval, uint8_t width, bool sign) {
-		auto& types = module->ctx.types;
+	ConstantNumber* Module::constnum(double fval, uint8_t width, bool sign) {
+		auto& types = ctx.types;
 
 		Type* type = nullptr;
 		switch (width) {
@@ -48,47 +48,44 @@ namespace tea::mir {
 
 		std::unique_ptr<ConstantNumber>* entry = nullptr;
 		if (val == 0 || val == 1) {
-			auto& map = val == 0 ? module->num0Const : module->num1Const;
+			auto& map = val == 0 ? num0Const : num1Const;
 			auto& entry = map[width];
 			if (!entry)
 				entry.reset(new ConstantNumber(type, val));
 			return entry.get();
 		} else {
-			auto& entry = module->numConst[val];
+			auto& entry = numConst[val];
 			if (!entry)
 				entry.reset(new ConstantNumber(type, val));
 			return entry.get();
 		}
 	}
 
-	template ConstantNumber* ConstantNumber::get<double>(Module*, double, uint8_t, bool);
+	template ConstantNumber* Module::constnum<double>(double, uint8_t, bool);
 
-	ConstantString* ConstantString::get(Module* module, const tea::string& val) {
-		auto& entry = module->strConst[val];
+	ConstantString* Module::conststr(const tea::string& val) {
+		auto& entry = strConst[val];
 		if (!entry)
-			entry.reset(new ConstantString(module->ctx, val));
+			entry.reset(new ConstantString(ctx, val));
 		return entry.get();
 	}
 
-	ConstantArray* ConstantArray::get(Module* module, Type* elementType, Value** values, uint32_t n) {
-		uint64_t h = 1469598103934665603uLL;
-		for (size_t i = 0; i < n; i++)
-			h = (h ^ (uintptr_t)values[i]) * 1099511628211uLL;
-
-		auto& entry = module->arrConst[h];
+	ConstantArray* Module::constarr(Type* elementType, Value** values, uint32_t n) {
+		ConstantArrayKey key = { elementType, { values, n } };
+		auto& entry = arrConst[key];
 		if (!entry)
-			entry.reset(new ConstantArray(module->ctx, elementType, values, n));
+			entry.reset(new ConstantArray(ctx, elementType, values, n));
 		return entry.get();
 	}
 
-	ConstantPointer* ConstantPointer::get(Module* module, Type* pointee, uintptr_t value) {
+	ConstantPointer* Module::constptr(Type* pointee, uintptr_t value) {
 		uint64_t h = 1469598103934665603uLL;
 		h = (h ^ (uintptr_t)pointee) * 1099511628211uLL;
 		h = (h ^ value) * 1099511628211uLL;
 
-		auto& entry = module->ptrConst[h];
+		auto& entry = ptrConst[h];
 		if (!entry)
-			entry.reset(new ConstantPointer(module->ctx, pointee, value));
+			entry.reset(new ConstantPointer(ctx, pointee, value));
 		return entry.get();
 	}
 

@@ -27,7 +27,7 @@ namespace tea {
 		mir::BasicBlock* contTarget = nullptr;
 		mir::BasicBlock* breakTarget = nullptr;
 
-		uint32_t fsrc;
+		uint32_t fsrc = tea::badid;
 
 		const char* curModuleName = nullptr;
 

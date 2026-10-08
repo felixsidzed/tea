@@ -23,6 +23,7 @@ namespace tea {
 	class TypeTable {
 	public:
 		tea::vector<std::unique_ptr<Type>> types;
+		// TODO: use map with custom std::hasher
 		tea::umap<size_t, std::unique_ptr<StructType>> structTypes;
 		tea::umap<size_t, std::unique_ptr<FunctionType>> funcTypes;
 

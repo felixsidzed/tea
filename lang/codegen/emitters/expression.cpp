@@ -13,7 +13,7 @@ namespace tea {
 			case TypeKind::Int:
 				pred = builder.icmp(
 					mir::ICmpPredicate::NEQ, pred,
-					mir::ConstantNumber::get(module.get(), 0, module->getSize(pred->type) * 8, pred->type->sign), ""
+					module->constnum(0, module->getSize(pred->type) * 8, pred->type->sign), ""
 				);
 				break;
 
@@ -21,7 +21,7 @@ namespace tea {
 			case TypeKind::Double:
 				pred = builder.fcmp(
 					mir::FCmpPredicate::ONEQ, pred,
-					mir::ConstantNumber::get<double>(module.get(), 0.0, module->getSize(pred->type) * 8, pred->type->sign), ""
+					module->constnum<double>(0.0, module->getSize(pred->type) * 8, pred->type->sign), ""
 				);
 				break;
 
@@ -37,7 +37,7 @@ namespace tea {
 		case AST::ExprKind::String: {
 			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
 			if (flags.has(EmissionFlags::Constant)) {
-				mir::ConstantString* str = mir::ConstantString::get(module.get(), literal->value);
+				mir::ConstantString* str = module->conststr(literal->value);
 				return module->addGlobal("", str->type, str);
 			} else
 				return builder.globalString(literal->value);
@@ -45,19 +45,19 @@ namespace tea {
 
 		case AST::ExprKind::Char: {
 			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
-			return mir::ConstantNumber::get(module.get(), literal->value[0], 8);
+			return module->constnum(literal->value[0], 8);
 		}
 
 		case AST::ExprKind::Int: {
 			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
 			uint64_t val = std::stoull(std::string(literal->value.data(), literal->value.length()), nullptr, 0);
-			return mir::ConstantNumber::get(module.get(), val, 32, node->type->sign);
+			return module->constnum(val, 32, node->type->sign);
 		}
 
 		case AST::ExprKind::Double:
 		case AST::ExprKind::Float: {
 			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
-			return mir::ConstantNumber::get<double>(module.get(),
+			return module->constnum<double>(
 				std::stod(std::string(literal->value.data(), literal->value.length()), nullptr),
 				node->getEKind() == AST::ExprKind::Float ? 32 : 64,
 				node->type->sign
@@ -68,11 +68,11 @@ namespace tea {
 			const AST::LiteralNode* literal = (const AST::LiteralNode*)node;
 
 			if (literal->value == "true")
-				return mir::ConstantNumber::get(module.get(), 1, 1);
+				return module->constnum(1, 1);
 			else if (literal->value == "false")
-				return mir::ConstantNumber::get(module.get(), 0, 1);
+				return module->constnum(0, 1);
 			else if (literal->value == "null")
-				return mir::ConstantPointer::get(module.get(), ctx.types.Void(), 0);
+				return module->constptr(ctx.types.Void(), 0);
 
 			{
 				mir::Function* f = module->getNamedFunction(literal->value);
@@ -95,7 +95,7 @@ namespace tea {
 					} else {
 						mir::Value* value = nullptr;
 						if (g->type->kind == TypeKind::Array) {
-							mir::ConstantNumber* zero = mir::ConstantNumber::get(module.get(), 0, 32);
+							mir::ConstantNumber* zero = module->constnum(0, 32);
 							mir::Value* idx[] = { zero, zero };
 							value = builder.gep(g, idx, 2, "");
 						} else
@@ -127,7 +127,7 @@ namespace tea {
 					} else {
 						if (!it->loaded) {
 							if (it->allocated->type->getElementType()->kind == TypeKind::Array) {
-								mir::ConstantNumber* zero = mir::ConstantNumber::get(module.get(), 0, 32);
+								mir::ConstantNumber* zero = module->constnum(0, 32);
 								mir::Value* idx[] = { zero, zero };
 								it->loaded = builder.gep(it->allocated, idx, 2, "");
 							} else
@@ -382,7 +382,7 @@ namespace tea {
 			for (const auto& val : arr->values)
 				values.emplace(emitExpression(val.get()));
 
-			return mir::ConstantArray::get(module.get(), arr->type->getElementType(), values.data, values.size);
+			return module->constarr(arr->type->getElementType(), values.data, values.size);
 		} break;
 
 		case AST::ExprKind::Assignment: {
@@ -453,7 +453,7 @@ namespace tea {
 			const AST::ObjectNode* obj = *structMap.find(st);
 			for (const auto& field : obj->fields) {
 				if (field->name == name) {
-					mir::Value* val = builder.gep(lhs, mir::ConstantNumber::get(module.get(), i, 32), "");
+					mir::Value* val = builder.gep(lhs, module->constnum(i, 32), "");
 					if (asRef) {
 						*asRef = true;
 						return val;

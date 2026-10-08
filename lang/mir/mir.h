@@ -161,11 +161,6 @@ namespace tea::mir {
 			}
 			return (int64_t)val;
 		}
-
-		static ConstantNumber* get(Module* module, uint64_t value, uint8_t bitwidth, bool sign = true);
-
-		template<typename T, typename = typename std::enable_if<std::is_same<T, double>::value>::type>
-		static ConstantNumber* get(Module* module, double value, uint8_t bitwidth, bool sign = true);
 	};
 
 	class ConstantString : public Value {
@@ -176,8 +171,6 @@ namespace tea::mir {
 			: Value(ValueKind::Constant, ctx.types.Array(ctx.types.Char(true), (uint32_t)value.length() + 1, true)), value(value) {
 			subclassData = (uint32_t)ConstantKind::String;
 		}
-
-		static ConstantString* get(Module* module, const tea::string& value);
 	};
 
 	class ConstantArray : public Value {
@@ -188,8 +181,6 @@ namespace tea::mir {
 			: Value(ValueKind::Constant, ctx.types.Array(elementType, n, true)), values(values, n) {
 			subclassData = (uint32_t)ConstantKind::Array;
 		}
-
-		static ConstantArray* get(Module* module, Type* elementType, Value** values, uint32_t n);
 	};
 
 	class ConstantPointer : public Value {
@@ -200,8 +191,6 @@ namespace tea::mir {
 			: Value(ValueKind::Constant, ctx.types.Pointer(pointee, false)), value(value) {
 			subclassData = (uint32_t)ConstantKind::Pointer;
 		}
-
-		static ConstantPointer* get(Module* module, tea::Type* pointee, uintptr_t value);
 	};
 
 	class Function : public Value {
@@ -227,7 +216,7 @@ namespace tea::mir {
 		BasicBlock* appendBlock(const tea::string& name);
 
 		Value* getParam(uint32_t i) const { return params[i].get(); }
-		BasicBlock* getBlock(uint32_t i) { return blocks[i].get(); }
+		BasicBlock* getBlock(uint32_t i) const { return blocks[i].get(); }
 	};
 
 	class Global : public Value {
@@ -262,25 +251,44 @@ namespace tea::mir {
 		tea::string source;
 		tea::string target;
 
-		tea::umap<size_t, std::unique_ptr<ConstantArray>> arrConst;
+		class ConstantArrayKey {
+		public:
+			Type* elementType;
+			tea::vector<Value*> values; // TODO: ughhhh
+
+			bool operator==(const ConstantArrayKey& other) const {
+				if (elementType != other.elementType) return false;
+				if (values.size != other.values.size) return false;
+				for (uint32_t i = 0; i < values.size; i++)
+					if (values[i] != other.values[i]) return false;
+				return true;
+			};
+		};
+
+		tea::map<ConstantArrayKey, std::unique_ptr<ConstantArray>> arrConst;
 		tea::map<tea::string, std::unique_ptr<ConstantString>> strConst;
 
 		tea::umap<uint8_t, std::unique_ptr<ConstantNumber>> num0Const;
 		tea::umap<uint8_t, std::unique_ptr<ConstantNumber>> num1Const;
 		tea::umap<uint64_t, std::unique_ptr<ConstantNumber>> numConst;
 
-		tea::umap<size_t, std::unique_ptr<ConstantPointer>> ptrConst;
+		tea::map<size_t, std::unique_ptr<ConstantPointer>> ptrConst;
 
 		Module(tea::Context& ctx, const tea::string& source) : ctx(ctx), source(source) {
 		}
 
+		uint32_t getSize(const tea::Type* type) const;
+		Global* getNamedGlobal(const tea::string& name) const;
+		Function* getNamedFunction(const tea::string& name) const;
 		Function* addFunction(const tea::string& name, tea::FunctionType* ftype);
 		Global* addGlobal(const tea::string& name, Type* type, Value* initializer);
 
-		Global* getNamedGlobal(const tea::string& name) const;
-		Function* getNamedFunction(const tea::string& name) const;
-
-		uint32_t getSize(const tea::Type* type) const;
+		ConstantString* conststr(const tea::string& value);
+		ConstantPointer* constptr(Type* pointee, uintptr_t value);
+		ConstantArray* constarr(Type* elementType, Value** values, uint32_t n);
+		template<typename T,typename=typename std::enable_if<std::is_same<T,double>::value>::type>
+		ConstantNumber* constnum(double value, uint8_t bitwidth, bool sign = true);
+		ConstantNumber* constnum(uint64_t value, uint8_t bitwidth, bool sign = true);
 	};
 
 	class Builder {
@@ -310,3 +318,15 @@ namespace tea::mir {
 	};
 
 } // namespace tea::mir
+
+namespace std {
+	template<>
+	struct std::hash<tea::mir::Module::ConstantArrayKey> {
+		size_t operator()(const tea::mir::Module::ConstantArrayKey& key) const noexcept {
+			size_t h = std::hash<tea::Type*>{}(key.elementType);
+			for (tea::mir::Value* val : key.values)
+				h ^= std::hash<tea::mir::Value*>{}(val) + 0x9e3779b9 + (h << 6) + (h >> 2);
+			return h;
+		}
+	};
+}

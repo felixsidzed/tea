@@ -88,7 +88,7 @@ namespace tea::frontend {
 					next();
 
 					const tea::string& moduleName = consume(TokenKind::String).text;
-					std::string fullModuleName(moduleName + ".itea");
+					std::string fullModuleName(moduleName + ".tea"); // TOOD: prob only append .tea suffix when its missing
 
 					fs::path path;
 					uint32_t mfsrc = tea::badid;
@@ -117,7 +117,7 @@ namespace tea::frontend {
 						if (node->kind == AST::NodeKind::Attribute) {
 							AST::AttributeNode* attr = (AST::AttributeNode*)node.get();
 							if (node->extra == (uint32_t)AST::GlobalAttribute::Module) {
-								// TODO: move attribute param checking to parser
+								// TODO: move attribute param checking to here
 								if (attr->params.size != 1) {
 									ctx.diag.error({ mfsrc, node->line, node->column }, 2003, "too much or not enough parameters in @!module attribute");
 									break;
@@ -142,8 +142,18 @@ namespace tea::frontend {
 							fi->name = *mns + "::" + fi->name;
 							tree->push(std::move(node));
 							continue;
-						}
-						ctx.diag.error({ mfsrc, node->line, node->column }, 2003, "invalid statement in module", moduleName.data());
+						} else if (node->kind == AST::NodeKind::Function) {
+							if (!mns) {
+								ctx.diag.error({ mfsrc, node->line, node->column }, 2003, "missing @!module attribute");
+								break;
+							}
+
+							AST::FunctionNode* fn = (AST::FunctionNode*)node.get();
+							fn->name = *mns + "::" + fn->name;
+							auto node = mknode(AST::FunctionImportNode, fn->cc, fn->name, fn->params, fn->returnType, fn->vararg);
+							tree->emplace(std::move(node));
+						} /*else
+							ctx.diag.error({ mfsrc, node->line, node->column }, 2003, "invalid statement in module", moduleName.data());*/
 					}
 				} break;
 

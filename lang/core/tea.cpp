@@ -6,9 +6,10 @@
 #include "codegen/codegen.h"
 #include "frontend/lexer/Lexer.h"
 #include "frontend/parser/Parser.h"
+#include "frontend/analysis/Analyzer.h"
+
 #include "backends/llvm/LLVMLowering.h"
 #include "backends/luau/LuauLowering.h"
-#include "frontend/analysis/Analyzer.h"
 
 namespace tea {
 	void compile(
