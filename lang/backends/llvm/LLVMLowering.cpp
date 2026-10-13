@@ -470,6 +470,8 @@ namespace tea::backend {
 					result = LLVMBuildPtrToInt(builder, value, destType, insn.result->name);
 				} else if (src->isNumeric() && (dst->kind == TypeKind::Pointer || dst->kind == TypeKind::Function)) {
 					result = LLVMBuildIntToPtr(builder, value, destType, insn.result->name);
+				} else if (src->isFloat() && dst->isFloat()) {
+					result = LLVMBuildFPCast(builder, value, destType, insn.result->name);
 				} else
 					result = LLVMBuildBitCast(builder, value, destType, insn.result->name);
 			} break;

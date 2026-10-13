@@ -103,9 +103,10 @@ namespace tea::frontend {
 					if (auto* ret = findFirstReturn(func->body))
 						retty = visitExpression(ret->value.get());
 					else retty = ctx.types.Void();
+					func->returnType = retty;
 				}
 
-				Type* ftype = ctx.types.Function(func->returnType, params, func->vararg);
+				Type* ftype = ctx.types.Function(retty, params, func->vararg);
 				scopeHistory[scopeHistory.size - 2].emplace(func->name, ftype, false, true, false, func->vis == AST::StorageClass::Public, true);
 
 				visitBlock(func->body);

@@ -1,7 +1,11 @@
 @!module("io")
 
+import func printch(char ch) -> void;
 import func print(string message) -> void;
-import func printf(string fmt, ...) -> void;
+
+import func printf(string format, ...) -> int;
+import func sprintf(char* buffer, string fmt, ...) -> int;
+import func snprintf(char* buffer, long count, string format, ...) -> int;
 
 import func sizef(string path) -> long;
 import func existsf(string path) -> bool;

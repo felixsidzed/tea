@@ -60,7 +60,7 @@ namespace tea {
 			return module->constnum<double>(
 				std::stod(std::string(literal->value.data(), literal->value.length()), nullptr),
 				node->getEKind() == AST::ExprKind::Float ? 32 : 64,
-				node->type->sign
+				false
 			);
 		}
 

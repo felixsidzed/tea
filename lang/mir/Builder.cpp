@@ -253,6 +253,20 @@ namespace tea::mir {
 	}
 
 	Value* Builder::call(Value* func, Value** args, uint32_t n, const char* name) {
+		FunctionType* ft = (FunctionType*)func->type;
+		uint32_t fixedCount = ft->params.size;
+
+		for (uint32_t i = 0; i < n; i++) {
+			if (ft->extra && i >= fixedCount) {
+				Type* ty = args[i]->type;
+
+				if (ty->kind == TypeKind::Float)
+					args[i] = cast(args[i], ctx.types.Double(), "");
+				else if (ty->kind == TypeKind::Bool || ty->kind == TypeKind::Char || ty->kind == TypeKind::Short)
+					args[i] = cast(args[i], ctx.types.Int(), "");
+			}
+		}
+
 		Instruction* insn = block->body.emplace();
 		insn->op = OpCode::Call;
 
@@ -260,7 +274,7 @@ namespace tea::mir {
 		for (uint32_t i = 0; i < n; i++)
 			insn->operands.emplace(args[i]);
 
-		Type* retType = ((FunctionType*)func->type)->returnType;
+		Type* retType = ft->returnType;
 		if (retType->kind != TypeKind::Void) {
 			insn->result = std::make_unique<Value>(ValueKind::Instruction, retType);
 			insn->result->name = block->scope.add(name);
